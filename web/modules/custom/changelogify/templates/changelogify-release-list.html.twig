@@ -1,0 +1,32 @@
+{#
+/**
+ * @file
+ * Template for public changelog release listing.
+ */
+#}
+<div class="changelogify-release-list">
+  {% if releases is empty %}
+    <p>{{ 'No releases published yet.'|t }}</p>
+  {% else %}
+    {% for item in releases %}
+      <article class="changelogify-release-teaser">
+        <header>
+          <h2>
+            <a href="{{ path('changelogify.changelog_release', {'changelogify_release': item.release.id}) }}">
+              {{ item.release.title.value }}
+            </a>
+          </h2>
+          <time datetime="{{ item.release.release_date.value|date('c') }}">
+            {{ item.date }}
+          </time>
+          {% if item.release.version.value %}
+            <span class="version">{{ item.release.version.value }}</span>
+          {% endif %}
+        </header>
+        {% if item.excerpt %}
+          <p class="excerpt">{{ item.excerpt }}</p>
+        {% endif %}
+      </article>
+    {% endfor %}
+  {% endif %}
+</div>

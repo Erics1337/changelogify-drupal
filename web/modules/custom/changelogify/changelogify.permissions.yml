@@ -1,0 +1,12 @@
+administer changelogify:
+  title: "Administer Changelogify"
+  description: "Access Changelogify configuration and dashboard."
+  restrict access: true
+
+manage changelogify releases:
+  title: "Manage Changelogify releases"
+  description: "Create, edit, delete, publish and unpublish releases."
+
+view changelogify releases:
+  title: "View Changelogify releases"
+  description: "View the public changelog pages."
