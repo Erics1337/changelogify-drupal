@@ -1,0 +1,22 @@
+# Ignore everything
+/*
+
+# Except these files and directories
+!.gitignore
+!.ddev/
+.ddev/*
+!.ddev/config.yaml
+!prd.md
+!README.md
+
+# The module itself - this is what we version control!
+!web/
+web/*
+!web/modules/
+web/modules/*
+!web/modules/custom/
+!web/modules/custom/changelogify/
+!web/modules/custom/changelogify_ai/
+
+# Also ignore any generated files that might end up in the module
+web/modules/custom/**/node_modules/
