@@ -1,0 +1,10 @@
+changelogify.dashboard:
+  title: "Dashboard"
+  route_name: changelogify.dashboard
+  base_route: changelogify.dashboard
+
+changelogify.settings:
+  title: "Settings"
+  route_name: changelogify.settings
+  base_route: changelogify.dashboard
+  weight: 10

@@ -1,0 +1,32 @@
+{#
+/**
+ * @file
+ * Template for a single release detail page.
+ */
+#}
+<article class="changelogify-release">
+  <header>
+    <h1>{{ release.title.value }}</h1>
+    <div class="release-meta">
+      <time datetime="{{ release.release_date.value|date('c') }}">
+        {{ release.release_date.value|date('F j, Y') }}
+      </time>
+      {% if release.version.value %}
+        <span class="version">Version {{ release.version.value }}</span>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="release-sections">
+    {% for key, section in sections %}
+      <section class="release-section release-section--{{ key }}">
+        <h2>{{ section.label }}</h2>
+        <ul>
+          {% for item in section.items %}
+            <li>{{ item.text }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endfor %}
+  </div>
+</article>

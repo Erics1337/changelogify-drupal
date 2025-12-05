@@ -1,0 +1,14 @@
+services:
+  changelogify.event_manager:
+    class: Drupal\changelogify\EventManager
+    arguments: ["@entity_type.manager", "@current_user", "@datetime.time"]
+
+  changelogify.release_generator:
+    class: Drupal\changelogify\ReleaseGenerator
+    arguments:
+      [
+        "@entity_type.manager",
+        "@changelogify.event_manager",
+        "@current_user",
+        "@datetime.time",
+      ]
