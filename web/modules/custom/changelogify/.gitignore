@@ -1,0 +1,10 @@
+# Ignore dependencies managed by Composer
+/vendor/
+/node_modules/
+
+# Ignore test artifacts
+/tests/temp/
+/simpletest/
+
+# OS files
+.DS_Store
