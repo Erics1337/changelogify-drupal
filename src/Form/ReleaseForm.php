@@ -29,6 +29,7 @@ class ReleaseForm extends ContentEntityForm
             '#title' => $this->t('Release Sections'),
             '#open' => TRUE,
             '#weight' => 5,
+            '#tree' => TRUE,
         ];
 
         $sections = $release->getSections();
@@ -104,7 +105,7 @@ class ReleaseForm extends ContentEntityForm
         $section_keys = ['added', 'changed', 'fixed', 'removed', 'security', 'other'];
 
         foreach ($section_keys as $key) {
-            $text = $form_state->getValue(['section_' . $key, 'items'], '');
+            $text = $form_state->getValue(['sections_wrapper', 'section_' . $key, 'items'], '');
             $sections[$key] = $this->textToItems($text);
         }
 
