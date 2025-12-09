@@ -1,0 +1,25 @@
+{
+    "name": "drupal/changelogify",
+    "type": "drupal-module",
+    "description": "Automatically collect site changes, group them into releases, and publish a public changelog.",
+    "keywords": [
+        "Drupal",
+        "Changelog",
+        "Release Notes"
+    ],
+    "license": "GPL-2.0-or-later",
+    "homepage": "https://www.drupal.org/project/changelogify",
+    "authors": [
+        {
+            "name": "Eric Swanson",
+            "homepage": "https://github.com/Erics1337"
+        }
+    ],
+    "support": {
+        "issues": "https://www.drupal.org/project/issues/changelogify",
+        "source": "https://git.drupalcode.org/project/changelogify"
+    },
+    "require": {
+        "drupal/core": "^10 || ^11"
+    }
+}
