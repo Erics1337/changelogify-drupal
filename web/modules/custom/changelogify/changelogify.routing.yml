@@ -26,7 +26,7 @@ changelogify.generate_release:
 changelogify.release_list:
   path: "/admin/content/changelogify/releases"
   defaults:
-    _controller: '\Drupal\changelogify\Controller\ReleaseListController::listing'
+    _entity_list: "changelogify_release"
     _title: "Releases"
   requirements:
     _permission: "manage changelogify releases"

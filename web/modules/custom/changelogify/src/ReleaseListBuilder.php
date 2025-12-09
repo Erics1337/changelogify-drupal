@@ -16,6 +16,23 @@ class ReleaseListBuilder extends EntityListBuilder
     /**
      * {@inheritdoc}
      */
+    protected function getEntityIds()
+    {
+        $query = $this->getStorage()->getQuery()
+            ->accessCheck(TRUE)
+            ->sort('release_date', 'DESC');
+
+        // Only add the pager if a limit is specified.
+        if ($this->limit) {
+            $query->pager($this->limit);
+        }
+
+        return $query->execute();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function buildHeader(): array
     {
         $header = [
@@ -34,7 +51,7 @@ class ReleaseListBuilder extends EntityListBuilder
     {
         /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $entity */
         $row = [
-            'title' => $entity->getTitle(),
+            'title' => $entity->toLink($entity->getTitle(), 'edit-form'),
             'version' => $entity->getVersion() ?: '-',
             'date' => \Drupal::service('date.formatter')->format($entity->getReleaseDate(), 'short'),
             'status' => $entity->isPublished() ? $this->t('Published') : $this->t('Draft'),
