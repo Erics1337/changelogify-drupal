@@ -113,11 +113,11 @@ class ReleaseForm extends ContentEntityForm
 
         $status = parent::save($form, $form_state);
 
-        $message = $status === SAVED_NEW
-            ? $this->t('Release "@title" has been created.', ['@title' => $release->getTitle()])
-            : $this->t('Release "@title" has been updated.', ['@title' => $release->getTitle()]);
-
-        $this->messenger()->addStatus($message);
+        if ($status === SAVED_NEW) {
+            $this->messenger()->addStatus($this->t('Release "@title" has been created.', ['@title' => $release->getTitle()]));
+        } else {
+            $this->messenger()->addStatus($this->t('Release "@title" has been updated.', ['@title' => $release->getTitle()]));
+        }
 
         $form_state->setRedirectUrl($release->toUrl('collection'));
 

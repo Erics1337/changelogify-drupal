@@ -16,31 +16,13 @@ class EventManager implements EventManagerInterface
 {
 
     /**
-     * The entity type manager.
-     */
-    protected EntityTypeManagerInterface $entityTypeManager;
-
-    /**
-     * The current user.
-     */
-    protected AccountProxyInterface $currentUser;
-
-    /**
-     * The time service.
-     */
-    protected TimeInterface $time;
-
-    /**
      * Constructs an EventManager.
      */
     public function __construct(
-        EntityTypeManagerInterface $entity_type_manager,
-        AccountProxyInterface $current_user,
-        TimeInterface $time
+        protected EntityTypeManagerInterface $entityTypeManager,
+        protected AccountProxyInterface $currentUser,
+        protected TimeInterface $time
     ) {
-        $this->entityTypeManager = $entity_type_manager;
-        $this->currentUser = $current_user;
-        $this->time = $time;
     }
 
     /**

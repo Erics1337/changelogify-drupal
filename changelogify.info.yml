@@ -2,7 +2,7 @@ name: Changelogify
 type: module
 description: "Automatically collect site changes, group them into releases, and publish a public changelog."
 package: Development
-core_version_requirement: ^10 || ^11
+core_version_requirement: ^10.3 || ^11
 php: 8.1
 
 dependencies:

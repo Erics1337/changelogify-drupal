@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Entity;
 
+use Drupal\Core\Entity\Attribute\ContentEntityType;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
+
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityChangedTrait;
 use Drupal\Core\Entity\EntityTypeInterface;
@@ -12,42 +15,42 @@ use Drupal\user\EntityOwnerTrait;
 
 /**
  * Defines the Changelogify Release entity.
- *
- * @ContentEntityType(
- *   id = "changelogify_release",
- *   label = @Translation("Release"),
- *   label_collection = @Translation("Releases"),
- *   label_singular = @Translation("release"),
- *   label_plural = @Translation("releases"),
- *   handlers = {
- *     "view_builder" = "Drupal\Core\Entity\EntityViewBuilder",
- *     "list_builder" = "Drupal\changelogify\ReleaseListBuilder",
- *     "form" = {
- *       "default" = "Drupal\changelogify\Form\ReleaseForm",
- *       "delete" = "Drupal\Core\Entity\ContentEntityDeleteForm",
- *     },
- *     "route_provider" = {
- *       "html" = "Drupal\Core\Entity\Routing\AdminHtmlRouteProvider",
- *     },
- *   },
- *   base_table = "changelogify_release",
- *   admin_permission = "manage changelogify releases",
- *   entity_keys = {
- *     "id" = "id",
- *     "uuid" = "uuid",
- *     "label" = "title",
- *     "owner" = "uid",
- *   },
- *   links = {
- *     "canonical" = "/changelog/{changelogify_release}",
- *     "add-form" = "/admin/content/changelogify/releases/add",
- *     "edit-form" = "/admin/content/changelogify/releases/{changelogify_release}/edit",
- *     "delete-form" = "/admin/content/changelogify/releases/{changelogify_release}/delete",
- *     "collection" = "/admin/content/changelogify/releases",
- *   },
- * )
  */
-class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyReleaseInterface {
+#[ContentEntityType(
+  id: "changelogify_release",
+  label: new TranslatableMarkup("Release"),
+  label_collection: new TranslatableMarkup("Releases"),
+  label_singular: new TranslatableMarkup("release"),
+  label_plural: new TranslatableMarkup("releases"),
+  handlers: [
+    "view_builder" => "Drupal\Core\Entity\EntityViewBuilder",
+    "list_builder" => "Drupal\changelogify\ReleaseListBuilder",
+    "form" => [
+      "default" => "Drupal\changelogify\Form\ReleaseForm",
+      "delete" => "Drupal\Core\Entity\ContentEntityDeleteForm",
+    ],
+    "route_provider" => [
+      "html" => "Drupal\Core\Entity\Routing\AdminHtmlRouteProvider",
+    ],
+  ],
+  base_table: "changelogify_release",
+  admin_permission: "manage changelogify releases",
+  entity_keys: [
+    "id" => "id",
+    "uuid" => "uuid",
+    "label" => "title",
+    "owner" => "uid",
+  ],
+  links: [
+    "canonical" => "/changelog/{changelogify_release}",
+    "add-form" => "/admin/content/changelogify/releases/add",
+    "edit-form" => "/admin/content/changelogify/releases/{changelogify_release}/edit",
+    "delete-form" => "/admin/content/changelogify/releases/{changelogify_release}/delete",
+    "collection" => "/admin/content/changelogify/releases",
+  ],
+)]
+class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyReleaseInterface
+{
 
   use EntityChangedTrait;
   use EntityOwnerTrait;
@@ -55,7 +58,8 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * {@inheritdoc}
    */
-  public static function baseFieldDefinitions(EntityTypeInterface $entity_type): array {
+  public static function baseFieldDefinitions(EntityTypeInterface $entity_type): array
+  {
     $fields = parent::baseFieldDefinitions($entity_type);
     $fields += static::ownerBaseFieldDefinitions($entity_type);
 
@@ -169,21 +173,24 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * Default value callback for release_date field.
    */
-  public static function getDefaultTimestamp(): int {
+  public static function getDefaultTimestamp(): int
+  {
     return \Drupal::time()->getRequestTime();
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getTitle(): string {
+  public function getTitle(): string
+  {
     return $this->get('title')->value ?? '';
   }
 
   /**
    * {@inheritdoc}
    */
-  public function setTitle(string $title): ChangelogifyReleaseInterface {
+  public function setTitle(string $title): ChangelogifyReleaseInterface
+  {
     $this->set('title', $title);
     return $this;
   }
@@ -191,14 +198,16 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * {@inheritdoc}
    */
-  public function isPublished(): bool {
+  public function isPublished(): bool
+  {
     return (bool) $this->get('status')->value;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function setPublished(bool $published = TRUE): ChangelogifyReleaseInterface {
+  public function setPublished(bool $published = TRUE): ChangelogifyReleaseInterface
+  {
     $this->set('status', $published);
     return $this;
   }
@@ -206,7 +215,8 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * {@inheritdoc}
    */
-  public function getSections(): array {
+  public function getSections(): array
+  {
     $value = $this->get('sections')->value;
     if (empty($value)) {
       return $this->getDefaultSections();
@@ -218,7 +228,8 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * {@inheritdoc}
    */
-  public function setSections(array $sections): ChangelogifyReleaseInterface {
+  public function setSections(array $sections): ChangelogifyReleaseInterface
+  {
     $this->set('sections', json_encode($sections));
     return $this;
   }
@@ -226,7 +237,8 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * Get default sections structure.
    */
-  protected function getDefaultSections(): array {
+  protected function getDefaultSections(): array
+  {
     return [
       'added' => [],
       'changed' => [],
@@ -240,14 +252,16 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * {@inheritdoc}
    */
-  public function getReleaseDate(): int {
+  public function getReleaseDate(): int
+  {
     return (int) $this->get('release_date')->value;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getVersion(): ?string {
+  public function getVersion(): ?string
+  {
     return $this->get('version')->value;
   }
 

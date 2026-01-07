@@ -19,38 +19,14 @@ class ReleaseGenerator implements ReleaseGeneratorInterface
     use StringTranslationTrait;
 
     /**
-     * The entity type manager.
-     */
-    protected EntityTypeManagerInterface $entityTypeManager;
-
-    /**
-     * The event manager.
-     */
-    protected EventManagerInterface $eventManager;
-
-    /**
-     * The current user.
-     */
-    protected AccountProxyInterface $currentUser;
-
-    /**
-     * The time service.
-     */
-    protected TimeInterface $time;
-
-    /**
      * Constructs a ReleaseGenerator.
      */
     public function __construct(
-        EntityTypeManagerInterface $entity_type_manager,
-        EventManagerInterface $event_manager,
-        AccountProxyInterface $current_user,
-        TimeInterface $time
+        protected EntityTypeManagerInterface $entityTypeManager,
+        protected EventManagerInterface $eventManager,
+        protected AccountProxyInterface $currentUser,
+        protected TimeInterface $time
     ) {
-        $this->entityTypeManager = $entity_type_manager;
-        $this->eventManager = $event_manager;
-        $this->currentUser = $current_user;
-        $this->time = $time;
     }
 
     /**
