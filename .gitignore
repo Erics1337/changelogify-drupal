@@ -1,20 +1,27 @@
-# Ignore dependencies managed by Composer
+# Ignore everything by default
+/*
+
+# 1. Project Root Exceptions
+!/.gitignore
+!/.ddev/
+/.ddev/*
+!/.ddev/config.yaml
+!/composer.json
+!/.gitlab-ci.yml
+!/README.md
+
+# 2. Module Code (The Core of this Repo)
+!/web/
+/web/*
+!/web/modules/
+/web/modules/*
+!/web/modules/custom/
+/web/modules/custom/*
+!/web/modules/custom/changelogify/
+
+# 3. Dependencies & Artifacts to Ignore explicitly (just in case)
 /vendor/
 /node_modules/
-
-# Except these files and directories
-!.gitignore
-!.ddev/
-.ddev/*
-!.ddev/config.yaml
-!prd.md
-!README.md
-!composer.json
-!.gitlab-ci.yml
-
-# Test artifacts
 /tests/temp/
 /simpletest/
-
-# OS files
 .DS_Store
