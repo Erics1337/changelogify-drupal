@@ -2,7 +2,17 @@
 /vendor/
 /node_modules/
 
-# Ignore test artifacts
+# Except these files and directories
+!.gitignore
+!.ddev/
+.ddev/*
+!.ddev/config.yaml
+!prd.md
+!README.md
+!composer.json
+!.gitlab-ci.yml
+
+# Test artifacts
 /tests/temp/
 /simpletest/
 
