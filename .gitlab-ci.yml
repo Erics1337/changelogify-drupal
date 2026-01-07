@@ -1,0 +1,7 @@
+# Default Drupal GitLab CI configuration.
+# See https://project.pages.drupalcode.org/gitlab_templates/
+
+include:
+  - project: "project/gitlab_templates"
+    ref: "1.0.x"
+    file: "/includes/include.drupalci.main.yml"

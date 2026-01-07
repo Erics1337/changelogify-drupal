@@ -17,16 +17,11 @@ class GenerateReleaseForm extends FormBase
 {
 
     /**
-     * The release generator.
-     */
-    protected ReleaseGeneratorInterface $releaseGenerator;
-
-    /**
      * Constructs a GenerateReleaseForm.
      */
-    public function __construct(ReleaseGeneratorInterface $release_generator)
-    {
-        $this->releaseGenerator = $release_generator;
+    public function __construct(
+        protected ReleaseGeneratorInterface $releaseGenerator
+    ) {
     }
 
     /**

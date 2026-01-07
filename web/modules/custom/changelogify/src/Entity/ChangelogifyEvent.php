@@ -4,32 +4,34 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Entity;
 
+use Drupal\Core\Entity\Attribute\ContentEntityType;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
+
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
 
 /**
  * Defines the Changelogify Event entity.
- *
- * @ContentEntityType(
- *   id = "changelogify_event",
- *   label = @Translation("Changelogify Event"),
- *   label_collection = @Translation("Events"),
- *   label_singular = @Translation("event"),
- *   label_plural = @Translation("events"),
- *   handlers = {
- *     "view_builder" = "Drupal\Core\Entity\EntityViewBuilder",
- *     "list_builder" = "Drupal\changelogify\EventListBuilder",
- *   },
- *   base_table = "changelogify_event",
- *   admin_permission = "administer changelogify",
- *   entity_keys = {
- *     "id" = "id",
- *     "uuid" = "uuid",
- *     "label" = "message",
- *   },
- * )
  */
+#[ContentEntityType(
+    id: "changelogify_event",
+    label: new TranslatableMarkup("Changelogify Event"),
+    label_collection: new TranslatableMarkup("Events"),
+    label_singular: new TranslatableMarkup("event"),
+    label_plural: new TranslatableMarkup("events"),
+    handlers: [
+        "view_builder" => "Drupal\Core\Entity\EntityViewBuilder",
+        "list_builder" => "Drupal\changelogify\EventListBuilder",
+    ],
+    base_table: "changelogify_event",
+    admin_permission: "administer changelogify",
+    entity_keys: [
+        "id" => "id",
+        "uuid" => "uuid",
+        "label" => "message",
+    ],
+)]
 class ChangelogifyEvent extends ContentEntityBase implements ChangelogifyEventInterface
 {
 

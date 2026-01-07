@@ -16,16 +16,11 @@ class DashboardController extends ControllerBase
 {
 
     /**
-     * The event manager.
-     */
-    protected EventManagerInterface $eventManager;
-
-    /**
      * Constructs a DashboardController.
      */
-    public function __construct(EventManagerInterface $event_manager)
-    {
-        $this->eventManager = $event_manager;
+    public function __construct(
+        protected EventManagerInterface $eventManager
+    ) {
     }
 
     /**

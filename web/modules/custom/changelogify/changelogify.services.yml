@@ -1,14 +1,20 @@
 services:
-  changelogify.event_manager:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+
+  Drupal\changelogify\EventManager:
     class: Drupal\changelogify\EventManager
-    arguments: ["@entity_type.manager", "@current_user", "@datetime.time"]
+
+  Drupal\changelogify\ReleaseGenerator:
+    class: Drupal\changelogify\ReleaseGenerator
+
+  Drupal\changelogify\Hook\ChangelogifyHooks:
+    class: Drupal\changelogify\Hook\ChangelogifyHooks
+
+  # Aliases for interface injection
+  changelogify.event_manager:
+    alias: Drupal\changelogify\EventManager
 
   changelogify.release_generator:
-    class: Drupal\changelogify\ReleaseGenerator
-    arguments:
-      [
-        "@entity_type.manager",
-        "@changelogify.event_manager",
-        "@current_user",
-        "@datetime.time",
-      ]
+    alias: Drupal\changelogify\ReleaseGenerator

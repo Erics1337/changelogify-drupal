@@ -8,6 +8,7 @@
 !.ddev/config.yaml
 !prd.md
 !README.md
+!.gitlab-ci.yml
 
 # The module itself - this is what we version control!
 !web/
