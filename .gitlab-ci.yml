@@ -1,3 +1,5 @@
+image: php:8.2
+
 variables:
   COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
 
@@ -6,6 +8,12 @@ cache:
     - .composer-cache
 
 before_script:
+  # Install system dependencies
+  - apt-get update && apt-get install -y git unzip libpng-dev libzip-dev
+  # Install PHP extensions
+  - docker-php-ext-install gd zip
+  # Install Composer
+  - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
   - composer install --no-progress
 
 test:
