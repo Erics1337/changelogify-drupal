@@ -1,0 +1,13 @@
+variables:
+  COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
+
+cache:
+  paths:
+    - .composer-cache
+
+before_script:
+  - composer install --no-progress
+
+test:
+  script:
+    - composer run test:changelogify
