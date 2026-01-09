@@ -9,6 +9,10 @@
 !/composer.json
 !/.gitlab-ci.yml
 !/README.md
+!/phpcs.xml.dist
+!/src/
+!/tests/
+!/changelogify.*
 
 # 2. Module Code (The Core of this Repo)
 !/web/

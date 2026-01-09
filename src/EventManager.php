@@ -12,130 +12,125 @@ use Drupal\changelogify\Entity\ChangelogifyEventInterface;
 /**
  * Manages event logging and retrieval.
  */
-class EventManager implements EventManagerInterface
-{
+class EventManager implements EventManagerInterface {
 
-    /**
-     * Constructs an EventManager.
-     */
-    public function __construct(
-        protected EntityTypeManagerInterface $entityTypeManager,
-        protected AccountProxyInterface $currentUser,
-        protected TimeInterface $time
-    ) {
+  /**
+   * Constructs an EventManager.
+   */
+  public function __construct(
+    protected EntityTypeManagerInterface $entityTypeManager,
+    protected AccountProxyInterface $currentUser,
+    protected TimeInterface $time,
+  ) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function logEvent(array $data): ChangelogifyEventInterface {
+    $storage = $this->entityTypeManager->getStorage('changelogify_event');
+
+    $event_data = [
+      'timestamp' => $data['timestamp'] ?? $this->time->getRequestTime(),
+      'event_type' => $data['event_type'],
+      'source' => $data['source'],
+      'message' => $data['message'],
+      'user_id' => $data['user_id'] ?? $this->currentUser->id(),
+    ];
+
+    if (isset($data['entity_type_id'])) {
+      $event_data['entity_type_id'] = $data['entity_type_id'];
+    }
+    if (isset($data['entity_id'])) {
+      $event_data['entity_id'] = $data['entity_id'];
+    }
+    if (isset($data['bundle'])) {
+      $event_data['bundle'] = $data['bundle'];
+    }
+    if (isset($data['section_hint'])) {
+      $event_data['section_hint'] = $data['section_hint'];
+    }
+    if (isset($data['metadata'])) {
+      $event_data['metadata'] = json_encode($data['metadata']);
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function logEvent(array $data): ChangelogifyEventInterface
-    {
-        $storage = $this->entityTypeManager->getStorage('changelogify_event');
+    /** @var \Drupal\changelogify\Entity\ChangelogifyEventInterface $event */
+    $event = $storage->create($event_data);
+    $event->save();
 
-        $event_data = [
-            'timestamp' => $data['timestamp'] ?? $this->time->getRequestTime(),
-            'event_type' => $data['event_type'],
-            'source' => $data['source'],
-            'message' => $data['message'],
-            'user_id' => $data['user_id'] ?? $this->currentUser->id(),
-        ];
+    return $event;
+  }
 
-        if (isset($data['entity_type_id'])) {
-            $event_data['entity_type_id'] = $data['entity_type_id'];
-        }
-        if (isset($data['entity_id'])) {
-            $event_data['entity_id'] = $data['entity_id'];
-        }
-        if (isset($data['bundle'])) {
-            $event_data['bundle'] = $data['bundle'];
-        }
-        if (isset($data['section_hint'])) {
-            $event_data['section_hint'] = $data['section_hint'];
-        }
-        if (isset($data['metadata'])) {
-            $event_data['metadata'] = json_encode($data['metadata']);
-        }
+  /**
+   * {@inheritdoc}
+   */
+  public function getEventsByRange(\DateTimeInterface $start, \DateTimeInterface $end, array $filters = []): array {
+    $storage = $this->entityTypeManager->getStorage('changelogify_event');
 
-        /** @var \Drupal\changelogify\Entity\ChangelogifyEventInterface $event */
-        $event = $storage->create($event_data);
-        $event->save();
+    $query = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('timestamp', $start->getTimestamp(), '>=')
+      ->condition('timestamp', $end->getTimestamp(), '<=')
+      ->sort('timestamp', 'ASC');
 
-        return $event;
+    if (!empty($filters['event_type'])) {
+      $query->condition('event_type', $filters['event_type']);
+    }
+    if (!empty($filters['source'])) {
+      $query->condition('source', $filters['source']);
+    }
+    if (!empty($filters['section_hint'])) {
+      $query->condition('section_hint', $filters['section_hint']);
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function getEventsByRange(\DateTimeInterface $start, \DateTimeInterface $end, array $filters = []): array
-    {
-        $storage = $this->entityTypeManager->getStorage('changelogify_event');
+    $ids = $query->execute();
 
-        $query = $storage->getQuery()
-            ->accessCheck(FALSE)
-            ->condition('timestamp', $start->getTimestamp(), '>=')
-            ->condition('timestamp', $end->getTimestamp(), '<=')
-            ->sort('timestamp', 'ASC');
-
-        if (!empty($filters['event_type'])) {
-            $query->condition('event_type', $filters['event_type']);
-        }
-        if (!empty($filters['source'])) {
-            $query->condition('source', $filters['source']);
-        }
-        if (!empty($filters['section_hint'])) {
-            $query->condition('section_hint', $filters['section_hint']);
-        }
-
-        $ids = $query->execute();
-
-        if (empty($ids)) {
-            return [];
-        }
-
-        return $storage->loadMultiple($ids);
+    if (empty($ids)) {
+      return [];
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function getEventCountSince(int $since): int
-    {
-        $storage = $this->entityTypeManager->getStorage('changelogify_event');
+    return $storage->loadMultiple($ids);
+  }
 
-        return (int) $storage->getQuery()
-            ->accessCheck(FALSE)
-            ->condition('timestamp', $since, '>=')
-            ->count()
-            ->execute();
+  /**
+   * {@inheritdoc}
+   */
+  public function getEventCountSince(int $since): int {
+    $storage = $this->entityTypeManager->getStorage('changelogify_event');
+
+    return (int) $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('timestamp', $since, '>=')
+      ->count()
+      ->execute();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getEventsSinceLastRelease(): array {
+    $release_storage = $this->entityTypeManager->getStorage('changelogify_release');
+
+    // Find the last published release.
+    $release_ids = $release_storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('status', TRUE)
+      ->sort('release_date', 'DESC')
+      ->range(0, 1)
+      ->execute();
+
+    $since = 0;
+    if (!empty($release_ids)) {
+      /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+      $release = $release_storage->load(reset($release_ids));
+      // Use date_end if available, otherwise use release_date.
+      $since = $release->get('date_end')->value ?? $release->getReleaseDate();
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function getEventsSinceLastRelease(): array
-    {
-        $release_storage = $this->entityTypeManager->getStorage('changelogify_release');
+    $start = new \DateTimeImmutable('@' . $since);
+    $end = new \DateTimeImmutable('@' . $this->time->getRequestTime());
 
-        // Find the last published release.
-        $release_ids = $release_storage->getQuery()
-            ->accessCheck(FALSE)
-            ->condition('status', TRUE)
-            ->sort('release_date', 'DESC')
-            ->range(0, 1)
-            ->execute();
-
-        $since = 0;
-        if (!empty($release_ids)) {
-            /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
-            $release = $release_storage->load(reset($release_ids));
-            // Use date_end if available, otherwise use release_date.
-            $since = $release->get('date_end')->value ?? $release->getReleaseDate();
-        }
-
-        $start = new \DateTimeImmutable('@' . $since);
-        $end = new \DateTimeImmutable('@' . $this->time->getRequestTime());
-
-        return $this->getEventsByRange($start, $end);
-    }
+    return $this->getEventsByRange($start, $end);
+  }
 
 }
