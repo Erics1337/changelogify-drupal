@@ -16,8 +16,6 @@ before_script:
   - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
   - composer install --no-progress
 
-# Functional tests require a full Drupal installation to run
-# TODO: Set up proper test environment with database and Drupal installation
-# test:
-#   script:
-#     - composer run test:changelogify
+validate:
+  script:
+    - composer validate
