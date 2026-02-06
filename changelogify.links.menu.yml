@@ -7,7 +7,7 @@ changelogify.admin:
 
 changelogify.releases:
   title: "Releases"
-  route_name: changelogify.release_list
+  route_name: entity.changelogify_release.collection
   description: "Manage changelog releases."
   parent: system.admin_content
   weight: 10

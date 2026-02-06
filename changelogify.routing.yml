@@ -23,38 +23,6 @@ changelogify.generate_release:
   requirements:
     _permission: "manage changelogify releases"
 
-changelogify.release_list:
-  path: "/admin/content/changelogify/releases"
-  defaults:
-    _entity_list: "changelogify_release"
-    _title: "Releases"
-  requirements:
-    _permission: "manage changelogify releases"
-
-changelogify.release_add:
-  path: "/admin/content/changelogify/releases/add"
-  defaults:
-    _entity_form: "changelogify_release.default"
-    _title: "Add Release"
-  requirements:
-    _permission: "manage changelogify releases"
-
-changelogify.release_edit:
-  path: "/admin/content/changelogify/releases/{changelogify_release}/edit"
-  defaults:
-    _entity_form: "changelogify_release.default"
-    _title: "Edit Release"
-  requirements:
-    _permission: "manage changelogify releases"
-
-changelogify.release_delete:
-  path: "/admin/content/changelogify/releases/{changelogify_release}/delete"
-  defaults:
-    _entity_form: "changelogify_release.delete"
-    _title: "Delete Release"
-  requirements:
-    _permission: "manage changelogify releases"
-
 # Public routes
 changelogify.changelog:
   path: "/changelog"

@@ -1,31 +1,25 @@
-# Ignore everything by default
-/*
 
-# 1. Project Root Exceptions
-!/.gitignore
-!/.ddev/
-/.ddev/*
-!/.ddev/config.yaml
-!/composer.json
-!/.gitlab-ci.yml
-!/README.md
-!/phpcs.xml.dist
-!/src/
-!/tests/
-!/changelogify.*
-
-# 2. Module Code (The Core of this Repo)
-!/web/
-/web/*
-!/web/modules/
-/web/modules/*
-!/web/modules/custom/
-/web/modules/custom/*
-!/web/modules/custom/changelogify/
-
-# 3. Dependencies & Artifacts to Ignore explicitly (just in case)
+# Ignore vendor directory (Composer dependencies)
 /vendor/
-/node_modules/
-/tests/temp/
-/simpletest/
+
+# Ignore local configuration overrides
+/sites/*/settings.local.php
+/sites/*/services.yml
+
+# Ignore simpletest artifacts
+/sites/simpletest/
+
+# Ignore .DS_Store (Mac)
 .DS_Store
+
+# Ignore IDE settings
+.idea/
+.vscode/
+
+# Ignore DDEV folder
+.ddev/
+
+# Ignore composer lock file (for libraries/modules)
+# It is generally recommended not to commit lock files for modules, but for projects it is essential.
+# For a contributed module, we usually ignore composer.lock unless we are running tests.
+composer.lock

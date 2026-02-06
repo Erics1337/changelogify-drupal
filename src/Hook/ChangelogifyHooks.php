@@ -6,6 +6,7 @@ namespace Drupal\changelogify\Hook;
 
 use Drupal\changelogify\EventManagerInterface;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\node\NodeInterface;
 use Drupal\user\UserInterface;
@@ -13,7 +14,8 @@ use Drupal\user\UserInterface;
 /**
  * Hook implementations for changelogify.
  */
-class ChangelogifyHooks {
+class ChangelogifyHooks
+{
 
   use StringTranslationTrait;
 
@@ -25,7 +27,9 @@ class ChangelogifyHooks {
   /**
    * Implements hook_entity_insert().
    */
-  public function entityInsert(EntityInterface $entity): void {
+  #[Hook('entity_insert')]
+  public function entityInsert(EntityInterface $entity): void
+  {
     if (!$entity instanceof NodeInterface) {
       return;
     }
@@ -51,7 +55,9 @@ class ChangelogifyHooks {
   /**
    * Implements hook_entity_update().
    */
-  public function entityUpdate(EntityInterface $entity): void {
+  #[Hook('entity_update')]
+  public function entityUpdate(EntityInterface $entity): void
+  {
     if (!$entity instanceof NodeInterface) {
       return;
     }
@@ -77,7 +83,9 @@ class ChangelogifyHooks {
   /**
    * Implements hook_entity_delete().
    */
-  public function entityDelete(EntityInterface $entity): void {
+  #[Hook('entity_delete')]
+  public function entityDelete(EntityInterface $entity): void
+  {
     if (!$entity instanceof NodeInterface) {
       return;
     }
@@ -102,7 +110,9 @@ class ChangelogifyHooks {
   /**
    * Implements hook_modules_installed().
    */
-  public function modulesInstalled(array $modules, bool $is_syncing): void {
+  #[Hook('modules_installed')]
+  public function modulesInstalled(array $modules, bool $is_syncing): void
+  {
     if ($is_syncing) {
       return;
     }
@@ -128,7 +138,9 @@ class ChangelogifyHooks {
   /**
    * Implements hook_modules_uninstalled().
    */
-  public function modulesUninstalled(array $modules, bool $is_syncing): void {
+  #[Hook('modules_uninstalled')]
+  public function modulesUninstalled(array $modules, bool $is_syncing): void
+  {
     if ($is_syncing) {
       return;
     }
@@ -149,7 +161,9 @@ class ChangelogifyHooks {
   /**
    * Implements hook_user_insert().
    */
-  public function userInsert(UserInterface $account): void {
+  #[Hook('user_insert')]
+  public function userInsert(UserInterface $account): void
+  {
     $this->eventManager->logEvent([
       'event_type' => 'user_created',
       'source' => 'user',
@@ -166,7 +180,9 @@ class ChangelogifyHooks {
   /**
    * Implements hook_user_update().
    */
-  public function userUpdate(UserInterface $account): void {
+  #[Hook('user_update')]
+  public function userUpdate(UserInterface $account): void
+  {
     /** @var \Drupal\Core\Entity\EntityInterface $original */
     $original = $account->original;
 
@@ -194,7 +210,9 @@ class ChangelogifyHooks {
   /**
    * Implements hook_theme().
    */
-  public function theme(): array {
+  #[Hook('theme')]
+  public function theme(): array
+  {
     return [
       'changelogify_release_list' => [
         'variables' => [
