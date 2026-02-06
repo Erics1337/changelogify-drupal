@@ -26,5 +26,8 @@
             "dealerdirect/phpcodesniffer-composer-installer": true,
             "phpstan/extension-installer": true
         }
+    },
+    "scripts": {
+        "test:changelogify": "vendor/bin/phpunit tests/src/Unit"
     }
 }
