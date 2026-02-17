@@ -1,0 +1,3 @@
+parameters:
+    ignoreErrors:
+        - '#Attribute class Drupal\\Core\\Hook\\Attribute\\LegacyHook does not exist.#'

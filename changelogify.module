@@ -8,78 +8,70 @@
 declare(strict_types=1);
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Hook\Attribute\LegacyHook;
 use Drupal\user\UserInterface;
 
 
 /**
  * Implements hook_entity_insert().
  */
+#[LegacyHook]
 function changelogify_entity_insert(EntityInterface $entity): void {
-  if (!class_exists('Drupal\Core\Hook\Attribute\Hook')) {
-    \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->entityInsert($entity);
-  }
+  \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->entityInsert($entity);
 }
 
 /**
  * Implements hook_entity_update().
  */
+#[LegacyHook]
 function changelogify_entity_update(EntityInterface $entity): void {
-  if (!class_exists('Drupal\Core\Hook\Attribute\Hook')) {
-    \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->entityUpdate($entity);
-  }
+  \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->entityUpdate($entity);
 }
 
 /**
  * Implements hook_entity_delete().
  */
+#[LegacyHook]
 function changelogify_entity_delete(EntityInterface $entity): void {
-  if (!class_exists('Drupal\Core\Hook\Attribute\Hook')) {
-    \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->entityDelete($entity);
-  }
+  \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->entityDelete($entity);
 }
 
 /**
  * Implements hook_modules_installed().
  */
+#[LegacyHook]
 function changelogify_modules_installed(array $modules, bool $is_syncing): void {
-  if (!class_exists('Drupal\Core\Hook\Attribute\Hook')) {
-    \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->modulesInstalled($modules, $is_syncing);
-  }
+  \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->modulesInstalled($modules, $is_syncing);
 }
 
 /**
  * Implements hook_modules_uninstalled().
  */
+#[LegacyHook]
 function changelogify_modules_uninstalled(array $modules, bool $is_syncing): void {
-  if (!class_exists('Drupal\Core\Hook\Attribute\Hook')) {
-    \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->modulesUninstalled($modules, $is_syncing);
-  }
+  \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->modulesUninstalled($modules, $is_syncing);
 }
 
 /**
  * Implements hook_user_insert().
  */
+#[LegacyHook]
 function changelogify_user_insert(UserInterface $account): void {
-  if (!class_exists('Drupal\Core\Hook\Attribute\Hook')) {
-    \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->userInsert($account);
-  }
+  \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->userInsert($account);
 }
 
 /**
  * Implements hook_user_update().
  */
+#[LegacyHook]
 function changelogify_user_update(UserInterface $account): void {
-  if (!class_exists('Drupal\Core\Hook\Attribute\Hook')) {
-    \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->userUpdate($account);
-  }
+  \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->userUpdate($account);
 }
 
 /**
  * Implements hook_theme().
  */
+#[LegacyHook]
 function changelogify_theme($existing, $type, $theme, $path): array {
-  if (!class_exists('Drupal\Core\Hook\Attribute\Hook')) {
-    return \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->theme();
-  }
-  return [];
+  return \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->theme();
 }
