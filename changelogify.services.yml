@@ -13,6 +13,12 @@ services:
     class: Drupal\changelogify\Hook\ChangelogifyHooks
 
   # Aliases for interface injection
+  Drupal\changelogify\EventManagerInterface:
+    alias: Drupal\changelogify\EventManager
+
+  Drupal\changelogify\ReleaseGeneratorInterface:
+    alias: Drupal\changelogify\ReleaseGenerator
+
   changelogify.event_manager:
     alias: Drupal\changelogify\EventManager
 
