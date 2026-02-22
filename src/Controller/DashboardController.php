@@ -14,8 +14,7 @@ use Drupal\Core\Datetime\DateFormatterInterface;
 /**
  * Dashboard controller for Changelogify.
  */
-class DashboardController extends ControllerBase
-{
+class DashboardController extends ControllerBase {
 
   /**
    * Constructs a DashboardController.
@@ -30,9 +29,8 @@ class DashboardController extends ControllerBase
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container): self
-  {
-    return new static(
+  public static function create(ContainerInterface $container): self {
+    return new self(
       $container->get('changelogify.event_manager'),
       $container->get('datetime.time'),
       $container->get('date.formatter')
@@ -42,8 +40,7 @@ class DashboardController extends ControllerBase
   /**
    * Displays the dashboard.
    */
-  public function dashboard(): array
-  {
+  public function dashboard(): array {
     $now = $this->time->getRequestTime();
     $seven_days_ago = $now - (7 * 24 * 60 * 60);
     $thirty_days_ago = $now - (30 * 24 * 60 * 60);
@@ -62,10 +59,6 @@ class DashboardController extends ControllerBase
     $releases = $release_storage->loadMultiple($release_ids);
 
     return [
-      '#theme' => 'changelogify_dashboard',
-      '#attached' => [
-        'library' => ['changelogify/dashboard'],
-      ],
       'stats' => [
         '#type' => 'container',
         '#attributes' => ['class' => ['changelogify-stats']],
@@ -124,8 +117,7 @@ class DashboardController extends ControllerBase
   /**
    * Builds a simple list of releases.
    */
-  protected function buildReleaseList(array $releases): array
-  {
+  protected function buildReleaseList(array $releases): array {
     if (empty($releases)) {
       return [
         '#markup' => $this->t('No releases yet.'),

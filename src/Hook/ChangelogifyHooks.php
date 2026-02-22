@@ -14,8 +14,7 @@ use Drupal\user\UserInterface;
 /**
  * Hook implementations for changelogify.
  */
-class ChangelogifyHooks
-{
+class ChangelogifyHooks {
 
   use StringTranslationTrait;
 
@@ -28,8 +27,7 @@ class ChangelogifyHooks
    * Implements hook_entity_insert().
    */
   #[Hook('entity_insert')]
-  public function entityInsert(EntityInterface $entity): void
-  {
+  public function entityInsert(EntityInterface $entity): void {
     if (!$entity instanceof NodeInterface) {
       return;
     }
@@ -56,8 +54,7 @@ class ChangelogifyHooks
    * Implements hook_entity_update().
    */
   #[Hook('entity_update')]
-  public function entityUpdate(EntityInterface $entity): void
-  {
+  public function entityUpdate(EntityInterface $entity): void {
     if (!$entity instanceof NodeInterface) {
       return;
     }
@@ -84,8 +81,7 @@ class ChangelogifyHooks
    * Implements hook_entity_delete().
    */
   #[Hook('entity_delete')]
-  public function entityDelete(EntityInterface $entity): void
-  {
+  public function entityDelete(EntityInterface $entity): void {
     if (!$entity instanceof NodeInterface) {
       return;
     }
@@ -111,8 +107,7 @@ class ChangelogifyHooks
    * Implements hook_modules_installed().
    */
   #[Hook('modules_installed')]
-  public function modulesInstalled(array $modules, bool $is_syncing): void
-  {
+  public function modulesInstalled(array $modules, bool $is_syncing): void {
     if ($is_syncing) {
       return;
     }
@@ -139,8 +134,7 @@ class ChangelogifyHooks
    * Implements hook_modules_uninstalled().
    */
   #[Hook('modules_uninstalled')]
-  public function modulesUninstalled(array $modules, bool $is_syncing): void
-  {
+  public function modulesUninstalled(array $modules, bool $is_syncing): void {
     if ($is_syncing) {
       return;
     }
@@ -162,8 +156,7 @@ class ChangelogifyHooks
    * Implements hook_user_insert().
    */
   #[Hook('user_insert')]
-  public function userInsert(UserInterface $account): void
-  {
+  public function userInsert(UserInterface $account): void {
     $this->eventManager->logEvent([
       'event_type' => 'user_created',
       'source' => 'user',
@@ -181,9 +174,11 @@ class ChangelogifyHooks
    * Implements hook_user_update().
    */
   #[Hook('user_update')]
-  public function userUpdate(UserInterface $account): void
-  {
-    /** @var \Drupal\Core\Entity\EntityInterface $original */
+  public function userUpdate(UserInterface $account): void {
+    if (!isset($account->original) || !$account->original instanceof UserInterface) {
+      return;
+    }
+
     $original = $account->original;
 
     // Check if roles changed.
@@ -211,8 +206,7 @@ class ChangelogifyHooks
    * Implements hook_theme().
    */
   #[Hook('theme')]
-  public function theme(): array
-  {
+  public function theme(): array {
     return [
       'changelogify_release_list' => [
         'variables' => [

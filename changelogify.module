@@ -8,14 +8,12 @@
 declare(strict_types=1);
 
 use Drupal\Core\Entity\EntityInterface;
-use Drupal\Core\Hook\Attribute\LegacyHook;
 use Drupal\user\UserInterface;
 
 
 /**
  * Implements hook_entity_insert().
  */
-#[LegacyHook]
 function changelogify_entity_insert(EntityInterface $entity): void {
   \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->entityInsert($entity);
 }
@@ -23,7 +21,6 @@ function changelogify_entity_insert(EntityInterface $entity): void {
 /**
  * Implements hook_entity_update().
  */
-#[LegacyHook]
 function changelogify_entity_update(EntityInterface $entity): void {
   \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->entityUpdate($entity);
 }
@@ -31,7 +28,6 @@ function changelogify_entity_update(EntityInterface $entity): void {
 /**
  * Implements hook_entity_delete().
  */
-#[LegacyHook]
 function changelogify_entity_delete(EntityInterface $entity): void {
   \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->entityDelete($entity);
 }
@@ -39,7 +35,6 @@ function changelogify_entity_delete(EntityInterface $entity): void {
 /**
  * Implements hook_modules_installed().
  */
-#[LegacyHook]
 function changelogify_modules_installed(array $modules, bool $is_syncing): void {
   \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->modulesInstalled($modules, $is_syncing);
 }
@@ -47,7 +42,6 @@ function changelogify_modules_installed(array $modules, bool $is_syncing): void 
 /**
  * Implements hook_modules_uninstalled().
  */
-#[LegacyHook]
 function changelogify_modules_uninstalled(array $modules, bool $is_syncing): void {
   \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->modulesUninstalled($modules, $is_syncing);
 }
@@ -55,7 +49,6 @@ function changelogify_modules_uninstalled(array $modules, bool $is_syncing): voi
 /**
  * Implements hook_user_insert().
  */
-#[LegacyHook]
 function changelogify_user_insert(UserInterface $account): void {
   \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->userInsert($account);
 }
@@ -63,7 +56,6 @@ function changelogify_user_insert(UserInterface $account): void {
 /**
  * Implements hook_user_update().
  */
-#[LegacyHook]
 function changelogify_user_update(UserInterface $account): void {
   \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->userUpdate($account);
 }
@@ -71,7 +63,6 @@ function changelogify_user_update(UserInterface $account): void {
 /**
  * Implements hook_theme().
  */
-#[LegacyHook]
 function changelogify_theme($existing, $type, $theme, $path): array {
   return \Drupal::service('Drupal\changelogify\Hook\ChangelogifyHooks')->theme();
 }
