@@ -6,6 +6,19 @@ Changelogify captures events from your Drupal site (content changes, module inst
 
 ---
 
+## 💡 Why Keep a Changelog?
+
+Based on the principles of maintaining a product and communicating with an audience, here is why any website or project should maintain a public changelog:
+
+1. **Builds Trust and Transparency:** A changelog serves as a record of activity. For users, seeing regular updates, bug fixes, and new features proves that the website is actively maintained and that the developers are listening to feedback. This is especially important for sites that handle data or payments.
+2. **Educates and Re-engages Users:** New features are often missed by casual users. A changelog acts as a central hub to explain how new tools work and why they were added. It provides a reason to send out a newsletter or social media update, bringing users back to the site to try out the improvements.
+3. **Improves Internal Alignment:** For the team behind the website, the process of writing a changelog forces a moment of reflection. It helps align different departments (design, engineering, marketing) on what was actually achieved and ensures everyone is moving toward the same goals.
+4. **Provides a Searchable History:** As a project grows, it becomes difficult to remember when a specific change was made or why a feature was altered. A changelog provides an easy-to-search archive for both the team and power users to reference past versions and technical shifts.
+5. **Showcases "Craft" and Quality:** Publicly documenting small fixes and "polish" items shows that you care about the user experience. It signals to competitors, users, and potential collaborators that you value high-quality work and attention to detail.
+6. **Reduces Support Volume:** By proactively listing known bug fixes and interface changes, you can reduce the number of support tickets from users who might otherwise think a change is a "glitch" or are looking for a feature that has been moved.
+
+---
+
 ## ✨ Features
 
 - **Automatic Event Capture** — Logs content creates/updates/deletes, module installs, and user changes
@@ -24,49 +37,12 @@ Changelogify captures events from your Drupal site (content changes, module inst
 
 ---
 
-## 🚀 Installation
+## Installation
 
-Install as you would normally install a contributed Drupal module. See
-[Installing Drupal Modules](https://www.drupal.org/docs/extending-drupal/installing-modules)
-for general guidance.
-
-### For Existing Drupal Sites (Recommended)
-
-Install with Composer and enable the module with Drush or the Drupal admin UI:
-
-```bash
-composer require drupal/changelogify
-drush en changelogify -y
-```
-
-### For Local Development (Optional DDEV Example)
-
-If you use DDEV, you can use the following example workflow:
-
-```bash
-# Clone and set up
-git clone https://github.com/Erics1337/changelogify-drupal.git
-cd changelogify-drupal
-
-# Start DDEV and install Drupal
-ddev start
-ddev composer create-project "drupal/recommended-project:^10" . --no-install
-ddev composer install
-ddev composer require drush/drush
-ddev drush site:install standard --site-name="My Site" -y
-
-# Enable Changelogify
-ddev drush en changelogify -y
-ddev drush cr
-```
-
-### Manual Installation (Without Composer)
-
-Copy the `web/modules/custom/changelogify` folder to your site's `modules/custom` directory and enable via Drush or the admin UI:
-
-```bash
-drush en changelogify -y
-```
+Install as you would normally install a contributed Drupal module. For further
+information, see
+[Installing Drupal Modules](https://www.drupal.org/docs/extending-drupal/installing-drupal-modules).
+See https://www.drupal.org/docs/develop/managing-a-drupalorg-theme-module-or...
 
 ---
 
@@ -140,31 +116,6 @@ Visit **Configuration → Development → Changelogify → Settings** to configu
 | `view changelogify releases`   | View public changelog pages            |
 
 By default, anonymous users can view the public changelog.
-
----
-
-## 🛣️ Roadmap
-
-- [ ] **Latest Releases block** — Place in sidebars
-- [ ] **AI Submodule** (`changelogify_ai`) — Auto-generate summaries with LLMs
-- [ ] **Config entity export** — Deploy releases across environments
-- [ ] **RSS/Atom feed** — Subscribe to changelog updates
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-
----
-
-## 📄 License
-
-This project is licensed under the GPL-2.0+ license, consistent with Drupal core.
 
 ---
 
