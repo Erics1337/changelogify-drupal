@@ -23,3 +23,25 @@
 # It is generally recommended not to commit lock files for modules, but for projects it is essential.
 # For a contributed module, we usually ignore composer.lock unless we are running tests.
 composer.lock
+
+# Ddev drupal contrib scaffolding
+/web/
+/modules/
+/profiles/
+/recipes/
+/sites/
+/themes/
+/core/
+/composer.contrib.json
+/composer.contrib.lock
+/.csslintrc
+/.eslintignore
+/.eslintrc.json
+/.ht.router.php
+/.htaccess
+/INSTALL.txt
+/autoload.php
+/example.gitignore
+/index.php
+/robots.txt
+/update.php
