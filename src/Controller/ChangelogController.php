@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Controller;
 
+use Drupal\Core\Cache\Cache;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -45,11 +46,13 @@ class ChangelogController extends ControllerBase {
       ->execute();
 
     $releases = $storage->loadMultiple($release_ids);
+    $cache_tags = $storage->getEntityType()->getListCacheTags();
 
     $items = [];
     foreach ($releases as $release) {
       $sections = $release->getSections();
       $excerpt = $this->buildExcerpt($sections);
+      $cache_tags = Cache::mergeTags($cache_tags, $release->getCacheTags());
 
       $items[] = [
         'release' => $release,
@@ -61,6 +64,13 @@ class ChangelogController extends ControllerBase {
     return [
       '#theme' => 'changelogify_release_list',
       '#releases' => $items,
+      '#attached' => [
+        'library' => ['changelogify/public'],
+      ],
+      '#cache' => [
+        'tags' => $cache_tags,
+        'contexts' => ['user.permissions'],
+      ],
       'pager' => [
         '#type' => 'pager',
       ],
@@ -95,6 +105,13 @@ class ChangelogController extends ControllerBase {
       '#theme' => 'changelogify_release',
       '#release' => $changelogify_release,
       '#sections' => $rendered_sections,
+      '#attached' => [
+        'library' => ['changelogify/public'],
+      ],
+      '#cache' => [
+        'tags' => $changelogify_release->getCacheTags(),
+        'contexts' => ['user.permissions'],
+      ],
     ];
   }
 

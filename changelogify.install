@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * @file
+ * Install and update hooks for Changelogify.
+ */
+
+/**
+ * Backfills default settings and removes deprecated configuration keys.
+ */
+function changelogify_update_12001(): string {
+  $config = \Drupal::configFactory()->getEditable('changelogify.settings');
+
+  if ($config->get('track_content') === NULL) {
+    $config->set('track_content', TRUE);
+  }
+  if ($config->get('track_modules') === NULL) {
+    $config->set('track_modules', FALSE);
+  }
+  if ($config->get('track_users') === NULL) {
+    $config->set('track_users', FALSE);
+  }
+  if ($config->get('event_retention_days') === NULL) {
+    $config->set('event_retention_days', 0);
+  }
+
+  if ($config->get('changelog_path') !== NULL) {
+    $config->clear('changelog_path');
+  }
+
+  $config->save();
+
+  return 'Backfilled Changelogify 1.2 settings defaults and removed deprecated configuration.';
+}

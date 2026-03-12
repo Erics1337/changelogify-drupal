@@ -4,25 +4,24 @@
  * Template for a single release detail page.
  */
 #}
-<article class="changelogify-release">
-  <header>
-    <div class="release-meta">
-      <time datetime="{{ release.release_date.value|date('c') }}">
+<article class="changelogify changelogify-release">
+  <header class="changelogify-release__header">
+    <h1 class="changelogify-release__title">{{ release.title.value }}</h1>
+    <time class="changelogify-release__date" datetime="{{ release.release_date.value|date('c') }}">
         {{ release.release_date.value|date('F j, Y') }}
-      </time>
-      {% if release.version.value %}
-        <span class="version">Version {{ release.version.value }}</span>
-      {% endif %}
-    </div>
+    </time>
+    {% if release.version.value %}
+      <span class="changelogify-release__version">{{ 'Version @version'|t({'@version': release.version.value}) }}</span>
+    {% endif %}
   </header>
 
-  <div class="release-sections">
+  <div class="changelogify-release__sections">
     {% for key, section in sections %}
-      <section class="release-section release-section--{{ key }}">
-        <h2>{{ section.label }}</h2>
-        <ul>
+      <section class="changelogify-release__section changelogify-release__section--{{ key }}">
+        <h2 class="changelogify-release__section-title">{{ section.label }}</h2>
+        <ul class="changelogify-release__items">
           {% for item in section.items %}
-            <li>{{ item.text }}</li>
+            <li class="changelogify-release__item">{{ item.text }}</li>
           {% endfor %}
         </ul>
       </section>

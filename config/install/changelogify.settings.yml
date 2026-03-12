@@ -1,0 +1,4 @@
+track_content: true
+track_modules: false
+track_users: false
+event_retention_days: 0

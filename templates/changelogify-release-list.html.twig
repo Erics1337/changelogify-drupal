@@ -4,29 +4,31 @@
  * Template for public changelog release listing.
  */
 #}
-<div class="changelogify-release-list">
+<div class="changelogify changelogify--listing">
+  <div class="changelogify-release-list">
   {% if releases is empty %}
-    <p>{{ 'No releases published yet.'|t }}</p>
+    <p class="changelogify-release-list__empty">{{ 'No releases published yet.'|t }}</p>
   {% else %}
     {% for item in releases %}
       <article class="changelogify-release-teaser">
-        <header>
-          <h2>
+        <header class="changelogify-release-teaser__header">
+          <h2 class="changelogify-release-teaser__title">
             <a href="{{ path('changelogify.changelog_release', {'changelogify_release': item.release.id.value}) }}" rel="bookmark">
               {{ item.release.title.value }}
             </a>
           </h2>
-          <time datetime="{{ item.release.release_date.value|date('c') }}">
+          <time class="changelogify-release-teaser__date" datetime="{{ item.release.release_date.value|date('c') }}">
             {{ item.date }}
           </time>
           {% if item.release.version.value %}
-            <span class="version">{{ item.release.version.value }}</span>
+            <span class="changelogify-release-teaser__version">{{ item.release.version.value }}</span>
           {% endif %}
         </header>
         {% if item.excerpt %}
-          <p class="excerpt">{{ item.excerpt }}</p>
+          <p class="changelogify-release-teaser__excerpt">{{ item.excerpt }}</p>
         {% endif %}
       </article>
     {% endfor %}
   {% endif %}
+  </div>
 </div>

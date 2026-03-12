@@ -19,6 +19,11 @@
             "Drupal\\changelogify\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Drupal\\Tests\\changelogify\\": "tests/src/"
+        }
+    },
     "config": {
         "allow-plugins": {
             "composer/installers": true,
@@ -31,6 +36,7 @@
         }
     },
     "scripts": {
-        "test:changelogify": "vendor/bin/phpunit tests/src"
+        "test:changelogify": "vendor/bin/phpunit -c phpunit.xml.dist --testsuite kernel",
+        "test:changelogify:functional": "vendor/bin/phpunit -c phpunit.xml.dist --testsuite functional"
     }
 }

@@ -30,20 +30,6 @@ class SettingsForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
-    $form['general'] = [
-      '#type' => 'details',
-      '#title' => $this->t('General Settings'),
-      '#open' => TRUE,
-    ];
-
-    $form['general']['changelog_path'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Changelog Path'),
-      '#description' => $this->t('The URL path for the public changelog.'),
-      '#config_target' => 'changelogify.settings:changelog_path',
-      '#default_value' => $this->config('changelogify.settings')->get('changelog_path') ?: '/changelog',
-    ];
-
     $form['event_sources'] = [
       '#type' => 'details',
       '#title' => $this->t('Event Sources'),
@@ -53,7 +39,7 @@ class SettingsForm extends ConfigFormBase {
     $form['event_sources']['track_content'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Track content changes'),
-      '#description' => $this->t('Log events when content is created, updated, or deleted.'),
+      '#description' => $this->t('Log events for supported content entities: nodes, media, custom blocks, and taxonomy terms.'),
       '#config_target' => 'changelogify.settings:track_content',
     ];
 
@@ -83,6 +69,18 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('Events older than this will be deleted during cron. Set to 0 to keep forever.'),
       '#config_target' => 'changelogify.settings:event_retention_days',
       '#min' => 0,
+    ];
+
+    $form['public'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Public Changelog'),
+      '#open' => FALSE,
+    ];
+
+    $form['public']['route_notice'] = [
+      '#type' => 'item',
+      '#title' => $this->t('Public URL'),
+      '#markup' => $this->t('Published releases appear at <code>/changelog</code>. Themes can override the markup and styling using standard Drupal Twig and library override patterns.'),
     ];
 
     return parent::buildForm($form, $form_state);

@@ -133,4 +133,23 @@ class EventManager implements EventManagerInterface {
     return $this->getEventsByRange($start, $end);
   }
 
+  /**
+   * {@inheritdoc}
+   */
+  public function deleteEventsBefore(int $timestamp): int {
+    $storage = $this->entityTypeManager->getStorage('changelogify_event');
+    $ids = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('timestamp', $timestamp, '<')
+      ->execute();
+
+    if (empty($ids)) {
+      return 0;
+    }
+
+    $storage->delete($storage->loadMultiple($ids));
+
+    return count($ids);
+  }
+
 }

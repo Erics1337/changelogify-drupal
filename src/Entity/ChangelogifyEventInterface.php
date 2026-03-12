@@ -27,6 +27,21 @@ interface ChangelogifyEventInterface extends ContentEntityInterface {
   public function getSource(): string;
 
   /**
+   * Gets the related entity type ID, if any.
+   */
+  public function getRelatedEntityTypeId(): ?string;
+
+  /**
+   * Gets the related entity ID, if any.
+   */
+  public function getRelatedEntityId(): ?int;
+
+  /**
+   * Gets the related entity bundle, if any.
+   */
+  public function getRelatedBundle(): ?string;
+
+  /**
    * Gets the event message.
    */
   public function getMessage(): string;

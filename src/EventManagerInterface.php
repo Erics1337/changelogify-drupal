@@ -64,4 +64,15 @@ interface EventManagerInterface {
    */
   public function getEventsSinceLastRelease(): array;
 
+  /**
+   * Deletes events older than the provided timestamp.
+   *
+   * @param int $timestamp
+   *   Unix timestamp cutoff. Events older than this are deleted.
+   *
+   * @return int
+   *   The number of deleted events.
+   */
+  public function deleteEventsBefore(int $timestamp): int;
+
 }

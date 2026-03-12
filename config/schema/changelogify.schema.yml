@@ -1,0 +1,16 @@
+changelogify.settings:
+  type: config_object
+  label: 'Changelogify settings'
+  mapping:
+    track_content:
+      type: boolean
+      label: 'Track supported content changes'
+    track_modules:
+      type: boolean
+      label: 'Track module install and uninstall events'
+    track_users:
+      type: boolean
+      label: 'Track user creation and role change events'
+    event_retention_days:
+      type: integer
+      label: 'Event retention in days'

@@ -119,6 +119,28 @@ class ChangelogifyEvent extends ContentEntityBase implements ChangelogifyEventIn
   /**
    * {@inheritdoc}
    */
+  public function getRelatedEntityTypeId(): ?string {
+    return $this->get('entity_type_id')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getRelatedEntityId(): ?int {
+    $value = $this->get('entity_id')->value;
+    return $value !== NULL ? (int) $value : NULL;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getRelatedBundle(): ?string {
+    return $this->get('bundle')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function getMessage(): string {
     return $this->get('message')->value ?? '';
   }

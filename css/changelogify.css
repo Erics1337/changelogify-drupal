@@ -1,0 +1,98 @@
+.changelogify {
+  --changelogify-bg: #ffffff;
+  --changelogify-text: #1f2933;
+  --changelogify-muted: #5f6c7b;
+  --changelogify-accent: #0f766e;
+  --changelogify-border: #d9e2ec;
+  color: var(--changelogify-text);
+}
+
+.changelogify-release-list,
+.changelogify-release {
+  background: var(--changelogify-bg);
+}
+
+.changelogify-release-list {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.changelogify-release-teaser,
+.changelogify-release {
+  border: 1px solid var(--changelogify-border);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+.changelogify-release-teaser__header,
+.changelogify-release__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.changelogify-release-teaser__title,
+.changelogify-release__title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.changelogify-release-teaser__title a {
+  color: inherit;
+  text-decoration-color: var(--changelogify-accent);
+}
+
+.changelogify-release-teaser__date,
+.changelogify-release__date,
+.changelogify-release-teaser__excerpt {
+  color: var(--changelogify-muted);
+}
+
+.changelogify-release-teaser__version,
+.changelogify-release__version {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--changelogify-accent) 12%, var(--changelogify-bg));
+  color: var(--changelogify-accent);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.2rem 0.65rem;
+}
+
+.changelogify-release__summary {
+  margin: 0 0 1.25rem;
+  color: var(--changelogify-muted);
+}
+
+.changelogify-release__sections {
+  display: grid;
+  gap: 1rem;
+}
+
+.changelogify-release__section {
+  border-top: 1px solid var(--changelogify-border);
+  padding-top: 1rem;
+}
+
+.changelogify-release__section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.changelogify-release__section-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+.changelogify-release__items {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.changelogify-release__item + .changelogify-release__item {
+  margin-top: 0.35rem;
+}

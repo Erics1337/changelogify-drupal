@@ -21,9 +21,9 @@ Based on the principles of maintaining a product and communicating with an audie
 
 ## ✨ Features
 
-- **Automatic Event Capture** — Logs content creates/updates/deletes, module installs, and user changes
+- **Automatic Event Capture** — Logs supported content changes for nodes, media, custom blocks, and taxonomy terms, with optional module and user event tracking
 - **Release Management** — Group events into releases with sections: Added, Changed, Fixed, Removed, Security, Other
-- **Public Changelog** — Publish releases at `/changelog` with a clean, themeable UI
+- **Public Changelog** — Publish releases at `/changelog` with a clean, themeable UI and minimal default styling
 - **Admin Dashboard** — Quick stats and one-click release generation
 - **Drupal 10/11 Compatible** — Built with modern Drupal best practices
 
@@ -98,12 +98,28 @@ Individual releases are viewable at `/changelog/{release-id}`.
 
 Visit **Configuration → Development → Changelogify → Settings** to configure:
 
-| Setting                   | Description                          |
-| ------------------------- | ------------------------------------ |
-| **Track content changes** | Log node create/update/delete events |
-| **Track module changes**  | Log module install/uninstall events  |
-| **Track user changes**    | Log user creation and role changes   |
-| **Event retention**       | Days to keep events (0 = forever)    |
+| Setting                   | Description                                                          |
+| ------------------------- | -------------------------------------------------------------------- |
+| **Track content changes** | Log supported content events for nodes, media, custom blocks, and taxonomy terms |
+| **Track module changes**  | Log module install/uninstall events                                  |
+| **Track user changes**    | Log user creation and role changes                                   |
+| **Event retention**       | Days to keep events (0 = forever)                                    |
+
+By default, content tracking is enabled and module/user tracking is disabled so public changelog drafts stay focused on site changes.
+
+---
+
+## 🎨 Theming
+
+The public changelog uses normal Drupal Twig template overrides and a small default library. Themes can override the shipped templates or restyle the output using these CSS variables:
+
+- `--changelogify-bg`
+- `--changelogify-text`
+- `--changelogify-muted`
+- `--changelogify-accent`
+- `--changelogify-border`
+
+Published releases continue to render at `/changelog`.
 
 ---
 

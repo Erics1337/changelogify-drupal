@@ -80,6 +80,14 @@ class ReleaseForm extends ContentEntityForm {
       'security' => $this->t('Security'),
       'other' => $this->t('Other'),
     ];
+    $section_descriptions = [
+      'added' => $this->t('New launches, newly published content, or additions worth calling out.'),
+      'changed' => $this->t('Updates to existing content, features, or configuration.'),
+      'fixed' => $this->t('Corrections, bug fixes, or cleanup items.'),
+      'removed' => $this->t('Retired, deleted, or unpublished items.'),
+      'security' => $this->t('Security-related fixes or mitigations.'),
+      'other' => $this->t('Anything useful that does not fit the other sections.'),
+    ];
 
     foreach ($section_labels as $key => $label) {
       $items = $sections[$key] ?? [];
@@ -93,7 +101,7 @@ class ReleaseForm extends ContentEntityForm {
       $form['sections_wrapper']['section_' . $key]['items'] = [
         '#type' => 'textarea',
         '#title' => $this->t('Items'),
-        '#description' => $this->t('One item per line.'),
+        '#description' => $this->t('@summary One item per line.', ['@summary' => $section_descriptions[$key]]),
         '#default_value' => $this->itemsToText($items),
         '#rows' => max(3, count($items)),
       ];
@@ -117,7 +125,7 @@ class ReleaseForm extends ContentEntityForm {
    * Converts text to items array.
    */
   protected function textToItems(string $text): array {
-    $lines = array_filter(array_map('trim', explode("\n", $text)));
+    $lines = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $text) ?: []), static fn(string $line): bool => $line !== ''));
     $items = [];
     foreach ($lines as $line) {
       $items[] = [
