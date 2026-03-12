@@ -1,11 +1,11 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * @file
  * Install and update hooks for Changelogify.
  */
+
+declare(strict_types=1);
 
 /**
  * Backfills default settings and removes deprecated configuration keys.

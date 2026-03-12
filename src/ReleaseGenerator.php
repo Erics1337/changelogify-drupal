@@ -173,10 +173,12 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
   }
 
   /**
-   * Determines whether a node update should be hidden in favor of publish state.
+   * Determines whether a node update should be suppressed.
    */
   protected function shouldSuppressNodeUpdate(ChangelogifyEventInterface $event, array $node_state_changes): bool {
-    if (!in_array($event->getEventType(), ['node_updated', 'content_updated'], TRUE)) {
+    if (
+      !in_array($event->getEventType(), ['node_updated', 'content_updated'], TRUE)
+    ) {
       return FALSE;
     }
 

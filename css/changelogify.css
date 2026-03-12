@@ -1,9 +1,10 @@
 .changelogify {
-  --changelogify-bg: #ffffff;
+  --changelogify-bg: #fff;
   --changelogify-text: #1f2933;
   --changelogify-muted: #5f6c7b;
   --changelogify-accent: #0f766e;
   --changelogify-border: #d9e2ec;
+
   color: var(--changelogify-text);
 }
 
@@ -20,8 +21,8 @@
 .changelogify-release-teaser,
 .changelogify-release {
   border: 1px solid var(--changelogify-border);
-  border-radius: 0.75rem;
   padding: 1.25rem;
+  border-radius: 0.75rem;
 }
 
 .changelogify-release-teaser__header,
@@ -56,11 +57,11 @@
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--changelogify-accent) 12%, var(--changelogify-bg));
+  padding: 0.2rem 0.65rem;
+  background: color-mix(in sRGB, var(--changelogify-accent) 12%, var(--changelogify-bg));
   color: var(--changelogify-accent);
   font-size: 0.875rem;
   font-weight: 600;
-  padding: 0.2rem 0.65rem;
 }
 
 .changelogify-release__summary {
@@ -74,13 +75,13 @@
 }
 
 .changelogify-release__section {
-  border-top: 1px solid var(--changelogify-border);
   padding-top: 1rem;
+  border-top: 1px solid var(--changelogify-border);
 }
 
 .changelogify-release__section:first-child {
-  border-top: 0;
   padding-top: 0;
+  border-top: 0;
 }
 
 .changelogify-release__section-title {
