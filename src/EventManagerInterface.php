@@ -65,4 +65,30 @@ interface EventManagerInterface
      */
     public function getEventsSinceLastRelease(): array;
 
+    /**
+     * Gets the timestamp immediately after the last published release window.
+     *
+     * @return int
+     *   Unix timestamp for the first event not covered by the last release.
+     */
+    public function getNextReleaseStartTimestamp(): int;
+
+    /**
+     * Counts events since the last published release.
+     */
+    public function getEventCountSinceLastRelease(): int;
+
+    /**
+     * Deletes a bounded batch of events older than the retention period.
+     *
+     * @param int $retention_days
+     *   Number of days to retain. Values less than one delete nothing.
+     * @param int $limit
+     *   Maximum number of events to delete in one batch.
+     *
+     * @return int
+     *   Number of deleted events.
+     */
+    public function purgeExpiredEvents(int $retention_days, int $limit = 1000): int;
+
 }

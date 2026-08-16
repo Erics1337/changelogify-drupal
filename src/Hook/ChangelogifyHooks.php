@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\changelogify\Hook;
 
 use Drupal\changelogify\EventManagerInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
@@ -21,6 +22,7 @@ class ChangelogifyHooks
 
     public function __construct(
         protected EventManagerInterface $eventManager,
+        protected ConfigFactoryInterface $configFactory,
     ) {
     }
 
@@ -30,7 +32,7 @@ class ChangelogifyHooks
     #[Hook('entity_insert')]
     public function entityInsert(EntityInterface $entity): void
     {
-        if (!$entity instanceof NodeInterface) {
+        if (!$entity instanceof NodeInterface || !$this->shouldTrackContent($entity)) {
             return;
         }
 
@@ -58,7 +60,7 @@ class ChangelogifyHooks
     #[Hook('entity_update')]
     public function entityUpdate(EntityInterface $entity): void
     {
-        if (!$entity instanceof NodeInterface) {
+        if (!$entity instanceof NodeInterface || !$this->shouldTrackContent($entity)) {
             return;
         }
 
@@ -86,7 +88,7 @@ class ChangelogifyHooks
     #[Hook('entity_delete')]
     public function entityDelete(EntityInterface $entity): void
     {
-        if (!$entity instanceof NodeInterface) {
+        if (!$entity instanceof NodeInterface || !$this->shouldTrackContent($entity)) {
             return;
         }
 
@@ -113,7 +115,7 @@ class ChangelogifyHooks
     #[Hook('modules_installed')]
     public function modulesInstalled(array $modules, bool $is_syncing): void
     {
-        if ($is_syncing) {
+        if ($is_syncing || !$this->settingEnabled('track_modules', TRUE)) {
             return;
         }
 
@@ -141,7 +143,7 @@ class ChangelogifyHooks
     #[Hook('modules_uninstalled')]
     public function modulesUninstalled(array $modules, bool $is_syncing): void
     {
-        if ($is_syncing) {
+        if ($is_syncing || !$this->settingEnabled('track_modules', TRUE)) {
             return;
         }
 
@@ -164,6 +166,10 @@ class ChangelogifyHooks
     #[Hook('user_insert')]
     public function userInsert(UserInterface $account): void
     {
+        if (!$this->settingEnabled('track_users', FALSE)) {
+            return;
+        }
+
         $this->eventManager->logEvent([
             'event_type' => 'user_created',
             'source' => 'user',
@@ -183,6 +189,10 @@ class ChangelogifyHooks
     #[Hook('user_update')]
     public function userUpdate(UserInterface $account): void
     {
+        if (!$this->settingEnabled('track_users', FALSE)) {
+            return;
+        }
+
         /** @var \Drupal\Core\Entity\EntityInterface $original */
         $original = $account->original;
 
@@ -226,6 +236,40 @@ class ChangelogifyHooks
                 ],
             ],
         ];
+    }
+
+    /**
+     * Implements hook_cron().
+     */
+    #[Hook('cron')]
+    public function cron(): void
+    {
+        $retention_days = (int) ($this->configFactory
+            ->get('changelogify.settings')
+            ->get('event_retention_days') ?? 90);
+        $this->eventManager->purgeExpiredEvents($retention_days);
+    }
+
+    /**
+     * Determines whether a node change should be recorded.
+     */
+    private function shouldTrackContent(NodeInterface $node): bool
+    {
+        if (!$this->settingEnabled('track_content', TRUE)) {
+            return FALSE;
+        }
+
+        return $node->isPublished()
+            || $this->settingEnabled('track_unpublished_content', FALSE);
+    }
+
+    /**
+     * Reads a boolean setting while preserving a default for existing sites.
+     */
+    private function settingEnabled(string $key, bool $default): bool
+    {
+        $value = $this->configFactory->get('changelogify.settings')->get($key);
+        return $value === NULL ? $default : (bool) $value;
     }
 
 }

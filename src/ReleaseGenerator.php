@@ -43,26 +43,9 @@ class ReleaseGenerator implements ReleaseGeneratorInterface
      */
     public function generateReleaseSinceLast(array $options = []): ChangelogifyReleaseInterface
     {
-        $events = $this->eventManager->getEventsSinceLastRelease();
-
-        // Determine start date from last release.
-        $release_storage = $this->entityTypeManager->getStorage('changelogify_release');
-        $release_ids = $release_storage->getQuery()
-            ->accessCheck(FALSE)
-            ->condition('status', TRUE)
-            ->sort('release_date', 'DESC')
-            ->range(0, 1)
-            ->execute();
-
-        $start_timestamp = 0;
-        if (!empty($release_ids)) {
-            /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $last_release */
-            $last_release = $release_storage->load(reset($release_ids));
-            $start_timestamp = $last_release->get('date_end')->value ?? $last_release->getReleaseDate();
-        }
-
-        $start = new \DateTimeImmutable('@' . $start_timestamp);
+        $start = new \DateTimeImmutable('@' . $this->eventManager->getNextReleaseStartTimestamp());
         $end = new \DateTimeImmutable('@' . $this->time->getRequestTime());
+        $events = $this->eventManager->getEventsByRange($start, $end);
 
         return $this->createReleaseFromEvents($events, $start, $end, $options);
     }

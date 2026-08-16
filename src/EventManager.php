@@ -114,9 +114,18 @@ class EventManager implements EventManagerInterface
      */
     public function getEventsSinceLastRelease(): array
     {
-        $release_storage = $this->entityTypeManager->getStorage('changelogify_release');
+        $start = new \DateTimeImmutable('@' . $this->getNextReleaseStartTimestamp());
+        $end = new \DateTimeImmutable('@' . $this->time->getRequestTime());
 
-        // Find the last published release.
+        return $this->getEventsByRange($start, $end);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getNextReleaseStartTimestamp(): int
+    {
+        $release_storage = $this->entityTypeManager->getStorage('changelogify_release');
         $release_ids = $release_storage->getQuery()
             ->accessCheck(FALSE)
             ->condition('status', TRUE)
@@ -124,18 +133,53 @@ class EventManager implements EventManagerInterface
             ->range(0, 1)
             ->execute();
 
-        $since = 0;
-        if (!empty($release_ids)) {
-            /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
-            $release = $release_storage->load(reset($release_ids));
-            // Use date_end if available, otherwise use release_date.
-            $since = $release->get('date_end')->value ?? $release->getReleaseDate();
+        if (empty($release_ids)) {
+            return 0;
         }
 
-        $start = new \DateTimeImmutable('@' . $since);
-        $end = new \DateTimeImmutable('@' . $this->time->getRequestTime());
+        /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface|null $release */
+        $release = $release_storage->load(reset($release_ids));
+        if ($release === NULL) {
+            return 0;
+        }
 
-        return $this->getEventsByRange($start, $end);
+        $boundary = (int) ($release->get('date_end')->value ?? $release->getReleaseDate());
+        return $boundary + 1;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getEventCountSinceLastRelease(): int
+    {
+        return $this->getEventCountSince($this->getNextReleaseStartTimestamp());
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function purgeExpiredEvents(int $retention_days, int $limit = 1000): int
+    {
+        if ($retention_days < 1 || $limit < 1) {
+            return 0;
+        }
+
+        $storage = $this->entityTypeManager->getStorage('changelogify_event');
+        $cutoff = $this->time->getCurrentTime() - ($retention_days * 86400);
+        $ids = $storage->getQuery()
+            ->accessCheck(FALSE)
+            ->condition('timestamp', $cutoff, '<')
+            ->sort('timestamp', 'ASC')
+            ->range(0, $limit)
+            ->execute();
+
+        if (empty($ids)) {
+            return 0;
+        }
+
+        $events = $storage->loadMultiple($ids);
+        $storage->delete($events);
+        return count($events);
     }
 
 }

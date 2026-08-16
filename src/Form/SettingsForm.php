@@ -4,14 +4,35 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Form;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Routing\RouteBuilderInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Settings form for Changelogify.
  */
 class SettingsForm extends ConfigFormBase
 {
+
+    public function __construct(
+        ConfigFactoryInterface $config_factory,
+        protected RouteBuilderInterface $routeBuilder,
+    ) {
+        parent::__construct($config_factory);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public static function create(ContainerInterface $container): self
+    {
+        return new static(
+            $container->get('config.factory'),
+            $container->get('router.builder'),
+        );
+    }
 
     /**
      * {@inheritdoc}
@@ -46,6 +67,7 @@ class SettingsForm extends ConfigFormBase
             '#description' => $this->t('The URL path for the public changelog.'),
             '#config_target' => 'changelogify.settings:changelog_path',
             '#default_value' => $this->config('changelogify.settings')->get('changelog_path') ?: '/changelog',
+            '#required' => TRUE,
         ];
 
         $form['event_sources'] = [
@@ -59,6 +81,20 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Track content changes'),
             '#description' => $this->t('Log events when content is created, updated, or deleted.'),
             '#config_target' => 'changelogify.settings:track_content',
+            '#default_value' => $this->setting('track_content', TRUE),
+        ];
+
+        $form['event_sources']['track_unpublished_content'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Track unpublished content'),
+            '#description' => $this->t('Include titles and paths for unpublished nodes in the internal event log.'),
+            '#config_target' => 'changelogify.settings:track_unpublished_content',
+            '#default_value' => $this->setting('track_unpublished_content', FALSE),
+            '#states' => [
+                'visible' => [
+                    ':input[name="track_content"]' => ['checked' => TRUE],
+                ],
+            ],
         ];
 
         $form['event_sources']['track_modules'] = [
@@ -66,6 +102,7 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Track module changes'),
             '#description' => $this->t('Log events when modules are installed or uninstalled.'),
             '#config_target' => 'changelogify.settings:track_modules',
+            '#default_value' => $this->setting('track_modules', TRUE),
         ];
 
         $form['event_sources']['track_users'] = [
@@ -73,6 +110,7 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Track user changes'),
             '#description' => $this->t('Log events when users are created or roles change.'),
             '#config_target' => 'changelogify.settings:track_users',
+            '#default_value' => $this->setting('track_users', FALSE),
         ];
 
         $form['retention'] = [
@@ -87,9 +125,44 @@ class SettingsForm extends ConfigFormBase
             '#description' => $this->t('Events older than this will be deleted during cron. Set to 0 to keep forever.'),
             '#config_target' => 'changelogify.settings:event_retention_days',
             '#min' => 0,
+            '#default_value' => $this->config('changelogify.settings')->get('event_retention_days') ?? 90,
         ];
 
         return parent::buildForm($form, $form_state);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function validateForm(array &$form, FormStateInterface $form_state): void
+    {
+        parent::validateForm($form, $form_state);
+
+        $path = '/' . trim((string) $form_state->getValue('changelog_path'), '/');
+        if (!preg_match('@^/[a-z0-9][a-z0-9/_-]*$@', $path)) {
+            $form_state->setErrorByName('changelog_path', $this->t('Use a path such as /changelog containing lowercase letters, numbers, slashes, underscores, or hyphens.'));
+            return;
+        }
+
+        $form_state->setValue('changelog_path', $path);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function submitForm(array &$form, FormStateInterface $form_state): void
+    {
+        parent::submitForm($form, $form_state);
+        $this->routeBuilder->rebuild();
+    }
+
+    /**
+     * Gets a boolean setting with an existing-site fallback.
+     */
+    private function setting(string $key, bool $default): bool
+    {
+        $value = $this->config('changelogify.settings')->get($key);
+        return $value === NULL ? $default : (bool) $value;
     }
 
 }

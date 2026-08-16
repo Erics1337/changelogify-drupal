@@ -44,7 +44,7 @@ class DashboardController extends ControllerBase
 
         $events_7d = $this->eventManager->getEventCountSince($seven_days_ago);
         $events_30d = $this->eventManager->getEventCountSince($thirty_days_ago);
-        $events_since_last = count($this->eventManager->getEventsSinceLastRelease());
+        $events_since_last = $this->eventManager->getEventCountSinceLastRelease();
 
         // Get recent releases.
         $release_storage = $this->entityTypeManager()->getStorage('changelogify_release');
