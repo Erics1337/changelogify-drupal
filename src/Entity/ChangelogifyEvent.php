@@ -23,6 +23,9 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
       "view_builder" => "Drupal\Core\Entity\EntityViewBuilder",
       "list_builder" => "Drupal\changelogify\EventListBuilder",
       "storage_schema" => "Drupal\changelogify\Entity\ChangelogifyEventStorageSchema",
+      "route_provider" => [
+        "html" => "Drupal\Core\Entity\Routing\AdminHtmlRouteProvider",
+      ],
     ],
     base_table: "changelogify_event",
     admin_permission: "administer changelogify",
@@ -30,6 +33,9 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
       "id" => "id",
       "uuid" => "uuid",
       "label" => "message",
+    ],
+    links: [
+      "collection" => "/admin/content/changelogify/events",
     ],
 )]
 class ChangelogifyEvent extends ContentEntityBase implements ChangelogifyEventInterface {

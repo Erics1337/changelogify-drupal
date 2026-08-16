@@ -40,6 +40,15 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     $this->drupalLogin($user);
 
+    /** @var \Drupal\changelogify\EventManagerInterface $eventManager */
+    $eventManager = \Drupal::service(EventManagerInterface::class);
+    $eventManager->logEvent([
+      'event_type' => 'test_event',
+      'source' => 'test',
+      'message' => 'Visible event log entry',
+      'section_hint' => 'other',
+    ]);
+
     // Visit the dashboard.
     $this->drupalGet('/admin/config/development/changelogify');
     $this->assertSession()->statusCodeEquals(200);
@@ -52,6 +61,11 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->drupalGet('/admin/content/changelogify/releases');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Releases');
+
+    // Visit the captured event log.
+    $this->drupalGet('/admin/content/changelogify/events');
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Visible event log entry');
   }
 
   /**
