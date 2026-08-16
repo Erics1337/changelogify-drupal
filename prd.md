@@ -34,7 +34,7 @@ Changelogify automatically collects site changes from Drupal, lets admins group 
 - Not a full compliance or security audit trail.
 - Not a deployment orchestration or CI tool.
 - Not an analytics or error monitoring suite.
-- No cross site multitenant management dashboard (beyond normal Drupal multisite support).
+- No cross-site multi-tenant management dashboard (beyond normal Drupal multisite support).
 
 ---
 

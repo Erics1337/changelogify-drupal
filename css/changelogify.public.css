@@ -4,6 +4,7 @@
   --changelogify-border: #d9e0e8;
   --changelogify-muted: #5f6b7a;
   --changelogify-surface: #fff;
+
   max-width: 52rem;
   margin-inline: auto;
 }
@@ -13,7 +14,7 @@
   border: 1px solid var(--changelogify-border);
   border-radius: 0.75rem;
   background: var(--changelogify-surface);
-  box-shadow: 0 1px 3px rgb(20 35 50 / 8%);
+  box-shadow: 0 1px 3px rgb(20, 35, 50, 0.08);
 }
 
 .changelogify-release-teaser + .changelogify-release-teaser {
@@ -42,9 +43,9 @@
   display: inline-block;
   margin-inline-start: 0.5rem;
   padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--changelogify-accent) 10%, white);
   color: var(--changelogify-accent);
+  border-radius: 999px;
+  background: color-mix(in sRGB, var(--changelogify-accent) 10%, white);
   font-weight: 600;
 }
 
@@ -62,21 +63,21 @@
 
 .changelogify-release .release-section {
   position: relative;
-  margin-block: 1.25rem;
-  padding: 1.25rem 1.25rem 1.25rem 1.5rem;
   overflow: hidden;
+  padding: 1.25rem 1.25rem 1.25rem 1.5rem;
   border: 1px solid var(--changelogify-border);
   border-radius: 0.625rem;
   background: var(--changelogify-surface);
+  margin-block: 1.25rem;
 }
 
 .changelogify-release .release-section::before {
   position: absolute;
+  width: 0.3rem;
+  content: "";
+  background: var(--section-color, var(--changelogify-accent));
   inset-block: 0;
   inset-inline-start: 0;
-  width: 0.3rem;
-  background: var(--section-color, var(--changelogify-accent));
-  content: "";
 }
 
 .changelogify-release .release-section--added {
