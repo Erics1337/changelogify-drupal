@@ -30,13 +30,34 @@ class EventManager implements EventManagerInterface
      */
     public function logEvent(array $data): ChangelogifyEventInterface
     {
+        foreach (['event_type', 'source', 'message'] as $requiredKey) {
+            if (!isset($data[$requiredKey])
+                || !is_string($data[$requiredKey])
+                || trim($data[$requiredKey]) === '') {
+                throw new \InvalidArgumentException(sprintf(
+                    'Event data key "%s" must be a non-empty string.',
+                    $requiredKey,
+                ));
+            }
+        }
+
+        if (isset($data['metadata']) && !is_array($data['metadata'])) {
+            throw new \InvalidArgumentException('Event metadata must be an array.');
+        }
+
+        $allowedSections = ['added', 'changed', 'fixed', 'removed', 'security', 'other'];
+        if (isset($data['section_hint'])
+            && !in_array($data['section_hint'], $allowedSections, TRUE)) {
+            throw new \InvalidArgumentException('Event section_hint is invalid.');
+        }
+
         $storage = $this->entityTypeManager->getStorage('changelogify_event');
 
         $event_data = [
             'timestamp' => $data['timestamp'] ?? $this->time->getRequestTime(),
-            'event_type' => $data['event_type'],
-            'source' => $data['source'],
-            'message' => $data['message'],
+            'event_type' => trim($data['event_type']),
+            'source' => trim($data['source']),
+            'message' => trim($data['message']),
             'user_id' => $data['user_id'] ?? $this->currentUser->id(),
         ];
 
@@ -52,12 +73,11 @@ class EventManager implements EventManagerInterface
         if (isset($data['section_hint'])) {
             $event_data['section_hint'] = $data['section_hint'];
         }
-        if (isset($data['metadata'])) {
-            $event_data['metadata'] = json_encode($data['metadata']);
-        }
-
         /** @var \Drupal\changelogify\Entity\ChangelogifyEventInterface $event */
         $event = $storage->create($event_data);
+        if (isset($data['metadata'])) {
+            $event->setMetadata($data['metadata']);
+        }
         $event->save();
 
         return $event;

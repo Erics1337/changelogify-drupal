@@ -230,8 +230,13 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
     if (empty($value)) {
       return $this->getDefaultSections();
     }
-    $decoded = json_decode($value, TRUE);
-    return is_array($decoded) ? $decoded : $this->getDefaultSections();
+
+    $decoded = json_decode($value, TRUE, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($decoded)) {
+      throw new \UnexpectedValueException('Release sections must decode to an array.');
+    }
+
+    return $decoded + $this->getDefaultSections();
   }
 
   /**
@@ -239,7 +244,36 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
    */
   public function setSections(array $sections): ChangelogifyReleaseInterface
   {
-    $this->set('sections', json_encode($sections));
+    $normalized = $this->getDefaultSections();
+    foreach ($sections as $section => $items) {
+      if (!array_key_exists($section, $normalized)) {
+        throw new \InvalidArgumentException(sprintf('Unknown release section "%s".', $section));
+      }
+      if (!is_array($items)) {
+        throw new \InvalidArgumentException(sprintf('Release section "%s" must contain an array of items.', $section));
+      }
+
+      $normalized[$section] = [];
+      foreach ($items as $item) {
+        if (!is_array($item)
+          || !isset($item['id'], $item['text'])
+          || !is_string($item['id'])
+          || $item['id'] === ''
+          || !is_string($item['text'])
+          || trim($item['text']) === ''
+          || !is_array($item['event_ids'] ?? [])) {
+          throw new \InvalidArgumentException(sprintf('Release section "%s" contains an invalid item.', $section));
+        }
+
+        $normalized[$section][] = [
+          'id' => $item['id'],
+          'text' => trim($item['text']),
+          'event_ids' => array_values($item['event_ids'] ?? []),
+        ];
+      }
+    }
+
+    $this->set('sections', json_encode($normalized, JSON_THROW_ON_ERROR));
     return $this;
   }
 

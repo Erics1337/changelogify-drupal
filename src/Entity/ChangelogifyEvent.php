@@ -5,11 +5,10 @@ declare(strict_types=1);
 namespace Drupal\changelogify\Entity;
 
 use Drupal\Core\Entity\Attribute\ContentEntityType;
-use Drupal\Core\StringTranslation\TranslatableMarkup;
-
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 
 /**
  * Defines the Changelogify Event entity.
@@ -146,8 +145,13 @@ class ChangelogifyEvent extends ContentEntityBase implements ChangelogifyEventIn
         if (empty($value)) {
             return [];
         }
-        $decoded = json_decode($value, TRUE);
-        return is_array($decoded) ? $decoded : [];
+
+        $decoded = json_decode($value, TRUE, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($decoded)) {
+            throw new \UnexpectedValueException('Event metadata must decode to an array.');
+        }
+
+        return $decoded;
     }
 
     /**
@@ -155,7 +159,7 @@ class ChangelogifyEvent extends ContentEntityBase implements ChangelogifyEventIn
      */
     public function setMetadata(array $metadata): ChangelogifyEventInterface
     {
-        $this->set('metadata', json_encode($metadata));
+        $this->set('metadata', json_encode($metadata, JSON_THROW_ON_ERROR));
         return $this;
     }
 
