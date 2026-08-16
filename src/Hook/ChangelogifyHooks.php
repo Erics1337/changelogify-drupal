@@ -227,6 +227,7 @@ class ChangelogifyHooks
             'changelogify_release_list' => [
                 'variables' => [
                     'releases' => [],
+                    'pager' => NULL,
                 ],
             ],
             'changelogify_release' => [

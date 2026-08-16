@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Controller;
 
-use Drupal\Core\Controller\ControllerBase;
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
+use Drupal\Core\Cache\CacheableMetadata;
+use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Datetime\DateFormatterInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Controller for public changelog pages.
@@ -13,12 +17,29 @@ use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 class ChangelogController extends ControllerBase
 {
 
+    public function __construct(
+        private readonly EntityTypeManagerInterface $changelogEntityTypeManager,
+        private readonly DateFormatterInterface $dateFormatter,
+    ) {
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public static function create(ContainerInterface $container): static
+    {
+        return new static(
+            $container->get('entity_type.manager'),
+            $container->get('date.formatter'),
+        );
+    }
+
     /**
      * Displays the public changelog listing.
      */
     public function listing(): array
     {
-        $storage = $this->entityTypeManager()->getStorage('changelogify_release');
+        $storage = $this->changelogEntityTypeManager->getStorage('changelogify_release');
 
         $release_ids = $storage->getQuery()
             ->accessCheck(TRUE)
@@ -36,18 +57,27 @@ class ChangelogController extends ControllerBase
 
             $items[] = [
                 'release' => $release,
-                'date' => \Drupal::service('date.formatter')->format($release->getReleaseDate(), 'medium'),
+                'date' => $this->dateFormatter->format($release->getReleaseDate(), 'medium'),
                 'excerpt' => $excerpt,
             ];
         }
 
-        return [
+        $build = [
             '#theme' => 'changelogify_release_list',
             '#releases' => $items,
-            'pager' => [
+            '#pager' => [
                 '#type' => 'pager',
             ],
         ];
+
+        (new CacheableMetadata())
+            ->addCacheTags($this->changelogEntityTypeManager
+                ->getDefinition('changelogify_release')
+                ->getListCacheTags())
+            ->addCacheContexts(['user.permissions', 'url.query_args:pagers'])
+            ->applyTo($build);
+
+        return $build;
     }
 
     /**
@@ -75,11 +105,17 @@ class ChangelogController extends ControllerBase
             }
         }
 
-        return [
+        $build = [
             '#theme' => 'changelogify_release',
             '#release' => $changelogify_release,
             '#sections' => $rendered_sections,
         ];
+
+        CacheableMetadata::createFromObject($changelogify_release)
+            ->addCacheContexts(['user.permissions'])
+            ->applyTo($build);
+
+        return $build;
     }
 
     /**
