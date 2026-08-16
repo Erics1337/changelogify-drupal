@@ -38,7 +38,7 @@ interface EventManagerInterface {
    * @param \DateTimeInterface $end
    *   End of the date range.
    * @param array $filters
-   *   Optional filters (event_type, source, section_hint).
+   *   Optional filters (event_type, source, section_hint, limit).
    *
    * @return \Drupal\changelogify\Entity\ChangelogifyEventInterface[]
    *   Array of event entities.

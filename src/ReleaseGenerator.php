@@ -18,6 +18,11 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
   use StringTranslationTrait;
 
   /**
+   * Maximum events loaded into one release generation request.
+   */
+  private const MAX_EVENTS_PER_RELEASE = 5000;
+
+  /**
    * Constructs a ReleaseGenerator.
    */
   public function __construct(
@@ -36,7 +41,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
       throw new \InvalidArgumentException('The release start date must not be after its end date.');
     }
 
-    $events = $this->eventManager->getEventsByRange($start, $end);
+    $events = $this->loadEventsForRelease($start, $end);
     return $this->createReleaseFromEvents($events, $start, $end, $options);
   }
 
@@ -46,7 +51,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
   public function generateReleaseSinceLast(array $options = []): ChangelogifyReleaseInterface {
     $start = new \DateTimeImmutable('@' . $this->eventManager->getNextReleaseStartTimestamp());
     $end = new \DateTimeImmutable('@' . $this->time->getRequestTime());
-    $events = $this->eventManager->getEventsByRange($start, $end);
+    $events = $this->loadEventsForRelease($start, $end);
 
     return $this->createReleaseFromEvents($events, $start, $end, $options);
   }
@@ -81,6 +86,23 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
     $release->save();
 
     return $release;
+  }
+
+  /**
+   * Loads a bounded event set and rejects ranges that are too broad.
+   */
+  private function loadEventsForRelease(\DateTimeInterface $start, \DateTimeInterface $end): array {
+    $events = $this->eventManager->getEventsByRange($start, $end, [
+      'limit' => self::MAX_EVENTS_PER_RELEASE + 1,
+    ]);
+    if (count($events) > self::MAX_EVENTS_PER_RELEASE) {
+      throw new \LengthException(sprintf(
+        'A release can contain at most %d events. Use a narrower date range.',
+        self::MAX_EVENTS_PER_RELEASE,
+      ));
+    }
+
+    return $events;
   }
 
   /**

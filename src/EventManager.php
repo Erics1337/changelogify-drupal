@@ -91,7 +91,8 @@ class EventManager implements EventManagerInterface {
       ->accessCheck(FALSE)
       ->condition('timestamp', $start->getTimestamp(), '>=')
       ->condition('timestamp', $end->getTimestamp(), '<=')
-      ->sort('timestamp', 'ASC');
+      ->sort('timestamp', 'ASC')
+      ->sort('id', 'ASC');
 
     if (!empty($filters['event_type'])) {
       $query->condition('event_type', $filters['event_type']);
@@ -101,6 +102,15 @@ class EventManager implements EventManagerInterface {
     }
     if (!empty($filters['section_hint'])) {
       $query->condition('section_hint', $filters['section_hint']);
+    }
+    if (isset($filters['limit'])) {
+      $limit = filter_var($filters['limit'], FILTER_VALIDATE_INT, [
+        'options' => ['min_range' => 1],
+      ]);
+      if ($limit === FALSE) {
+        throw new \InvalidArgumentException('The event query limit must be a positive integer.');
+      }
+      $query->range(0, $limit);
     }
 
     $ids = $query->execute();
