@@ -4,14 +4,41 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Form;
 
+use Drupal\changelogify\ReleaseItemNormalizer;
+use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Entity\ContentEntityForm;
+use Drupal\Core\Entity\EntityRepositoryInterface;
+use Drupal\Core\Entity\EntityTypeBundleInfoInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Form for editing releases.
  */
 class ReleaseForm extends ContentEntityForm
 {
+
+    public function __construct(
+        EntityRepositoryInterface $entityRepository,
+        EntityTypeBundleInfoInterface $entityTypeBundleInfo,
+        TimeInterface $time,
+        private readonly ReleaseItemNormalizer $itemNormalizer,
+    ) {
+        parent::__construct($entityRepository, $entityTypeBundleInfo, $time);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public static function create(ContainerInterface $container): static
+    {
+        return new static(
+            $container->get('entity.repository'),
+            $container->get('entity_type.bundle.info'),
+            $container->get('datetime.time'),
+            $container->get(ReleaseItemNormalizer::class),
+        );
+    }
 
     /**
      * {@inheritdoc}
@@ -76,23 +103,6 @@ class ReleaseForm extends ContentEntityForm
     }
 
     /**
-     * Converts text to items array.
-     */
-    protected function textToItems(string $text): array
-    {
-        $lines = array_filter(array_map('trim', explode("\n", $text)));
-        $items = [];
-        foreach ($lines as $line) {
-            $items[] = [
-                'id' => \Drupal::service('uuid')->generate(),
-                'text' => $line,
-                'event_ids' => [],
-            ];
-        }
-        return $items;
-    }
-
-    /**
      * {@inheritdoc}
      */
     public function save(array $form, FormStateInterface $form_state): int
@@ -100,13 +110,17 @@ class ReleaseForm extends ContentEntityForm
         /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
         $release = $this->entity;
 
-        // Build sections from form values.
+        // Build sections from form values while preserving source event IDs.
+        $existingSections = $release->getSections();
         $sections = [];
         $section_keys = ['added', 'changed', 'fixed', 'removed', 'security', 'other'];
 
         foreach ($section_keys as $key) {
             $text = $form_state->getValue(['sections_wrapper', 'section_' . $key, 'items'], '');
-            $sections[$key] = $this->textToItems($text);
+            $sections[$key] = $this->itemNormalizer->fromText(
+                $text,
+                $existingSections[$key] ?? [],
+            );
         }
 
         $release->setSections($sections);
