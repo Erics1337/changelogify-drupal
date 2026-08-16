@@ -22,6 +22,7 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
     handlers: [
         "view_builder" => "Drupal\Core\Entity\EntityViewBuilder",
         "list_builder" => "Drupal\changelogify\EventListBuilder",
+        "storage_schema" => "Drupal\changelogify\Entity\ChangelogifyEventStorageSchema",
     ],
     base_table: "changelogify_event",
     admin_permission: "administer changelogify",

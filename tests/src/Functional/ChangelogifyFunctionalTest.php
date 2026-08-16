@@ -123,4 +123,25 @@ class ChangelogifyFunctionalTest extends BrowserTestBase
         $this->assertSession()->statusCodeEquals(403);
         $this->assertSession()->pageTextNotContains('Confidential draft change');
     }
+
+    /**
+     * Tests fresh installations create the query indexes.
+     */
+    public function testQueryIndexesAreInstalled(): void
+    {
+        $schema = \Drupal::database()->schema();
+
+        self::assertTrue($schema->indexExists(
+            'changelogify_event',
+            'changelogify_event__timestamp',
+        ));
+        self::assertTrue($schema->indexExists(
+            'changelogify_event',
+            'changelogify_event__event_type_timestamp',
+        ));
+        self::assertTrue($schema->indexExists(
+            'changelogify_release',
+            'changelogify_release__status_date',
+        ));
+    }
 }

@@ -26,6 +26,7 @@ use Drupal\user\EntityOwnerTrait;
     "view_builder" => "Drupal\Core\Entity\EntityViewBuilder",
     "list_builder" => "Drupal\changelogify\ReleaseListBuilder",
     "access" => "Drupal\changelogify\Access\ChangelogifyReleaseAccessControlHandler",
+    "storage_schema" => "Drupal\changelogify\Entity\ChangelogifyReleaseStorageSchema",
     "form" => [
       "default" => "Drupal\changelogify\Form\ReleaseForm",
       "delete" => "Drupal\Core\Entity\ContentEntityDeleteForm",
