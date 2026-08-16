@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\changelogify\Functional;
 
+use Drupal\changelogify\EventManagerInterface;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\user\Entity\Role;
 use Drupal\user\RoleInterface;
@@ -142,7 +143,67 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     self::assertTrue($schema->indexExists(
           'changelogify_release',
           'changelogify_release__status_date',
-      ));
+    ));
+  }
+
+  /**
+   * Tests a custom date range generates a release with only matching events.
+   */
+  public function testCustomDateRangeGeneration(): void {
+    $this->config('system.date')
+      ->set('timezone.default', 'UTC')
+      ->save();
+
+    $user = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    /** @var \Drupal\changelogify\EventManagerInterface $eventManager */
+    $eventManager = \Drupal::service(EventManagerInterface::class);
+    $eventManager->logEvent([
+      'timestamp' => strtotime('2025-01-15 12:00:00 UTC'),
+      'event_type' => 'content_created',
+      'source' => 'test',
+      'message' => 'Included change',
+      'section_hint' => 'added',
+    ]);
+    $eventManager->logEvent([
+      'timestamp' => strtotime('2025-01-16 00:00:00 UTC'),
+      'event_type' => 'content_created',
+      'source' => 'test',
+      'message' => 'Excluded change',
+      'section_hint' => 'added',
+    ]);
+
+    $this->drupalGet('/admin/config/development/changelogify/generate');
+    $this->assertSession()->statusCodeEquals(200);
+    $this->submitForm([
+      'mode' => 'custom',
+      'start_date[date]' => '2025-01-15',
+      'end_date[date]' => '2025-01-15',
+      'title' => 'January release',
+      'version' => '1.2.0-beta.1',
+    ], 'Generate Release');
+
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Draft release "January release" has been created.');
+
+    $ids = \Drupal::entityQuery('changelogify_release')
+      ->accessCheck(FALSE)
+      ->condition('title', 'January release')
+      ->execute();
+    self::assertCount(1, $ids);
+
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+    $release = \Drupal::entityTypeManager()
+      ->getStorage('changelogify_release')
+      ->load(reset($ids));
+    $sections = $release->getSections();
+    self::assertCount(1, $sections['added']);
+    self::assertSame('Included change', $sections['added'][0]['text']);
+    self::assertSame('1.2.0-beta.1', $release->getVersion());
   }
 
 }

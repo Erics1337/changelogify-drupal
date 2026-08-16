@@ -32,6 +32,10 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
    * {@inheritdoc}
    */
   public function generateReleaseFromRange(\DateTimeInterface $start, \DateTimeInterface $end, array $options = []): ChangelogifyReleaseInterface {
+    if ($start > $end) {
+      throw new \InvalidArgumentException('The release start date must not be after its end date.');
+    }
+
     $events = $this->eventManager->getEventsByRange($start, $end);
     return $this->createReleaseFromEvents($events, $start, $end, $options);
   }
@@ -51,6 +55,10 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
    * Creates a release entity from events.
    */
   protected function createReleaseFromEvents(array $events, \DateTimeInterface $start, \DateTimeInterface $end, array $options): ChangelogifyReleaseInterface {
+    if ($start > $end) {
+      throw new \InvalidArgumentException('The release start date must not be after its end date.');
+    }
+
     $sections = $this->groupEventsBySection($events);
 
     $storage = $this->entityTypeManager->getStorage('changelogify_release');

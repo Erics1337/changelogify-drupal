@@ -9,6 +9,7 @@ use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Url;
 use Drupal\changelogify\ReleaseGeneratorInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -21,6 +22,7 @@ class GenerateReleaseForm extends FormBase {
    */
   public function __construct(
     protected ReleaseGeneratorInterface $releaseGenerator,
+    protected LoggerInterface $logger,
   ) {
   }
 
@@ -29,8 +31,9 @@ class GenerateReleaseForm extends FormBase {
    */
   public static function create(ContainerInterface $container): self {
     return new static(
-          $container->get('changelogify.release_generator')
-      );
+      $container->get(ReleaseGeneratorInterface::class),
+      $container->get('logger.factory')->get('changelogify'),
+    );
   }
 
   /**
@@ -88,12 +91,14 @@ class GenerateReleaseForm extends FormBase {
       '#type' => 'textfield',
       '#title' => $this->t('Title'),
       '#description' => $this->t('Leave empty to auto-generate based on date.'),
+      '#maxlength' => 255,
     ];
 
     $form['options']['version'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Version'),
       '#description' => $this->t('Optional semantic version, e.g. 1.2.0'),
+      '#maxlength' => 50,
     ];
 
     $form['actions'] = [
@@ -138,6 +143,11 @@ class GenerateReleaseForm extends FormBase {
         $form_state->setError($form['date_range'], $this->t('The end date must be on or after the start date.'));
       }
     }
+
+    $version = trim((string) $form_state->getValue('version'));
+    if ($version !== '' && !preg_match('/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/', $version)) {
+      $form_state->setErrorByName('version', $this->t('Enter a semantic version such as 1.2.0 or 1.2.0-beta.1.'));
+    }
   }
 
   /**
@@ -146,13 +156,13 @@ class GenerateReleaseForm extends FormBase {
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     $options = [];
 
-    $title = $form_state->getValue('title');
-    if (!empty($title)) {
+    $title = trim((string) $form_state->getValue('title'));
+    if ($title !== '') {
       $options['title'] = $title;
     }
 
-    $version = $form_state->getValue('version');
-    if (!empty($version)) {
+    $version = trim((string) $form_state->getValue('version'));
+    if ($version !== '') {
       $options['version'] = $version;
       $options['label_type'] = 'semantic_version';
     }
@@ -177,10 +187,12 @@ class GenerateReleaseForm extends FormBase {
 
       $form_state->setRedirectUrl($release->toUrl('edit-form'));
     }
-    catch (\Throwable $e) {
-      $this->messenger()->addError($this->t('Failed to generate release: @message', [
-        '@message' => $e->getMessage(),
-      ]));
+    catch (\Throwable $exception) {
+      $this->logger->error('Release generation failed: @message', [
+        '@message' => $exception->getMessage(),
+        'exception' => $exception,
+      ]);
+      $this->messenger()->addError($this->t('The release could not be generated. Check the logs for details.'));
     }
   }
 
