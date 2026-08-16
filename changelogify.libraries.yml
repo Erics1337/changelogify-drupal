@@ -1,0 +1,4 @@
+dashboard:
+  css:
+    theme:
+      css/changelogify.dashboard.css: {}

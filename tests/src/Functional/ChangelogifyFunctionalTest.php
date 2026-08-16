@@ -43,6 +43,9 @@ class ChangelogifyFunctionalTest extends BrowserTestBase
         $this->drupalGet('/admin/config/development/changelogify');
         $this->assertSession()->statusCodeEquals(200);
         $this->assertSession()->pageTextContains('Changelogify');
+        $this->assertSession()->elementExists('css', '.changelogify-dashboard');
+        $this->assertSession()->elementsCount('css', '.changelogify-stats .stat-card', 3);
+        $this->assertSession()->responseContains('changelogify.dashboard.css');
 
         // Visit the release list.
         $this->drupalGet('/admin/content/changelogify/releases');

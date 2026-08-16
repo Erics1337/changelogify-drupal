@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Controller;
 
-use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Url;
 use Drupal\changelogify\EventManagerInterface;
+use Drupal\Component\Datetime\TimeInterface;
+use Drupal\Core\Cache\CacheableMetadata;
+use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Datetime\DateFormatterInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Url;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -19,17 +23,23 @@ class DashboardController extends ControllerBase
      * Constructs a DashboardController.
      */
     public function __construct(
-        protected EventManagerInterface $eventManager
+        protected EventManagerInterface $eventManager,
+        private readonly EntityTypeManagerInterface $dashboardEntityTypeManager,
+        private readonly DateFormatterInterface $dateFormatter,
+        private readonly TimeInterface $time,
     ) {
     }
 
     /**
      * {@inheritdoc}
      */
-    public static function create(ContainerInterface $container): self
+    public static function create(ContainerInterface $container): static
     {
         return new static(
-            $container->get('changelogify.event_manager')
+            $container->get(EventManagerInterface::class),
+            $container->get('entity_type.manager'),
+            $container->get('date.formatter'),
+            $container->get('datetime.time'),
         );
     }
 
@@ -38,7 +48,7 @@ class DashboardController extends ControllerBase
      */
     public function dashboard(): array
     {
-        $now = \Drupal::time()->getRequestTime();
+        $now = $this->time->getRequestTime();
         $seven_days_ago = $now - (7 * 24 * 60 * 60);
         $thirty_days_ago = $now - (30 * 24 * 60 * 60);
 
@@ -47,7 +57,7 @@ class DashboardController extends ControllerBase
         $events_since_last = $this->eventManager->getEventCountSinceLastRelease();
 
         // Get recent releases.
-        $release_storage = $this->entityTypeManager()->getStorage('changelogify_release');
+        $release_storage = $this->dashboardEntityTypeManager->getStorage('changelogify_release');
         $release_ids = $release_storage->getQuery()
             ->accessCheck(TRUE)
             ->sort('release_date', 'DESC')
@@ -55,8 +65,9 @@ class DashboardController extends ControllerBase
             ->execute();
         $releases = $release_storage->loadMultiple($release_ids);
 
-        return [
-            '#theme' => 'changelogify_dashboard',
+        $build = [
+            '#type' => 'container',
+            '#attributes' => ['class' => ['changelogify-dashboard']],
             '#attached' => [
                 'library' => ['changelogify/dashboard'],
             ],
@@ -64,22 +75,46 @@ class DashboardController extends ControllerBase
                 '#type' => 'container',
                 '#attributes' => ['class' => ['changelogify-stats']],
                 'events_7d' => [
-                    '#type' => 'html_tag',
-                    '#tag' => 'div',
+                    '#type' => 'container',
                     '#attributes' => ['class' => ['stat-card']],
-                    '#value' => $this->t('<strong>@count</strong> events in last 7 days', ['@count' => $events_7d]),
+                    'count' => [
+                        '#type' => 'html_tag',
+                        '#tag' => 'strong',
+                        '#value' => (string) $events_7d,
+                    ],
+                    'label' => [
+                        '#type' => 'html_tag',
+                        '#tag' => 'span',
+                        '#value' => $this->t('Events in the last 7 days'),
+                    ],
                 ],
                 'events_30d' => [
-                    '#type' => 'html_tag',
-                    '#tag' => 'div',
+                    '#type' => 'container',
                     '#attributes' => ['class' => ['stat-card']],
-                    '#value' => $this->t('<strong>@count</strong> events in last 30 days', ['@count' => $events_30d]),
+                    'count' => [
+                        '#type' => 'html_tag',
+                        '#tag' => 'strong',
+                        '#value' => (string) $events_30d,
+                    ],
+                    'label' => [
+                        '#type' => 'html_tag',
+                        '#tag' => 'span',
+                        '#value' => $this->t('Events in the last 30 days'),
+                    ],
                 ],
                 'events_since_last' => [
-                    '#type' => 'html_tag',
-                    '#tag' => 'div',
+                    '#type' => 'container',
                     '#attributes' => ['class' => ['stat-card']],
-                    '#value' => $this->t('<strong>@count</strong> events since last release', ['@count' => $events_since_last]),
+                    'count' => [
+                        '#type' => 'html_tag',
+                        '#tag' => 'strong',
+                        '#value' => (string) $events_since_last,
+                    ],
+                    'label' => [
+                        '#type' => 'html_tag',
+                        '#tag' => 'span',
+                        '#value' => $this->t('Events since the last release'),
+                    ],
                 ],
             ],
             'actions' => [
@@ -107,12 +142,26 @@ class DashboardController extends ControllerBase
                 '#attributes' => ['class' => ['changelogify-recent']],
                 'title' => [
                     '#type' => 'html_tag',
-                    '#tag' => 'h3',
+                    '#tag' => 'h2',
                     '#value' => $this->t('Recent Releases'),
                 ],
                 'list' => $this->buildReleaseList($releases),
             ],
         ];
+
+        (new CacheableMetadata())
+            ->addCacheTags(array_merge(
+                $this->dashboardEntityTypeManager
+                    ->getDefinition('changelogify_event')
+                    ->getListCacheTags(),
+                $this->dashboardEntityTypeManager
+                    ->getDefinition('changelogify_release')
+                    ->getListCacheTags(),
+            ))
+            ->addCacheContexts(['user.permissions'])
+            ->applyTo($build);
+
+        return $build;
     }
 
     /**
@@ -129,7 +178,7 @@ class DashboardController extends ControllerBase
         $items = [];
         foreach ($releases as $release) {
             $status = $release->isPublished() ? $this->t('Published') : $this->t('Draft');
-            $date = \Drupal::service('date.formatter')->format($release->getReleaseDate(), 'short');
+            $date = $this->dateFormatter->format($release->getReleaseDate(), 'short');
 
             $items[] = [
                 '#type' => 'link',

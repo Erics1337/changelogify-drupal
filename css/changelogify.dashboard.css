@@ -1,0 +1,55 @@
+.changelogify-dashboard {
+  --changelogify-border: #d9e0e8;
+  --changelogify-surface: #fff;
+  --changelogify-muted: #5f6b7a;
+}
+
+.changelogify-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1rem;
+  margin-block-end: 1.5rem;
+}
+
+.changelogify-stats .stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1.25rem;
+  border: 1px solid var(--changelogify-border);
+  border-radius: 0.5rem;
+  background: var(--changelogify-surface);
+  box-shadow: 0 1px 2px rgb(20 35 50 / 8%);
+}
+
+.changelogify-stats .stat-card strong {
+  color: var(--gin-color-primary, #1d4f91);
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.changelogify-stats .stat-card span {
+  color: var(--changelogify-muted);
+}
+
+.changelogify-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block-end: 2rem;
+}
+
+.changelogify-recent {
+  padding: 1.25rem;
+  border: 1px solid var(--changelogify-border);
+  border-radius: 0.5rem;
+  background: var(--changelogify-surface);
+}
+
+.changelogify-recent h2 {
+  margin-block-start: 0;
+}
+
+.changelogify-recent .item-list ul {
+  margin-block-end: 0;
+}
