@@ -16,45 +16,42 @@ use PHPUnit\Framework\TestCase;
  *
  * @group changelogify
  */
-final class EventManagerValidationTest extends TestCase
-{
+final class EventManagerValidationTest extends TestCase {
 
-    /**
-     * Tests invalid event input is rejected before persistence.
-     */
-    #[DataProvider('invalidEventDataProvider')]
-    public function testInvalidEventDataIsRejected(array $data): void
-    {
-        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $entityTypeManager->expects(self::never())->method('getStorage');
+  /**
+   * Tests invalid event input is rejected before persistence.
+   */
+  #[DataProvider('invalidEventDataProvider')]
+  public function testInvalidEventDataIsRejected(array $data): void {
+    $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+    $entityTypeManager->expects(self::never())->method('getStorage');
 
-        $manager = new EventManager(
-            $entityTypeManager,
-            $this->createMock(AccountProxyInterface::class),
-            $this->createMock(TimeInterface::class),
-        );
+    $manager = new EventManager(
+          $entityTypeManager,
+          $this->createMock(AccountProxyInterface::class),
+          $this->createMock(TimeInterface::class),
+      );
 
-        $this->expectException(\InvalidArgumentException::class);
-        $manager->logEvent($data);
-    }
+    $this->expectException(\InvalidArgumentException::class);
+    $manager->logEvent($data);
+  }
 
-    /**
-     * Provides malformed event payloads.
-     */
-    public static function invalidEventDataProvider(): array
-    {
-        $valid = [
-            'event_type' => 'content_created',
-            'source' => 'content_entity',
-            'message' => 'Created a page.',
-        ];
+  /**
+   * Provides malformed event payloads.
+   */
+  public static function invalidEventDataProvider(): array {
+    $valid = [
+      'event_type' => 'content_created',
+      'source' => 'content_entity',
+      'message' => 'Created a page.',
+    ];
 
-        return [
-            'missing required key' => [array_diff_key($valid, ['message' => TRUE])],
-            'blank required value' => [array_replace($valid, ['message' => '   '])],
-            'metadata must be an array' => [$valid + ['metadata' => 'invalid']],
-            'unknown release section' => [$valid + ['section_hint' => 'future']],
-        ];
-    }
+    return [
+      'missing required key' => [array_diff_key($valid, ['message' => TRUE])],
+      'blank required value' => [array_replace($valid, ['message' => '   '])],
+      'metadata must be an array' => [$valid + ['metadata' => 'invalid']],
+      'unknown release section' => [$valid + ['section_hint' => 'future']],
+    ];
+  }
 
 }

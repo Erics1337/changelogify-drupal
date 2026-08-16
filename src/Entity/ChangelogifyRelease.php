@@ -51,8 +51,7 @@ use Drupal\user\EntityOwnerTrait;
     "collection" => "/admin/content/changelogify/releases",
   ],
 )]
-class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyReleaseInterface
-{
+class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyReleaseInterface {
 
   use EntityChangedTrait;
   use EntityOwnerTrait;
@@ -60,8 +59,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * {@inheritdoc}
    */
-  public static function baseFieldDefinitions(EntityTypeInterface $entity_type): array
-  {
+  public static function baseFieldDefinitions(EntityTypeInterface $entity_type): array {
     $fields = parent::baseFieldDefinitions($entity_type);
     $fields += static::ownerBaseFieldDefinitions($entity_type);
 
@@ -175,24 +173,21 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * Default value callback for release_date field.
    */
-  public static function getDefaultTimestamp(): int
-  {
+  public static function getDefaultTimestamp(): int {
     return \Drupal::time()->getRequestTime();
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getTitle(): string
-  {
+  public function getTitle(): string {
     return $this->get('title')->value ?? '';
   }
 
   /**
    * {@inheritdoc}
    */
-  public function setTitle(string $title): ChangelogifyReleaseInterface
-  {
+  public function setTitle(string $title): ChangelogifyReleaseInterface {
     $this->set('title', $title);
     return $this;
   }
@@ -200,16 +195,14 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * {@inheritdoc}
    */
-  public function isPublished(): bool
-  {
+  public function isPublished(): bool {
     return (bool) $this->get('status')->value;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function setPublished(bool $published = TRUE): ChangelogifyReleaseInterface
-  {
+  public function setPublished(bool $published = TRUE): ChangelogifyReleaseInterface {
     $this->set('status', $published);
     return $this;
   }
@@ -217,16 +210,14 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * {@inheritdoc}
    */
-  public function setUnpublished(): ChangelogifyReleaseInterface
-  {
+  public function setUnpublished(): ChangelogifyReleaseInterface {
     return $this->setPublished(FALSE);
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getSections(): array
-  {
+  public function getSections(): array {
     $value = $this->get('sections')->value;
     if (empty($value)) {
       return $this->getDefaultSections();
@@ -243,8 +234,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * {@inheritdoc}
    */
-  public function setSections(array $sections): ChangelogifyReleaseInterface
-  {
+  public function setSections(array $sections): ChangelogifyReleaseInterface {
     $normalized = $this->getDefaultSections();
     foreach ($sections as $section => $items) {
       if (!array_key_exists($section, $normalized)) {
@@ -281,8 +271,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * Get default sections structure.
    */
-  protected function getDefaultSections(): array
-  {
+  protected function getDefaultSections(): array {
     return [
       'added' => [],
       'changed' => [],
@@ -296,16 +285,14 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * {@inheritdoc}
    */
-  public function getReleaseDate(): int
-  {
+  public function getReleaseDate(): int {
     return (int) $this->get('release_date')->value;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getVersion(): ?string
-  {
+  public function getVersion(): ?string {
     return $this->get('version')->value;
   }
 

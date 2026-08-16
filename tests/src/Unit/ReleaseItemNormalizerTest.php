@@ -13,52 +13,53 @@ use PHPUnit\Framework\TestCase;
  *
  * @group changelogify
  */
-final class ReleaseItemNormalizerTest extends TestCase
-{
+final class ReleaseItemNormalizerTest extends TestCase {
 
-    public function testExistingProvenanceIsPreserved(): void
-    {
-        $uuid = $this->createMock(UuidInterface::class);
-        $uuid->expects(self::once())
-            ->method('generate')
-            ->willReturn('new-item-id');
+  /**
+   * Tests existing item identifiers and source events are retained.
+   */
+  public function testExistingProvenanceIsPreserved(): void {
+    $uuid = $this->createMock(UuidInterface::class);
+    $uuid->expects(self::once())
+      ->method('generate')
+      ->willReturn('new-item-id');
 
-        $normalizer = new ReleaseItemNormalizer($uuid);
-        $existing = [
-            [
-                'id' => 'first-id',
-                'text' => 'Repeated item',
-                'event_ids' => [11],
-            ],
-            [
-                'id' => 'second-id',
-                'text' => 'Repeated item',
-                'event_ids' => [12, 13],
-            ],
-        ];
+    $normalizer = new ReleaseItemNormalizer($uuid);
+    $existing = [
+          [
+            'id' => 'first-id',
+            'text' => 'Repeated item',
+            'event_ids' => [11],
+          ],
+          [
+            'id' => 'second-id',
+            'text' => 'Repeated item',
+            'event_ids' => [12, 13],
+          ],
+    ];
 
-        $items = $normalizer->fromText(
-            " Repeated item\r\nRepeated item\n0\n\n",
-            $existing,
-        );
+    $items = $normalizer->fromText(
+          " Repeated item\r\nRepeated item\n0\n\n",
+          $existing,
+      );
 
-        self::assertSame([
-            [
-                'id' => 'first-id',
-                'text' => 'Repeated item',
-                'event_ids' => [11],
-            ],
-            [
-                'id' => 'second-id',
-                'text' => 'Repeated item',
-                'event_ids' => [12, 13],
-            ],
-            [
-                'id' => 'new-item-id',
-                'text' => '0',
-                'event_ids' => [],
-            ],
-        ], $items);
-    }
+    self::assertSame([
+          [
+            'id' => 'first-id',
+            'text' => 'Repeated item',
+            'event_ids' => [11],
+          ],
+          [
+            'id' => 'second-id',
+            'text' => 'Repeated item',
+            'event_ids' => [12, 13],
+          ],
+          [
+            'id' => 'new-item-id',
+            'text' => '0',
+            'event_ids' => [],
+          ],
+    ], $items);
+  }
 
 }

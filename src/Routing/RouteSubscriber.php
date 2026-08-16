@@ -11,26 +11,24 @@ use Symfony\Component\Routing\RouteCollection;
 /**
  * Applies the configured public changelog path to Changelogify routes.
  */
-final class RouteSubscriber extends RouteSubscriberBase
-{
+final class RouteSubscriber extends RouteSubscriberBase {
 
-    public function __construct(
-        private readonly ConfigFactoryInterface $configFactory,
-    ) {
-    }
+  public function __construct(
+    private readonly ConfigFactoryInterface $configFactory,
+  ) {
+  }
 
-    /**
-     * {@inheritdoc}
-     */
-    protected function alterRoutes(RouteCollection $collection): void
-    {
-        $configured_path = (string) $this->configFactory
-            ->get('changelogify.settings')
-            ->get('changelog_path');
-        $base_path = '/' . trim($configured_path ?: '/changelog', '/');
+  /**
+   * {@inheritdoc}
+   */
+  protected function alterRoutes(RouteCollection $collection): void {
+    $configured_path = (string) $this->configFactory
+      ->get('changelogify.settings')
+      ->get('changelog_path');
+    $base_path = '/' . trim($configured_path ?: '/changelog', '/');
 
-        $collection->get('changelogify.changelog')?->setPath($base_path);
-        $collection->get('changelogify.changelog_release')?->setPath($base_path . '/{changelogify_release}');
-    }
+    $collection->get('changelogify.changelog')?->setPath($base_path);
+    $collection->get('changelogify.changelog_release')?->setPath($base_path . '/{changelogify_release}');
+  }
 
 }
