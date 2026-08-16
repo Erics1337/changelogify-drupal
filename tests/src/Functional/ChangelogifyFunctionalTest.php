@@ -118,6 +118,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Public release');
     $this->assertSession()->pageTextNotContains('Private draft release');
+    $this->assertSession()->responseContains('changelogify.public.css');
 
     $this->drupalGet('/changelog/' . $published->id());
     $this->assertSession()->statusCodeEquals(200);

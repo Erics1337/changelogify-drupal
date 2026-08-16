@@ -2,3 +2,8 @@ dashboard:
   css:
     theme:
       css/changelogify.dashboard.css: {}
+
+public:
+  css:
+    theme:
+      css/changelogify.public.css: {}

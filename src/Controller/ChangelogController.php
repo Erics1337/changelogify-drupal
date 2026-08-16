@@ -62,6 +62,9 @@ class ChangelogController extends ControllerBase {
     $build = [
       '#theme' => 'changelogify_release_list',
       '#releases' => $items,
+      '#attached' => [
+        'library' => ['changelogify/public'],
+      ],
       '#pager' => [
         '#type' => 'pager',
       ],
@@ -105,6 +108,9 @@ class ChangelogController extends ControllerBase {
       '#theme' => 'changelogify_release',
       '#release' => $changelogify_release,
       '#sections' => $rendered_sections,
+      '#attached' => [
+        'library' => ['changelogify/public'],
+      ],
     ];
 
     CacheableMetadata::createFromObject($changelogify_release)
