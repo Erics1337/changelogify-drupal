@@ -1,0 +1,50 @@
+<?php
+
+/**
+ * @file
+ * Install and update hooks for Changelogify.
+ */
+
+declare(strict_types=1);
+
+/**
+ * Backfills the settings introduced in Changelogify 1.2.
+ */
+function changelogify_update_12001(): string {
+  $config = \Drupal::configFactory()->getEditable('changelogify.settings');
+
+  if ($config->get('track_content') === NULL) {
+    $config->set('track_content', TRUE);
+  }
+  if ($config->get('track_modules') === NULL) {
+    $config->set('track_modules', FALSE);
+  }
+  if ($config->get('track_users') === NULL) {
+    $config->set('track_users', FALSE);
+  }
+  if ($config->get('event_retention_days') === NULL) {
+    $config->set('event_retention_days', 0);
+  }
+
+  $config->save();
+
+  return 'Backfilled Changelogify 1.2 settings defaults.';
+}
+
+/**
+ * Adds privacy and configurable-path defaults introduced in 1.3.
+ */
+function changelogify_update_13001(): string {
+  $config = \Drupal::configFactory()->getEditable('changelogify.settings');
+
+  if ($config->get('track_unpublished_content') === NULL) {
+    $config->set('track_unpublished_content', FALSE);
+  }
+  if ($config->get('changelog_path') === NULL) {
+    $config->set('changelog_path', '/changelog');
+  }
+
+  $config->save();
+
+  return 'Added Changelogify privacy and public path defaults.';
+}
