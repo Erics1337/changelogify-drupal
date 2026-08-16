@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Drupal\Tests\changelogify\Functional;
 
 use Drupal\changelogify\EventManagerInterface;
+use Drupal\node\Entity\Node;
+use Drupal\node\Entity\NodeType;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\user\Entity\Role;
 use Drupal\user\RoleInterface;
@@ -204,6 +206,92 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     self::assertCount(1, $sections['added']);
     self::assertSame('Included change', $sections['added'][0]['text']);
     self::assertSame('1.2.0-beta.1', $release->getVersion());
+  }
+
+  /**
+   * Tests content tracking and unpublished-content privacy settings.
+   */
+  public function testContentTrackingSettings(): void {
+    NodeType::create([
+      'type' => 'page',
+      'name' => 'Page',
+    ])->save();
+
+    $this->config('changelogify.settings')
+      ->set('track_content', FALSE)
+      ->save();
+    Node::create([
+      'type' => 'page',
+      'title' => 'Tracking disabled',
+      'status' => TRUE,
+    ])->save();
+    self::assertSame(0, $this->eventCount('content_created'));
+
+    $this->config('changelogify.settings')
+      ->set('track_content', TRUE)
+      ->set('track_unpublished_content', FALSE)
+      ->save();
+    Node::create([
+      'type' => 'page',
+      'title' => 'Private draft',
+      'status' => FALSE,
+    ])->save();
+    self::assertSame(0, $this->eventCount('content_created'));
+
+    Node::create([
+      'type' => 'page',
+      'title' => 'Published page',
+      'status' => TRUE,
+    ])->save();
+    self::assertSame(1, $this->eventCount('content_created'));
+
+    $this->config('changelogify.settings')
+      ->set('track_unpublished_content', TRUE)
+      ->save();
+    Node::create([
+      'type' => 'page',
+      'title' => 'Tracked private draft',
+      'status' => FALSE,
+    ])->save();
+    self::assertSame(2, $this->eventCount('content_created'));
+  }
+
+  /**
+   * Tests retention deletes only events older than the cutoff.
+   */
+  public function testEventRetention(): void {
+    /** @var \Drupal\changelogify\EventManagerInterface $eventManager */
+    $eventManager = \Drupal::service(EventManagerInterface::class);
+    $now = \Drupal::time()->getCurrentTime();
+    $old = $eventManager->logEvent([
+      'timestamp' => $now - (91 * 86400),
+      'event_type' => 'old_event',
+      'source' => 'test',
+      'message' => 'Expired event',
+    ]);
+    $current = $eventManager->logEvent([
+      'timestamp' => $now - (89 * 86400),
+      'event_type' => 'current_event',
+      'source' => 'test',
+      'message' => 'Retained event',
+    ]);
+
+    self::assertSame(1, $eventManager->purgeExpiredEvents(90));
+
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_event');
+    self::assertNull($storage->load($old->id()));
+    self::assertNotNull($storage->load($current->id()));
+  }
+
+  /**
+   * Counts stored events of a given type.
+   */
+  private function eventCount(string $eventType): int {
+    return (int) \Drupal::entityQuery('changelogify_event')
+      ->accessCheck(FALSE)
+      ->condition('event_type', $eventType)
+      ->count()
+      ->execute();
   }
 
 }
