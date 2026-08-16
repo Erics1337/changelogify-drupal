@@ -8,19 +8,20 @@ Changelogify captures events from your Drupal site (content changes, module inst
 
 ## ✨ Features
 
-- **Automatic Event Capture** — Logs content creates/updates/deletes, module installs, and user changes
+- **Automatic Event Capture** — Logs opted-in content, module, and user changes
 - **Release Management** — Group events into releases with sections: Added, Changed, Fixed, Removed, Security, Other
 - **Public Changelog** — Publish releases at `/changelog` with a clean, themeable UI
 - **Admin Dashboard** — Quick stats and one-click release generation
-- **Drupal 10/11 Compatible** — Built with modern Drupal best practices
+- **Event Log** — Review captured changes before generating a release
+- **Drupal 10.3/11 Compatible** — Attribute-based hooks with Drupal 10 compatibility shims
 
 ---
 
 ## 📋 Requirements
 
-- Drupal 10.x or 11.x
+- Drupal 10.3+ or 11.x
 - PHP 8.1+
-- Node and User modules (core)
+- Node, Options, and User modules (core)
 
 ---
 
@@ -92,7 +93,8 @@ The release edit form shows all sections:
 - **Security** — Security patches
 - **Other** — Miscellaneous changes
 
-Edit the bullet points, then **Save and Publish**.
+Edit the bullet points, select **Published**, and save the release. Unpublished
+drafts are never available on the public list or detail routes.
 
 ### 4. Public Changelog
 
@@ -112,10 +114,18 @@ Visit **Configuration → Development → Changelogify → Settings** to configu
 
 | Setting                   | Description                          |
 | ------------------------- | ------------------------------------ |
+| **Changelog path**        | Public list and detail URL prefix    |
 | **Track content changes** | Log node create/update/delete events |
+| **Track unpublished content** | Include private node titles and paths in the internal event log |
 | **Track module changes**  | Log module install/uninstall events  |
 | **Track user changes**    | Log user creation and role changes   |
 | **Event retention**       | Days to keep events (0 = forever)    |
+
+User tracking and unpublished-content tracking are disabled by default. Event
+retention runs in bounded batches during Drupal cron; the default is 90 days.
+
+Captured events can be reviewed at `/admin/content/changelogify/events` by
+users with the `administer changelogify` permission.
 
 ---
 
@@ -128,6 +138,26 @@ Visit **Configuration → Development → Changelogify → Settings** to configu
 | `view changelogify releases`   | View public changelog pages            |
 
 Grant `view changelogify releases` to the anonymous role when the changelog should be public. The DDEV development setup above grants it to both anonymous and authenticated users.
+
+Event metadata can contain node titles, paths, usernames, and role changes when
+the corresponding tracking settings are enabled. Treat access to the dashboard
+and event log as privileged administrative access.
+
+---
+
+## 🧪 Development checks
+
+The DDEV contrib environment provides the project checks:
+
+```bash
+ddev phpcs
+ddev phpstan
+ddev phpunit
+```
+
+`ddev phpunit` runs the unit and functional suite, including draft access,
+custom date generation, hook compatibility, retention, query indexes, and
+tracking privacy behavior.
 
 ---
 
@@ -152,7 +182,7 @@ Contributions are welcome! Please:
 
 ## 📄 License
 
-This project is licensed under the GPL-2.0+ license, consistent with Drupal core.
+This project is licensed under GPL-2.0-or-later, consistent with Drupal core.
 
 ---
 

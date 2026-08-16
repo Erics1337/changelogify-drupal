@@ -16,11 +16,12 @@
         }
     ],
     "support": {
-        "issues": "https://www.drupal.org/project/issues/changelogify",
-        "source": "https://git.drupalcode.org/project/changelogify"
+        "issues": "https://github.com/Erics1337/changelogify-drupal/issues",
+        "source": "https://github.com/Erics1337/changelogify-drupal"
     },
     "require": {
-        "drupal/core": "^10 || ^11"
+        "php": ">=8.1",
+        "drupal/core": "^10.3 || ^11"
     },
     "require-dev": {
         "drush/drush": "^13"
