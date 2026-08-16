@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Drupal\Tests\changelogify\Functional;
 
 use Drupal\Tests\BrowserTestBase;
+use Drupal\user\Entity\Role;
+use Drupal\user\RoleInterface;
 
 /**
  * Tests the Changelogify admin interface.
@@ -66,5 +68,59 @@ class ChangelogifyFunctionalTest extends BrowserTestBase
             ->execute();
 
         self::assertSame(1, (int) $count);
+    }
+
+    /**
+     * Tests public listings and detail pages never expose draft releases.
+     */
+    public function testDraftReleasesArePrivate(): void
+    {
+        $anonymousRole = Role::load(RoleInterface::ANONYMOUS_ID);
+        self::assertNotNull($anonymousRole);
+        $anonymousRole->grantPermission('view changelogify releases')->save();
+
+        $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+        /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $published */
+        $published = $storage->create([
+            'title' => 'Public release',
+            'release_date' => 1_700_000_000,
+            'status' => TRUE,
+        ]);
+        $published->setSections([
+            'added' => [[
+                'id' => 'public-item',
+                'text' => 'Visible public change',
+                'event_ids' => [],
+            ]],
+        ]);
+        $published->save();
+
+        /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $draft */
+        $draft = $storage->create([
+            'title' => 'Private draft release',
+            'release_date' => 1_700_000_001,
+            'status' => FALSE,
+        ]);
+        $draft->setSections([
+            'added' => [[
+                'id' => 'draft-item',
+                'text' => 'Confidential draft change',
+                'event_ids' => [],
+            ]],
+        ]);
+        $draft->save();
+
+        $this->drupalGet('/changelog');
+        $this->assertSession()->statusCodeEquals(200);
+        $this->assertSession()->pageTextContains('Public release');
+        $this->assertSession()->pageTextNotContains('Private draft release');
+
+        $this->drupalGet('/changelog/' . $published->id());
+        $this->assertSession()->statusCodeEquals(200);
+        $this->assertSession()->pageTextContains('Visible public change');
+
+        $this->drupalGet('/changelog/' . $draft->id());
+        $this->assertSession()->statusCodeEquals(403);
+        $this->assertSession()->pageTextNotContains('Confidential draft change');
     }
 }
