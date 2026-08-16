@@ -7,4 +7,86 @@
 
 declare(strict_types=1);
 
-// Hooks are implemented in src/Hook/ChangelogifyHooks.php.
+use Drupal\changelogify\Hook\ChangelogifyHooks;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Hook\Attribute\LegacyHook;
+use Drupal\user\UserInterface;
+
+/**
+ * Returns the shared hook implementation service.
+ */
+function _changelogify_hooks(): ChangelogifyHooks {
+  return \Drupal::service(ChangelogifyHooks::class);
+}
+
+/**
+ * Implements hook_entity_insert() for Drupal versions before 11.1.
+ */
+#[LegacyHook]
+function changelogify_entity_insert(EntityInterface $entity): void {
+  _changelogify_hooks()->entityInsert($entity);
+}
+
+/**
+ * Implements hook_entity_update() for Drupal versions before 11.1.
+ */
+#[LegacyHook]
+function changelogify_entity_update(EntityInterface $entity): void {
+  _changelogify_hooks()->entityUpdate($entity);
+}
+
+/**
+ * Implements hook_entity_delete() for Drupal versions before 11.1.
+ */
+#[LegacyHook]
+function changelogify_entity_delete(EntityInterface $entity): void {
+  _changelogify_hooks()->entityDelete($entity);
+}
+
+/**
+ * Implements hook_modules_installed() for Drupal versions before 11.1.
+ */
+#[LegacyHook]
+function changelogify_modules_installed(array $modules, bool $is_syncing): void {
+  _changelogify_hooks()->modulesInstalled($modules, $is_syncing);
+}
+
+/**
+ * Implements hook_modules_uninstalled() for Drupal versions before 11.1.
+ */
+#[LegacyHook]
+function changelogify_modules_uninstalled(array $modules, bool $is_syncing): void {
+  _changelogify_hooks()->modulesUninstalled($modules, $is_syncing);
+}
+
+/**
+ * Implements hook_user_insert() for Drupal versions before 11.1.
+ */
+#[LegacyHook]
+function changelogify_user_insert(UserInterface $account): void {
+  _changelogify_hooks()->userInsert($account);
+}
+
+/**
+ * Implements hook_user_update() for Drupal versions before 11.1.
+ */
+#[LegacyHook]
+function changelogify_user_update(UserInterface $account): void {
+  _changelogify_hooks()->userUpdate($account);
+}
+
+/**
+ * Implements hook_theme() for Drupal versions before 11.1.
+ */
+#[LegacyHook]
+function changelogify_theme(): array {
+  return _changelogify_hooks()->theme();
+}
+
+/**
+ * Implements hook_cron() for Drupal versions before 11.1.
+ */
+#[LegacyHook]
+function changelogify_cron(): void {
+  _changelogify_hooks()->cron();
+}

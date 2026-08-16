@@ -47,4 +47,24 @@ class ChangelogifyFunctionalTest extends BrowserTestBase
         $this->assertSession()->statusCodeEquals(200);
         $this->assertSession()->pageTextContains('Releases');
     }
+
+    /**
+     * Tests attribute and legacy hook implementations do not both execute.
+     */
+    public function testHooksExecuteOnlyOnce(): void
+    {
+        $this->config('changelogify.settings')
+            ->set('track_users', TRUE)
+            ->save();
+
+        $this->drupalCreateUser();
+
+        $count = \Drupal::entityQuery('changelogify_event')
+            ->accessCheck(FALSE)
+            ->condition('event_type', 'user_created')
+            ->count()
+            ->execute();
+
+        self::assertSame(1, (int) $count);
+    }
 }
