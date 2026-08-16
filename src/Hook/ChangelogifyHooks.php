@@ -7,9 +7,10 @@ namespace Drupal\changelogify\Hook;
 use Drupal\changelogify\EventManagerInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityPublishedInterface;
+use Drupal\Core\Entity\EntityTypeBundleInfoInterface;
 use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
-use Drupal\node\NodeInterface;
 use Drupal\user\UserInterface;
 
 /**
@@ -22,6 +23,7 @@ class ChangelogifyHooks {
   public function __construct(
     protected EventManagerInterface $eventManager,
     protected ConfigFactoryInterface $configFactory,
+    protected EntityTypeBundleInfoInterface $entityTypeBundleInfo,
   ) {
   }
 
@@ -30,26 +32,11 @@ class ChangelogifyHooks {
    */
   #[Hook('entity_insert')]
   public function entityInsert(EntityInterface $entity): void {
-    if (!$entity instanceof NodeInterface || !$this->shouldTrackContent($entity)) {
+    if (!$this->shouldTrackContentEntity($entity)) {
       return;
     }
 
-    $this->eventManager->logEvent([
-      'event_type' => 'content_created',
-      'source' => 'content_entity',
-      'entity_type_id' => $entity->getEntityTypeId(),
-      'entity_id' => (int) $entity->id(),
-      'bundle' => $entity->bundle(),
-      'message' => $this->t('Created @type: "@title"', [
-        '@type' => $entity->type->entity->label(),
-        '@title' => $entity->getTitle(),
-      ])->__toString(),
-      'section_hint' => 'added',
-      'metadata' => [
-        'title' => $entity->getTitle(),
-        'path' => $entity->toUrl()->toString(),
-      ],
-    ]);
+    $this->logContentEvent($entity, 'created', 'added');
   }
 
   /**
@@ -57,26 +44,21 @@ class ChangelogifyHooks {
    */
   #[Hook('entity_update')]
   public function entityUpdate(EntityInterface $entity): void {
-    if (!$entity instanceof NodeInterface || !$this->shouldTrackContent($entity)) {
+    if (!$this->shouldTrackContentEntity($entity)) {
       return;
     }
 
-    $this->eventManager->logEvent([
-      'event_type' => 'content_updated',
-      'source' => 'content_entity',
-      'entity_type_id' => $entity->getEntityTypeId(),
-      'entity_id' => (int) $entity->id(),
-      'bundle' => $entity->bundle(),
-      'message' => $this->t('Updated @type: "@title"', [
-        '@type' => $entity->type->entity->label(),
-        '@title' => $entity->getTitle(),
-      ])->__toString(),
-      'section_hint' => 'changed',
-      'metadata' => [
-        'title' => $entity->getTitle(),
-        'path' => $entity->toUrl()->toString(),
-      ],
-    ]);
+    $publicationAction = $this->getPublicationAction($entity);
+    if ($publicationAction === 'published') {
+      $this->logContentEvent($entity, 'published', 'added');
+      return;
+    }
+    if ($publicationAction === 'unpublished') {
+      $this->logContentEvent($entity, 'unpublished', 'removed');
+      return;
+    }
+
+    $this->logContentEvent($entity, 'updated', 'changed');
   }
 
   /**
@@ -84,25 +66,11 @@ class ChangelogifyHooks {
    */
   #[Hook('entity_delete')]
   public function entityDelete(EntityInterface $entity): void {
-    if (!$entity instanceof NodeInterface || !$this->shouldTrackContent($entity)) {
+    if (!$this->shouldTrackContentEntity($entity)) {
       return;
     }
 
-    $this->eventManager->logEvent([
-      'event_type' => 'content_deleted',
-      'source' => 'content_entity',
-      'entity_type_id' => $entity->getEntityTypeId(),
-      'entity_id' => (int) $entity->id(),
-      'bundle' => $entity->bundle(),
-      'message' => $this->t('Deleted @type: "@title"', [
-        '@type' => $entity->type->entity->label(),
-        '@title' => $entity->getTitle(),
-      ])->__toString(),
-      'section_hint' => 'removed',
-      'metadata' => [
-        'title' => $entity->getTitle(),
-      ],
-    ]);
+    $this->logContentEvent($entity, 'deleted', 'removed');
   }
 
   /**
@@ -185,8 +153,10 @@ class ChangelogifyHooks {
       return;
     }
 
-    /** @var \Drupal\Core\Entity\EntityInterface $original */
-    $original = $account->original;
+    $original = $this->getOriginalEntity($account);
+    if (!$original instanceof UserInterface) {
+      return;
+    }
 
     // Check if roles changed.
     $old_roles = $original->getRoles();
@@ -242,15 +212,162 @@ class ChangelogifyHooks {
   }
 
   /**
-   * Determines whether a node change should be recorded.
+   * Determines whether a supported content entity should be recorded.
    */
-  private function shouldTrackContent(NodeInterface $node): bool {
+  private function shouldTrackContentEntity(EntityInterface $entity): bool {
     if (!$this->settingEnabled('track_content', TRUE)) {
       return FALSE;
     }
 
-    return $node->isPublished()
-            || $this->settingEnabled('track_unpublished_content', FALSE);
+    if (!in_array($entity->getEntityTypeId(), ['node', 'media', 'block_content', 'taxonomy_term'], TRUE)) {
+      return FALSE;
+    }
+
+    return !$entity instanceof EntityPublishedInterface
+      || $entity->isPublished()
+      || $this->settingEnabled('track_unpublished_content', FALSE);
+  }
+
+  /**
+   * Detects publication state changes for publishable content entities.
+   */
+  private function getPublicationAction(EntityInterface $entity): ?string {
+    if (!$entity instanceof EntityPublishedInterface) {
+      return NULL;
+    }
+
+    $original = $this->getOriginalEntity($entity);
+    if (!$original instanceof EntityPublishedInterface) {
+      return NULL;
+    }
+
+    if (!$original->isPublished() && $entity->isPublished()) {
+      return 'published';
+    }
+    if ($original->isPublished() && !$entity->isPublished()) {
+      return 'unpublished';
+    }
+
+    return NULL;
+  }
+
+  /**
+   * Logs a supported content entity event.
+   */
+  private function logContentEvent(EntityInterface $entity, string $action, string $sectionHint): void {
+    $eventData = [
+      'event_type' => $entity->getEntityTypeId() . '_' . $action,
+      'source' => 'content_entity',
+      'entity_type_id' => $entity->getEntityTypeId(),
+      'message' => $this->buildContentMessage($entity, $action),
+      'section_hint' => $sectionHint,
+      'metadata' => $this->buildContentMetadata($entity, $action),
+    ];
+
+    if ($entity->id() !== NULL) {
+      $eventData['entity_id'] = (int) $entity->id();
+    }
+    if ($entity->bundle() !== NULL) {
+      $eventData['bundle'] = $entity->bundle();
+    }
+
+    $this->eventManager->logEvent($eventData);
+  }
+
+  /**
+   * Builds a readable content event message.
+   */
+  private function buildContentMessage(EntityInterface $entity, string $action): string {
+    $verbs = [
+      'created' => $this->t('Created'),
+      'updated' => $this->t('Updated'),
+      'deleted' => $this->t('Deleted'),
+      'published' => $this->t('Published'),
+      'unpublished' => $this->t('Unpublished'),
+    ];
+
+    return $this->t('@verb @descriptor: "@label"', [
+      '@verb' => $verbs[$action] ?? ucfirst($action),
+      '@descriptor' => $this->buildEntityDescriptor($entity),
+      '@label' => $this->buildEntityLabel($entity),
+    ])->__toString();
+  }
+
+  /**
+   * Builds metadata for a content event.
+   */
+  private function buildContentMetadata(EntityInterface $entity, string $action): array {
+    $metadata = [
+      'action' => $action,
+      'label' => $this->buildEntityLabel($entity),
+    ];
+
+    try {
+      $metadata['path'] = $entity->toUrl()->toString();
+    }
+    catch (\Throwable) {
+      // Some new or deleted entities do not have a routable URL.
+    }
+
+    return $metadata;
+  }
+
+  /**
+   * Builds a human-friendly entity descriptor.
+   */
+  private function buildEntityDescriptor(EntityInterface $entity): string {
+    $bundleLabel = $this->getBundleLabel($entity);
+
+    return match ($entity->getEntityTypeId()) {
+      'media' => $this->t('@bundle media item', ['@bundle' => $bundleLabel])->__toString(),
+      'block_content' => $this->t('@bundle block', ['@bundle' => $bundleLabel])->__toString(),
+      'taxonomy_term' => $this->t('@bundle term', ['@bundle' => $bundleLabel])->__toString(),
+      default => $bundleLabel,
+    };
+  }
+
+  /**
+   * Gets a friendly bundle label.
+   */
+  private function getBundleLabel(EntityInterface $entity): string {
+    $bundle = $entity->bundle();
+    if ($bundle !== NULL && $bundle !== '') {
+      $bundleInfo = $this->entityTypeBundleInfo->getBundleInfo($entity->getEntityTypeId());
+      if (!empty($bundleInfo[$bundle]['label'])) {
+        return (string) $bundleInfo[$bundle]['label'];
+      }
+
+      return ucwords(str_replace(['_', '-'], ' ', $bundle));
+    }
+
+    return (string) ($entity->getEntityType()->getLabel()
+      ?? ucfirst(str_replace('_', ' ', $entity->getEntityTypeId())));
+  }
+
+  /**
+   * Gets a stable display label for an entity.
+   */
+  private function buildEntityLabel(EntityInterface $entity): string {
+    $label = $entity->label();
+    return $label !== NULL && $label !== ''
+      ? $label
+      : $this->t('Untitled')->__toString();
+  }
+
+  /**
+   * Returns the original entity across supported Drupal versions.
+   */
+  private function getOriginalEntity(EntityInterface $entity): ?EntityInterface {
+    if (method_exists($entity, 'getOriginal')) {
+      $original = $entity->getOriginal();
+      return $original instanceof EntityInterface ? $original : NULL;
+    }
+
+    if (isset($entity->original) && $entity->original instanceof EntityInterface) {
+      return $entity->original;
+    }
+
+    return NULL;
   }
 
   /**

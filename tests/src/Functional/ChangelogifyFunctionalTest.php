@@ -248,7 +248,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'title' => 'Tracking disabled',
       'status' => TRUE,
     ])->save();
-    self::assertSame(0, $this->eventCount('content_created'));
+    self::assertSame(0, $this->eventCount('node_created'));
 
     $this->config('changelogify.settings')
       ->set('track_content', TRUE)
@@ -259,14 +259,14 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'title' => 'Private draft',
       'status' => FALSE,
     ])->save();
-    self::assertSame(0, $this->eventCount('content_created'));
+    self::assertSame(0, $this->eventCount('node_created'));
 
     Node::create([
       'type' => 'page',
       'title' => 'Published page',
       'status' => TRUE,
     ])->save();
-    self::assertSame(1, $this->eventCount('content_created'));
+    self::assertSame(1, $this->eventCount('node_created'));
 
     $this->config('changelogify.settings')
       ->set('track_unpublished_content', TRUE)
@@ -276,7 +276,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'title' => 'Tracked private draft',
       'status' => FALSE,
     ])->save();
-    self::assertSame(2, $this->eventCount('content_created'));
+    self::assertSame(2, $this->eventCount('node_created'));
   }
 
   /**
