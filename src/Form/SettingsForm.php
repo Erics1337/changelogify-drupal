@@ -9,6 +9,7 @@ use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Routing\RouteBuilderInterface;
+use Drupal\Core\Routing\RouteProviderInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -20,6 +21,7 @@ class SettingsForm extends ConfigFormBase {
     ConfigFactoryInterface $config_factory,
     TypedConfigManagerInterface $typedConfigManager,
     protected RouteBuilderInterface $routeBuilder,
+    protected RouteProviderInterface $routeProvider,
   ) {
     parent::__construct($config_factory, $typedConfigManager);
   }
@@ -30,8 +32,9 @@ class SettingsForm extends ConfigFormBase {
   public static function create(ContainerInterface $container): self {
     return new static(
           $container->get('config.factory'),
-          $container->get('config.typed'),
-          $container->get('router.builder'),
+      $container->get('config.typed'),
+      $container->get('router.builder'),
+      $container->get('router.route_provider'),
       );
   }
 
@@ -138,6 +141,13 @@ class SettingsForm extends ConfigFormBase {
     $path = '/' . trim((string) $form_state->getValue('changelog_path'), '/');
     if (!preg_match('@^/[a-z0-9][a-z0-9/_-]*$@', $path)) {
       $form_state->setErrorByName('changelog_path', $this->t('Use a path such as /changelog containing lowercase letters, numbers, slashes, underscores, or hyphens.'));
+      return;
+    }
+
+    $existingRoutes = $this->routeProvider->getRoutesByPattern($path)->all();
+    unset($existingRoutes['changelogify.changelog']);
+    if ($existingRoutes !== []) {
+      $form_state->setErrorByName('changelog_path', $this->t('That path is already used by another Drupal route.'));
       return;
     }
 

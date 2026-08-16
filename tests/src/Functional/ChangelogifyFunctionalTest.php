@@ -337,6 +337,28 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
   }
 
   /**
+   * Tests the public path cannot replace an existing Drupal route.
+   */
+  public function testPublicPathRejectsRouteCollisions(): void {
+    $user = $this->drupalCreateUser([
+      'administer changelogify',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    $this->drupalGet('/admin/config/development/changelogify/settings');
+    $this->submitForm([
+      'changelog_path' => '/admin',
+    ], 'Save configuration');
+
+    $this->assertSession()->pageTextContains('That path is already used by another Drupal route.');
+    self::assertSame(
+      '/changelog',
+      $this->config('changelogify.settings')->get('changelog_path'),
+    );
+  }
+
+  /**
    * Counts stored events of a given type.
    */
   private function eventCount(string $eventType): int {
