@@ -44,6 +44,10 @@ class ReleaseForm extends ContentEntityForm {
   public function form(array $form, FormStateInterface $form_state): array {
     $form = parent::form($form, $form_state);
 
+    // Sections are edited through the structured textareas below. Never expose
+    // the JSON storage field as a second, conflicting form widget.
+    unset($form['sections']);
+
     /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
     $release = $this->entity;
 

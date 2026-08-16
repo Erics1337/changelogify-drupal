@@ -206,6 +206,14 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Draft release "January release" has been created.');
+    $this->assertSession()->elementExists(
+      'css',
+      'textarea[name="sections_wrapper[section_added][items]"]',
+    );
+    $this->assertSession()->elementNotExists(
+      'css',
+      'textarea[name="sections[0][value]"]',
+    );
 
     $ids = \Drupal::entityQuery('changelogify_release')
       ->accessCheck(FALSE)
