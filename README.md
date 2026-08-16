@@ -33,21 +33,24 @@ Changelogify captures events from your Drupal site (content changes, module inst
 git clone https://github.com/Erics1337/changelogify-drupal.git
 cd changelogify-drupal
 
-# Start DDEV and install Drupal
+# Scaffold Drupal around the module and start DDEV
+ddev add-on get ddev/ddev-drupal-contrib
 ddev start
-ddev composer create-project "drupal/recommended-project:^10" . --no-install
-ddev composer install
-ddev composer require drush/drush
-ddev drush site:install standard --site-name="My Site" -y
+ddev poser
+ddev symlink-project
+ddev config --update
+ddev drush site:install standard --site-name="Changelogify" --account-name=admin --account-pass=admin -y
 
 # Enable Changelogify
 ddev drush en changelogify -y
+ddev drush role:perm:add anonymous "view changelogify releases"
+ddev drush role:perm:add authenticated "view changelogify releases"
 ddev drush cr
 ```
 
 ### For Existing Drupal Sites
 
-Copy the `web/modules/custom/changelogify` folder to your site's `modules/custom` directory and enable via Drush or the admin UI:
+Copy this module directory into your site's `web/modules/custom/changelogify` directory and enable it via Drush or the admin UI:
 
 ```bash
 drush en changelogify -y
@@ -124,7 +127,7 @@ Visit **Configuration → Development → Changelogify → Settings** to configu
 | `manage changelogify releases` | Create, edit, delete, publish releases |
 | `view changelogify releases`   | View public changelog pages            |
 
-By default, anonymous users can view the public changelog.
+Grant `view changelogify releases` to the anonymous role when the changelog should be public. The DDEV development setup above grants it to both anonymous and authenticated users.
 
 ---
 

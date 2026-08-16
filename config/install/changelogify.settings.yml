@@ -1,0 +1,6 @@
+changelog_path: /changelog
+track_content: true
+track_unpublished_content: false
+track_modules: true
+track_users: false
+event_retention_days: 90

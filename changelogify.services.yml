@@ -9,8 +9,19 @@ services:
   Drupal\changelogify\ReleaseGenerator:
     class: Drupal\changelogify\ReleaseGenerator
 
+  Drupal\changelogify\EventManagerInterface:
+    alias: Drupal\changelogify\EventManager
+
+  Drupal\changelogify\ReleaseGeneratorInterface:
+    alias: Drupal\changelogify\ReleaseGenerator
+
   Drupal\changelogify\Hook\ChangelogifyHooks:
     class: Drupal\changelogify\Hook\ChangelogifyHooks
+
+  Drupal\changelogify\Routing\RouteSubscriber:
+    arguments: ['@config.factory']
+    tags:
+      - { name: event_subscriber }
 
   # Aliases for interface injection
   changelogify.event_manager:

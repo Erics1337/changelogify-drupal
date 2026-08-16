@@ -1,23 +1,21 @@
-# Ignore everything
-/*
+# Composer and Drupal are scaffolded locally by ddev-drupal-contrib.
+/vendor/
+/web/
+/recipes/
+/composer.contrib.json
+/composer.contrib.lock
 
-# Except these files and directories
-!.gitignore
-!.ddev/
-.ddev/*
-!.ddev/config.yaml
-!prd.md
-!README.md
-!.gitlab-ci.yml
+# Local dependency and test artifacts.
+/node_modules/
+/tests/temp/
+/simpletest/
 
-# The module itself - this is what we version control!
-!web/
-web/*
-!web/modules/
-web/modules/*
-!web/modules/custom/
-!web/modules/custom/changelogify/
-!web/modules/custom/changelogify_ai/
+# Machine-specific DDEV overrides and generated environment state.
+/.ddev/config.local.yaml
+/.ddev/.env*
+/.ddev/.ddev-*
+/.ddev/.*imageBuild/
 
-# Also ignore any generated files that might end up in the module
-web/modules/custom/**/node_modules/
+.DS_Store
+/.editorconfig
+/.gitattributes

@@ -1,0 +1,22 @@
+changelogify.settings:
+  type: config_object
+  label: Changelogify settings
+  mapping:
+    changelog_path:
+      type: string
+      label: Public changelog path
+    track_content:
+      type: boolean
+      label: Track content changes
+    track_unpublished_content:
+      type: boolean
+      label: Track unpublished content
+    track_modules:
+      type: boolean
+      label: Track module changes
+    track_users:
+      type: boolean
+      label: Track user changes
+    event_retention_days:
+      type: integer
+      label: Event retention period in days

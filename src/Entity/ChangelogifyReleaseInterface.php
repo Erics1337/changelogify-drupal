@@ -6,12 +6,13 @@ namespace Drupal\changelogify\Entity;
 
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityChangedInterface;
+use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\user\EntityOwnerInterface;
 
 /**
  * Interface for Changelogify Release entities.
  */
-interface ChangelogifyReleaseInterface extends ContentEntityInterface, EntityChangedInterface, EntityOwnerInterface
+interface ChangelogifyReleaseInterface extends ContentEntityInterface, EntityChangedInterface, EntityOwnerInterface, EntityPublishedInterface
 {
 
     /**

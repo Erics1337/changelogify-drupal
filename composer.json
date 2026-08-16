@@ -21,5 +21,14 @@
     },
     "require": {
         "drupal/core": "^10 || ^11"
+    },
+    "require-dev": {
+        "drush/drush": "^13"
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true,
+            "tbachert/spi": true
+        }
     }
 }

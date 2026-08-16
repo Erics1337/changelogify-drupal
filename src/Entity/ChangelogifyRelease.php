@@ -25,6 +25,7 @@ use Drupal\user\EntityOwnerTrait;
   handlers: [
     "view_builder" => "Drupal\Core\Entity\EntityViewBuilder",
     "list_builder" => "Drupal\changelogify\ReleaseListBuilder",
+    "access" => "Drupal\changelogify\Access\ChangelogifyReleaseAccessControlHandler",
     "form" => [
       "default" => "Drupal\changelogify\Form\ReleaseForm",
       "delete" => "Drupal\Core\Entity\ContentEntityDeleteForm",
@@ -40,9 +41,9 @@ use Drupal\user\EntityOwnerTrait;
     "uuid" => "uuid",
     "label" => "title",
     "owner" => "uid",
+    "published" => "status",
   ],
   links: [
-    "canonical" => "/changelog/{changelogify_release}",
     "add-form" => "/admin/content/changelogify/releases/add",
     "edit-form" => "/admin/content/changelogify/releases/{changelogify_release}/edit",
     "delete-form" => "/admin/content/changelogify/releases/{changelogify_release}/delete",
@@ -210,6 +211,14 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   {
     $this->set('status', $published);
     return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setUnpublished(): ChangelogifyReleaseInterface
+  {
+    return $this->setPublished(FALSE);
   }
 
   /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Form;
 
+use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Url;
@@ -130,6 +131,16 @@ class GenerateReleaseForm extends FormBase
 
             if (empty($start) || empty($end)) {
                 $form_state->setError($form['date_range'], $this->t('Please specify both start and end dates for custom range.'));
+                return;
+            }
+
+            if (!$start instanceof DrupalDateTime || !$end instanceof DrupalDateTime) {
+                $form_state->setError($form['date_range'], $this->t('The selected date range is invalid.'));
+                return;
+            }
+
+            if ($start->getTimestamp() > $end->getTimestamp()) {
+                $form_state->setError($form['date_range'], $this->t('The end date must be on or after the start date.'));
             }
         }
     }
@@ -158,7 +169,11 @@ class GenerateReleaseForm extends FormBase
             } else {
                 $start = $form_state->getValue('start_date');
                 $end = $form_state->getValue('end_date');
-                $release = $this->releaseGenerator->generateReleaseFromRange($start, $end, $options);
+                assert($start instanceof DrupalDateTime);
+                assert($end instanceof DrupalDateTime);
+                $start_date = $start->getPhpDateTime()->setTime(0, 0, 0);
+                $end_date = $end->getPhpDateTime()->setTime(23, 59, 59);
+                $release = $this->releaseGenerator->generateReleaseFromRange($start_date, $end_date, $options);
             }
 
             $this->messenger()->addStatus($this->t('Draft release "@title" has been created.', [
@@ -166,7 +181,7 @@ class GenerateReleaseForm extends FormBase
             ]));
 
             $form_state->setRedirectUrl($release->toUrl('edit-form'));
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->messenger()->addError($this->t('Failed to generate release: @message', [
                 '@message' => $e->getMessage(),
             ]));

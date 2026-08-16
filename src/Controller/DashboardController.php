@@ -96,7 +96,7 @@ class DashboardController extends ControllerBase
                 'view_releases' => [
                     '#type' => 'link',
                     '#title' => $this->t('View All Releases'),
-                    '#url' => Url::fromRoute('changelogify.release_list'),
+                    '#url' => Url::fromRoute('entity.changelogify_release.collection'),
                     '#attributes' => [
                         'class' => ['button'],
                     ],

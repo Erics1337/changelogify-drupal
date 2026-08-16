@@ -7,4 +7,5 @@ php: 8.1
 
 dependencies:
   - drupal:node
+  - drupal:options
   - drupal:user
