@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\changelogify\Form;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Routing\RouteBuilderInterface;
@@ -18,9 +19,10 @@ class SettingsForm extends ConfigFormBase
 
     public function __construct(
         ConfigFactoryInterface $config_factory,
+        TypedConfigManagerInterface $typedConfigManager,
         protected RouteBuilderInterface $routeBuilder,
     ) {
-        parent::__construct($config_factory);
+        parent::__construct($config_factory, $typedConfigManager);
     }
 
     /**
@@ -30,6 +32,7 @@ class SettingsForm extends ConfigFormBase
     {
         return new static(
             $container->get('config.factory'),
+            $container->get('config.typed'),
             $container->get('router.builder'),
         );
     }

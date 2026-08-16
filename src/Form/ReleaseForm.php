@@ -22,7 +22,7 @@ class ReleaseForm extends ContentEntityForm
         EntityRepositoryInterface $entityRepository,
         EntityTypeBundleInfoInterface $entityTypeBundleInfo,
         TimeInterface $time,
-        private readonly ReleaseItemNormalizer $itemNormalizer,
+        protected ReleaseItemNormalizer $itemNormalizer,
     ) {
         parent::__construct($entityRepository, $entityTypeBundleInfo, $time);
     }
