@@ -299,6 +299,36 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
   }
 
   /**
+   * Tests changing the public path rebuilds the dynamic routes.
+   */
+  public function testPublicPathSetting(): void {
+    $user = $this->drupalCreateUser([
+      'administer changelogify',
+      'view changelogify releases',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    $this->drupalGet('/admin/config/development/changelogify/settings');
+    $this->assertSession()->statusCodeEquals(200);
+    $this->submitForm([
+      'changelog_path' => '/product-updates',
+    ], 'Save configuration');
+
+    $this->assertSession()->pageTextContains('The configuration options have been saved.');
+    self::assertSame(
+      '/product-updates',
+      $this->config('changelogify.settings')->get('changelog_path'),
+    );
+
+    $this->drupalGet('/product-updates');
+    $this->assertSession()->statusCodeEquals(200);
+
+    $this->drupalGet('/changelog');
+    $this->assertSession()->statusCodeEquals(404);
+  }
+
+  /**
    * Counts stored events of a given type.
    */
   private function eventCount(string $eventType): int {
