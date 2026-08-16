@@ -7,12 +7,12 @@ namespace Drupal\Tests\changelogify\Functional;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\user\Entity\Role;
 use Drupal\user\RoleInterface;
+use PHPUnit\Framework\Attributes\Group;
 
 /**
  * Tests the Changelogify admin interface.
- *
- * @group changelogify
  */
+#[Group('changelogify')]
 class ChangelogifyFunctionalTest extends BrowserTestBase {
 
   /**

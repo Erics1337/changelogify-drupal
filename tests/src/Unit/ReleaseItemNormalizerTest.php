@@ -6,13 +6,13 @@ namespace Drupal\Tests\changelogify\Unit;
 
 use Drupal\changelogify\ReleaseItemNormalizer;
 use Drupal\Component\Uuid\UuidInterface;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Tests release item normalization.
- *
- * @group changelogify
  */
+#[Group('changelogify')]
 final class ReleaseItemNormalizerTest extends TestCase {
 
   /**

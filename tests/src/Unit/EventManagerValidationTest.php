@@ -9,13 +9,13 @@ use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Tests validation at the event logging boundary.
- *
- * @group changelogify
  */
+#[Group('changelogify')]
 final class EventManagerValidationTest extends TestCase {
 
   /**
