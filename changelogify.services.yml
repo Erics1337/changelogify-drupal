@@ -27,6 +27,12 @@ services:
   Drupal\changelogify\EventSource\ContentCapturePolicyInterface:
     alias: Drupal\changelogify\EventSource\ContentCapturePolicy
 
+  Drupal\changelogify\EntityDifference\EntityDifferenceService:
+    class: Drupal\changelogify\EntityDifference\EntityDifferenceService
+
+  Drupal\changelogify\EntityDifference\EntityDifferenceServiceInterface:
+    alias: Drupal\changelogify\EntityDifference\EntityDifferenceService
+
   Drupal\changelogify\EventSource\EventSourceRegistry:
     class: Drupal\changelogify\EventSource\EventSourceRegistry
     arguments:
