@@ -24,12 +24,27 @@
 .changelogify-release-teaser h2 {
   margin: 0 0 0.375rem;
   font-size: clamp(1.25rem, 3vw, 1.625rem);
+  overflow-wrap: anywhere;
 }
 
 .changelogify-release-teaser h2 a {
   color: var(--changelogify-accent);
   text-decoration-thickness: 0.08em;
   text-underline-offset: 0.16em;
+}
+
+.changelogify-release-teaser h2 a:focus-visible {
+  border-radius: 0.125rem;
+  outline: 0.2rem solid var(--changelogify-accent);
+  outline-offset: 0.2rem;
+}
+
+.changelogify-release-list__empty {
+  padding: 1.5rem;
+  color: var(--changelogify-muted);
+  border: 1px solid var(--changelogify-border);
+  border-radius: 0.75rem;
+  background: var(--changelogify-surface);
 }
 
 .changelogify-release-teaser time,
@@ -109,4 +124,23 @@
 
 .changelogify-release .release-section li + li {
   margin-block-start: 0.5rem;
+}
+
+.changelogify-release .release-section li {
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+@media (max-width: 35rem) {
+  .changelogify-release-teaser,
+  .changelogify-release .release-section {
+    padding: 1rem;
+  }
+
+  .changelogify-release-list .version,
+  .changelogify-release .version {
+    display: table;
+    margin-block-start: 0.5rem;
+    margin-inline-start: 0;
+  }
 }

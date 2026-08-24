@@ -115,7 +115,10 @@ final class ChangelogifyHooks {
       ],
       'changelogify_release' => [
         'variables' => [
-          'release' => NULL,
+          'title' => '',
+          'date' => '',
+          'date_iso' => '',
+          'version' => NULL,
           'sections' => [],
         ],
       ],

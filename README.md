@@ -122,6 +122,8 @@ accessible.
 
 See [public release slugs](docs/PUBLIC_RELEASE_SLUGS.md) for normalization,
 collision, history, redirect, and draft-privacy behavior.
+See [public changelog theming](docs/PUBLIC_CHANGELOG_THEMING.md) for stable
+template variables, accessibility markup, and cache behavior.
 
 ---
 

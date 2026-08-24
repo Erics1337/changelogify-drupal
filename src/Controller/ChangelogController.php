@@ -7,13 +7,14 @@ namespace Drupal\changelogify\Controller;
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Drupal\changelogify\ReleaseSlugManager;
 use Drupal\Core\Cache\CacheableMetadata;
+use Drupal\Core\Cache\CacheableRedirectResponse;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Url;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Controller for public changelog pages.
@@ -24,6 +25,7 @@ class ChangelogController extends ControllerBase {
     private readonly EntityTypeManagerInterface $changelogEntityTypeManager,
     private readonly DateFormatterInterface $dateFormatter,
     private readonly ReleaseSlugManager $slugManager,
+    private readonly RequestStack $requestStack,
   ) {
   }
 
@@ -35,6 +37,7 @@ class ChangelogController extends ControllerBase {
           $container->get('entity_type.manager'),
           $container->get('date.formatter'),
           $container->get(ReleaseSlugManager::class),
+          $container->get('request_stack'),
       );
   }
 
@@ -59,17 +62,33 @@ class ChangelogController extends ControllerBase {
       $excerpt = $this->buildExcerpt($sections);
 
       $items[] = [
-        'release' => $release,
+        'title' => $release->getTitle(),
+        'slug' => $release->getSlug(),
         'date' => $this->dateFormatter->format($release->getReleaseDate(), 'medium'),
+        'date_iso' => $this->dateFormatter->format($release->getReleaseDate(), 'custom', 'c'),
+        'version' => $release->getVersion(),
         'excerpt' => $excerpt,
+        'url' => Url::fromRoute('changelogify.changelog_release', [
+          'release_slug' => $release->getSlug(),
+        ])->toString(),
       ];
     }
+
+    $canonical = Url::fromRoute('changelogify.changelog', [], [
+      'absolute' => TRUE,
+      'query' => $this->requestStack->getCurrentRequest()?->query->all() ?? [],
+    ])->toString();
 
     $build = [
       '#theme' => 'changelogify_release_list',
       '#releases' => $items,
       '#attached' => [
         'library' => ['changelogify/public'],
+        'html_head_link' => [[
+          ['rel' => 'canonical', 'href' => $canonical],
+          TRUE,
+        ],
+        ],
       ],
       '#pager' => [
         '#type' => 'pager',
@@ -80,7 +99,12 @@ class ChangelogController extends ControllerBase {
       ->addCacheTags($this->changelogEntityTypeManager
         ->getDefinition('changelogify_release')
         ->getListCacheTags())
-      ->addCacheContexts(['user.permissions', 'url.query_args:pagers'])
+      ->addCacheContexts([
+        'languages:language_content',
+        'languages:language_interface',
+        'user.permissions',
+        'url.query_args:pagers',
+      ])
       ->applyTo($build);
 
     return $build;
@@ -89,7 +113,7 @@ class ChangelogController extends ControllerBase {
   /**
    * Displays a single release.
    */
-  public function view(string $release_slug): array|RedirectResponse {
+  public function view(string $release_slug): array|CacheableRedirectResponse {
     $resolved = $this->resolveAccessible($release_slug);
     $changelogify_release = $resolved['release'];
     if ($resolved['historical']) {
@@ -110,22 +134,42 @@ class ChangelogController extends ControllerBase {
       if (!empty($items)) {
         $rendered_sections[$key] = [
           'label' => $section_labels[$key] ?? ucfirst($key),
-          'items' => $items,
+          'items' => array_map(
+            static fn (array $item): array => ['text' => (string) ($item['text'] ?? '')],
+            $items,
+          ),
         ];
       }
     }
 
     $build = [
       '#theme' => 'changelogify_release',
-      '#release' => $changelogify_release,
+      '#title' => $changelogify_release->getTitle(),
+      '#date' => $this->dateFormatter->format($changelogify_release->getReleaseDate(), 'long'),
+      '#date_iso' => $this->dateFormatter->format($changelogify_release->getReleaseDate(), 'custom', 'c'),
+      '#version' => $changelogify_release->getVersion(),
       '#sections' => $rendered_sections,
       '#attached' => [
         'library' => ['changelogify/public'],
+        'html_head_link' => [[
+          [
+            'rel' => 'canonical',
+            'href' => Url::fromRoute('changelogify.changelog_release', [
+              'release_slug' => $changelogify_release->getSlug(),
+            ], ['absolute' => TRUE])->toString(),
+          ],
+          TRUE,
+        ],
+        ],
       ],
     ];
 
     CacheableMetadata::createFromObject($changelogify_release)
-      ->addCacheContexts(['user.permissions'])
+      ->addCacheContexts([
+        'languages:language_content',
+        'languages:language_interface',
+        'user.permissions',
+      ])
       ->applyTo($build);
 
     return $build;
@@ -141,7 +185,7 @@ class ChangelogController extends ControllerBase {
   /**
    * Permanently redirects an accessible legacy numeric release URL.
    */
-  public function legacyRedirect(ChangelogifyReleaseInterface $changelogify_release): RedirectResponse {
+  public function legacyRedirect(ChangelogifyReleaseInterface $changelogify_release): CacheableRedirectResponse {
     if (!$changelogify_release->access('view', $this->currentUser())) {
       throw new NotFoundHttpException();
     }
@@ -162,11 +206,18 @@ class ChangelogController extends ControllerBase {
   /**
    * Builds a permanent redirect to a release's current public slug.
    */
-  private function canonicalRedirect(ChangelogifyReleaseInterface $release): RedirectResponse {
+  private function canonicalRedirect(ChangelogifyReleaseInterface $release): CacheableRedirectResponse {
     $url = Url::fromRoute('changelogify.changelog_release', [
       'release_slug' => $release->getSlug(),
     ])->toString();
-    return new RedirectResponse($url, 301);
+    $response = new CacheableRedirectResponse($url, 301);
+    $metadata = CacheableMetadata::createFromObject($release)
+      ->addCacheContexts([
+        'languages:language_content',
+        'languages:language_interface',
+        'user.permissions',
+      ]);
+    return $response->addCacheableDependency($metadata);
   }
 
   /**

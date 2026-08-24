@@ -255,10 +255,53 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('Public release');
     $this->assertSession()->pageTextNotContains('Private draft release');
     $this->assertSession()->responseContains('changelogify.public.css');
+    $this->assertSession()->elementExists('css', '.changelogify-release-list[aria-live="polite"]');
+    $this->assertSession()->elementExists('css', 'article h2 a[rel="bookmark"]');
+    $this->assertSession()->elementExists('css', 'time[datetime]');
+    $this->assertSession()->elementAttributeContains('css', 'link[rel="canonical"]', 'href', '/changelog');
 
     $this->drupalGet('/changelog/' . $published->getSlug());
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Visible public change');
+    $this->assertSession()->elementExists('css', '.release-section h2');
+    $this->assertSession()->elementExists('css', '.release-section ul li');
+    $this->assertSession()->elementAttributeContains('css', 'link[rel="canonical"]', 'href', '/changelog/' . $published->getSlug());
+    $this->assertSession()->responseNotContains('public-item');
+
+    // Prime page caches, then verify every lifecycle change invalidates them.
+    $published->setTitle('Updated public release');
+    $published->setSections([
+      'fixed' => [[
+        'id' => 'private-identity',
+        'text' => 'Freshly rendered public change',
+        'event_ids' => ['private-evidence'],
+      ],
+      ],
+    ])->save();
+    $this->drupalGet('/changelog');
+    $this->assertSession()->pageTextContains('Updated public release');
+    $this->drupalGet('/changelog/' . $published->getSlug());
+    $this->assertSession()->pageTextContains('Freshly rendered public change');
+    $this->assertSession()->responseNotContains('private-identity');
+    $this->assertSession()->responseNotContains('private-evidence');
+
+    $published->setEditorialState('draft')->save();
+    $this->drupalGet('/changelog');
+    $this->assertSession()->pageTextNotContains('Updated public release');
+    $this->drupalGet('/changelog/' . $published->getSlug());
+    $this->assertSession()->statusCodeEquals(404);
+
+    $published->setEditorialState('published')->save();
+    $this->drupalGet('/changelog');
+    $this->assertSession()->pageTextContains('Updated public release');
+    $this->drupalGet('/changelog/' . $published->getSlug());
+    $this->assertSession()->statusCodeEquals(200);
+
+    $published->delete();
+    $this->drupalGet('/changelog');
+    $this->assertSession()->pageTextNotContains('Updated public release');
+    $this->drupalGet('/changelog/' . $published->getSlug());
+    $this->assertSession()->statusCodeEquals(404);
 
     $this->drupalGet('/changelog/' . $draft->getSlug());
     $this->assertSession()->statusCodeEquals(404);
