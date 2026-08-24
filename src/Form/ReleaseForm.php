@@ -66,7 +66,9 @@ class ReleaseForm extends ContentEntityForm {
 
     /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
     $release = $this->entity;
-    $form_state->set('original_editorial_state', $release->getEditorialState());
+    if ($form_state->get('original_editorial_state') === NULL) {
+      $form_state->set('original_editorial_state', $release->getEditorialState());
+    }
 
     // Add item-level editing without exposing provenance as client input.
     $form['sections_wrapper'] = [
@@ -302,6 +304,12 @@ class ReleaseForm extends ContentEntityForm {
     $release = $this->entity;
 
     $sections = $form_state->get('normalized_release_sections');
+    if (!is_array($sections)) {
+      $submittedItems = $form_state->getValue(['sections_wrapper', 'items']);
+      $sections = is_array($submittedItems)
+        ? $this->itemNormalizer->fromStructured($submittedItems, $release->getSections())
+        : $release->getSections();
+    }
     $originalState = (string) $form_state->get('original_editorial_state');
     $targetState = (string) $form_state->getValue(['editorial_state', 0, 'value']);
     $release->setEditorialState($targetState);
