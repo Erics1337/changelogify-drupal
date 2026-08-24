@@ -2,12 +2,12 @@
   Drupal.behaviors.changelogifyReleaseItemEditor = {
     attach(context) {
       once(
-        "changelogify-release-item-editor",
-        ".changelogify-release-items",
+        'changelogify-release-item-editor',
+        '.changelogify-release-items',
         context,
       ).forEach((container) => {
         const items = () => [
-          ...container.querySelectorAll(":scope > .changelogify-release-item"),
+          ...container.querySelectorAll(':scope > .changelogify-release-item'),
         ];
         const updateOrder = () => {
           items().forEach((item, index) => {
@@ -16,17 +16,17 @@
           });
         };
         items().forEach((item) => {
-          const controls = document.createElement("div");
-          controls.className = "changelogify-release-item__move";
+          const controls = document.createElement('div');
+          controls.className = 'changelogify-release-item__move';
           [
-            [Drupal.t("Move up"), -1],
-            [Drupal.t("Move down"), 1],
+            [Drupal.t('Move up'), -1],
+            [Drupal.t('Move down'), 1],
           ].forEach(([label, direction]) => {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "button button--small";
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'button button--small';
             button.textContent = label;
-            button.addEventListener("click", () => {
+            button.addEventListener('click', () => {
               const siblings = items();
               const current = siblings.indexOf(item);
               const target = siblings[current + direction];
