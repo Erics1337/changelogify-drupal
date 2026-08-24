@@ -6,6 +6,7 @@ namespace Drupal\changelogify\EventSource;
 
 use Drupal\changelogify\EventInput;
 use Drupal\Component\Datetime\TimeInterface;
+use Drupal\Core\Config\ConfigInstallerInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 
@@ -18,6 +19,7 @@ final class ModuleEventSource implements EventSourceInterface {
 
   public function __construct(
     private readonly EventSourceRecorderInterface $recorder,
+    private readonly ConfigInstallerInterface $configInstaller,
     private readonly TimeInterface $time,
     private readonly AccountProxyInterface $currentUser,
   ) {
@@ -27,21 +29,21 @@ final class ModuleEventSource implements EventSourceInterface {
    * {@inheritdoc}
    */
   public function getId(): string {
-    return 'modules';
+    return 'extensions';
   }
 
   /**
    * {@inheritdoc}
    */
   public function getLabel(): string {
-    return 'Track module changes';
+    return 'Track extension changes';
   }
 
   /**
    * {@inheritdoc}
    */
   public function getPrivacyDescription(): string {
-    return 'Log events when modules are installed or uninstalled.';
+    return 'Log events when modules or themes are installed or uninstalled outside configuration synchronization.';
   }
 
   /**
@@ -55,7 +57,12 @@ final class ModuleEventSource implements EventSourceInterface {
    * {@inheritdoc}
    */
   public function getSupportedEventTypes(): array {
-    return ['module_installed', 'module_uninstalled'];
+    return [
+      'module_installed',
+      'module_uninstalled',
+      'theme_installed',
+      'theme_uninstalled',
+    ];
   }
 
   /**
@@ -102,17 +109,62 @@ final class ModuleEventSource implements EventSourceInterface {
   }
 
   /**
+   * Implements hook_themes_installed().
+   */
+  public function themesInstalled(array $themes): void {
+    if ($this->configInstaller->isSyncing()) {
+      return;
+    }
+    foreach ($themes as $theme) {
+      $this->record(
+        $theme,
+        'theme_installed',
+        $this->t('Installed theme: @theme', ['@theme' => $theme])->__toString(),
+        'added',
+        'theme',
+      );
+    }
+  }
+
+  /**
+   * Implements hook_themes_uninstalled().
+   */
+  public function themesUninstalled(array $themes): void {
+    if ($this->configInstaller->isSyncing()) {
+      return;
+    }
+    foreach ($themes as $theme) {
+      $this->record(
+        $theme,
+        'theme_uninstalled',
+        $this->t('Uninstalled theme: @theme', ['@theme' => $theme])->__toString(),
+        'removed',
+        'theme',
+      );
+    }
+  }
+
+  /**
    * Records one module lifecycle event.
    */
-  private function record(string $module, string $eventType, string $message, string $section): void {
+  private function record(
+    string $extension,
+    string $eventType,
+    string $message,
+    string $section,
+    string $extensionType = 'module',
+  ): void {
     $this->recorder->record($this, new EventInput(
       eventType: $eventType,
-      source: 'system',
+      source: 'extension',
       message: $message,
       timestamp: $this->time->getRequestTime(),
       actorId: (int) $this->currentUser->id(),
       sectionHint: $section,
-      metadata: ['module' => $module],
+      metadata: [
+        'extension_name' => $extension,
+        'extension_type' => $extensionType,
+      ],
     ));
   }
 

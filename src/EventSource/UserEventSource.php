@@ -56,7 +56,7 @@ final class UserEventSource implements EventSourceInterface {
    * {@inheritdoc}
    */
   public function getSupportedEventTypes(): array {
-    return ['user_created', 'user_role_changed'];
+    return ['user_created', 'user_role_assignments_changed'];
   }
 
   /**
@@ -92,9 +92,9 @@ final class UserEventSource implements EventSourceInterface {
       return;
     }
     $this->recorder->record($this, new EventInput(
-      eventType: 'user_role_changed',
+      eventType: 'user_role_assignments_changed',
       source: 'user',
-      message: $this->t('Changed roles for user: @name', ['@name' => $account->getAccountName()])->__toString(),
+      message: $this->t('Changed role assignments for user: @name', ['@name' => $account->getAccountName()])->__toString(),
       timestamp: $this->time->getRequestTime(),
       actorId: (int) $this->currentUser->id(),
       entityTypeId: 'user',

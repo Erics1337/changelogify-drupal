@@ -68,6 +68,22 @@ final class ChangelogifyHooks {
   }
 
   /**
+   * Implements hook_themes_installed().
+   */
+  #[Hook('themes_installed')]
+  public function themesInstalled(array $themes): void {
+    $this->moduleSource->themesInstalled($themes);
+  }
+
+  /**
+   * Implements hook_themes_uninstalled().
+   */
+  #[Hook('themes_uninstalled')]
+  public function themesUninstalled(array $themes): void {
+    $this->moduleSource->themesUninstalled($themes);
+  }
+
+  /**
    * Implements hook_user_insert().
    */
   #[Hook('user_insert')]

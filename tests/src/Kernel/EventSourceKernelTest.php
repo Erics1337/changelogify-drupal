@@ -8,12 +8,18 @@ use Drupal\changelogify\EventSource\ContentEventSource;
 use Drupal\changelogify\EventSource\ContentCapturePolicyInterface;
 use Drupal\changelogify\EventSource\EventSourceRegistryInterface;
 use Drupal\changelogify\EventSource\ModuleEventSource;
+use Drupal\changelogify\EventSource\EventSourceRecorderInterface;
+use Drupal\Component\Datetime\TimeInterface;
 use Drupal\changelogify\EventSubscriber\ConfigImportSubscriber;
 use Drupal\Core\Config\ConfigImporter;
 use Drupal\Core\Config\ConfigImporterEvent;
+use Drupal\Core\Config\ConfigInstallerInterface;
 use Drupal\Core\Config\StorageComparerInterface;
 use Drupal\Core\Config\StorageInterface;
+use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\node\Entity\Node;
+use Drupal\user\Entity\Role;
+use Drupal\user\Entity\User;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -31,7 +37,7 @@ final class EventSourceKernelTest extends ChangelogifyKernelTestBase {
    */
   public function testFirstPartySourceDiscovery(): void {
     $registry = $this->container->get(EventSourceRegistryInterface::class);
-    self::assertSame(['config_import', 'content', 'modules', 'users'], array_keys($registry->getSources()));
+    self::assertSame(['config_import', 'content', 'extensions', 'users'], array_keys($registry->getSources()));
     self::assertContains('node_created', $registry->getSource('content')->getSupportedEventTypes());
     self::assertFalse($registry->getSource('users')->getConfigurationDefaults()['enabled']);
   }
@@ -165,6 +171,80 @@ final class EventSourceKernelTest extends ChangelogifyKernelTestBase {
     self::assertSame('config_import_failed', $events[0]->getEventType());
     self::assertSame('failed', $events[0]->getMetadata()['status']);
     self::assertSame('Configuration import failed.', $events[0]->getMessage());
+  }
+
+  /**
+   * Tests direct extension events and synchronized duplicate suppression.
+   */
+  public function testExtensionLifecycleSemantics(): void {
+    $source = $this->container->get(ModuleEventSource::class);
+    $source->modulesInstalled(['changelogify', 'example'], FALSE);
+    $source->modulesUninstalled(['example'], FALSE);
+    $source->themesInstalled(['stark']);
+    $source->themesUninstalled(['stark']);
+
+    $syncingInstaller = $this->createMock(ConfigInstallerInterface::class);
+    $syncingInstaller->method('isSyncing')->willReturn(TRUE);
+    $syncingSource = new ModuleEventSource(
+      $this->container->get(EventSourceRecorderInterface::class),
+      $syncingInstaller,
+      $this->container->get(TimeInterface::class),
+      $this->container->get(AccountProxyInterface::class),
+    );
+    $source->modulesInstalled(['synchronized_module'], TRUE);
+    $syncingSource->themesInstalled(['synchronized_theme']);
+
+    $events = $this->loadEvents();
+    self::assertSame([
+      'module_installed',
+      'module_uninstalled',
+      'theme_installed',
+      'theme_uninstalled',
+    ], array_map(static fn ($event): string => $event->getEventType(), $events));
+    foreach ($events as $event) {
+      self::assertSame('extension', $event->getSource());
+    }
+    self::assertSame('example', $events[0]->getMetadata()['extension_name']);
+    self::assertSame('theme', $events[2]->getMetadata()['extension_type']);
+  }
+
+  /**
+   * Tests role definitions and account assignments use distinct semantics.
+   */
+  public function testRolePermissionAndAssignmentSemantics(): void {
+    $this->config('changelogify.settings')
+      ->set('track_users', TRUE)
+      ->set('config_import.include_sensitive', TRUE)
+      ->save();
+    Role::create(['id' => 'editor', 'label' => 'Editor'])->save();
+    $account = User::create([
+      'name' => 'editor_account',
+      'mail' => 'editor@example.com',
+      'status' => TRUE,
+    ]);
+    $account->save();
+    $account->addRole('editor')->save();
+
+    $event = $this->configImporterEvent([
+      StorageInterface::DEFAULT_COLLECTION => [
+        'create' => [],
+        'update' => ['user.role.editor'],
+        'delete' => [],
+      ],
+    ]);
+    $this->container->get(ConfigImportSubscriber::class)->onImport($event);
+
+    $events = $this->loadEvents();
+    $assignmentEvents = array_values(array_filter(
+      $events,
+      static fn ($storedEvent): bool => $storedEvent->getEventType() === 'user_role_assignments_changed',
+    ));
+    self::assertCount(1, $assignmentEvents);
+    self::assertStringContainsString('role assignments', $assignmentEvents[0]->getMessage());
+    $configEvent = end($events);
+    self::assertSame('config_import_succeeded', $configEvent->getEventType());
+    self::assertSame('role', $configEvent->getMetadata()['members'][0]['category']);
+    self::assertNotSame($assignmentEvents[0]->getCorrelationId(), $configEvent->getCorrelationId());
   }
 
   /**
