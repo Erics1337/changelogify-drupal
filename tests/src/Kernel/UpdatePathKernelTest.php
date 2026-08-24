@@ -161,6 +161,7 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     $this->includeUpdateFiles();
     changelogify_update_12001();
     changelogify_update_13001();
+    changelogify_update_14001();
     changelogify_post_update_ensure_query_indexes();
     changelogify_post_update_add_event_contract_fields();
   }
@@ -230,6 +231,16 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
       'event_retention_days' => 0,
       'track_unpublished_content' => FALSE,
       'changelog_path' => '/changelog',
+      'content_capture' => [
+        'entity_types' => array_fill_keys(
+          ['node', 'media', 'block_content', 'taxonomy_term'],
+          [
+            'enabled' => TRUE,
+            'default_bundle_enabled' => TRUE,
+            'bundles' => [],
+          ],
+        ),
+      ],
     ];
     self::assertEquals($expected, $this->config('changelogify.settings')->getRawData());
   }

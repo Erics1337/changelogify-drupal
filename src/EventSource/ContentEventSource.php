@@ -22,6 +22,7 @@ final class ContentEventSource implements EventSourceInterface {
 
   public function __construct(
     private readonly EventSourceRecorderInterface $recorder,
+    private readonly ContentCapturePolicyInterface $capturePolicy,
     private readonly ConfigFactoryInterface $configFactory,
     private readonly EntityTypeBundleInfoInterface $entityTypeBundleInfo,
     private readonly TimeInterface $time,
@@ -62,7 +63,7 @@ final class ContentEventSource implements EventSourceInterface {
    */
   public function getSupportedEventTypes(): array {
     $types = [];
-    foreach (['node', 'media', 'block_content', 'taxonomy_term'] as $entityType) {
+    foreach (array_keys($this->capturePolicy->getEligibleEntityTypes()) as $entityType) {
       foreach (['created', 'updated', 'deleted', 'published', 'unpublished'] as $action) {
         $types[] = $entityType . '_' . $action;
       }
@@ -122,7 +123,7 @@ final class ContentEventSource implements EventSourceInterface {
     if (!$this->recorder->isEnabled($this)) {
       return FALSE;
     }
-    if (!in_array($entity->getEntityTypeId(), ['node', 'media', 'block_content', 'taxonomy_term'], TRUE)) {
+    if (!$this->capturePolicy->allows($entity)) {
       return FALSE;
     }
 

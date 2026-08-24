@@ -31,6 +31,11 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
       'track_unpublished_content' => FALSE,
       'track_modules' => TRUE,
       'track_users' => FALSE,
+      'content_capture' => [
+        'entity_types' => [
+          'node' => ['enabled' => TRUE, 'default_bundle_enabled' => TRUE, 'bundles' => []],
+        ],
+      ],
       'event_retention_days' => 90,
     ], $settings);
 

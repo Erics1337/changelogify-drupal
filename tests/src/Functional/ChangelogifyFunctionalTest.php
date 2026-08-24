@@ -11,6 +11,7 @@ use Drupal\Tests\BrowserTestBase;
 use Drupal\user\Entity\Role;
 use Drupal\user\RoleInterface;
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests the Changelogify admin interface.
@@ -18,6 +19,7 @@ use PHPUnit\Framework\Attributes\Group;
  * @group changelogify
  */
 #[Group('changelogify')]
+#[RunTestsInSeparateProcesses]
 class ChangelogifyFunctionalTest extends BrowserTestBase {
 
   /**
@@ -279,6 +281,32 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'status' => FALSE,
     ])->save();
     self::assertSame(2, $this->eventCount('node_created'));
+  }
+
+  /**
+   * Tests administrators can exclude a content bundle from capture.
+   */
+  public function testContentBundleCapturePolicyForm(): void {
+    NodeType::create(['type' => 'page', 'name' => 'Page'])->save();
+    $user = $this->drupalCreateUser([
+      'administer changelogify',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    $this->drupalGet('/admin/config/development/changelogify/settings');
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Newly discovered entity types and bundles are disabled');
+    $this->submitForm([
+      'content_capture[node][bundles][page]' => FALSE,
+    ], 'Save configuration');
+
+    Node::create([
+      'type' => 'page',
+      'title' => 'Excluded through settings',
+      'status' => TRUE,
+    ])->save();
+    self::assertSame(0, $this->eventCount('node_created'));
   }
 
   /**

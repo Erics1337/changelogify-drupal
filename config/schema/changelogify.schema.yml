@@ -27,6 +27,29 @@ changelogify.settings:
           enabled:
             type: boolean
             label: Enabled
+    content_capture:
+      type: mapping
+      label: Content capture policy
+      mapping:
+        entity_types:
+          type: sequence
+          label: Entity type policies
+          sequence:
+            type: mapping
+            label: Entity type policy
+            mapping:
+              enabled:
+                type: boolean
+                label: Enabled
+              default_bundle_enabled:
+                type: boolean
+                label: Enable unconfigured bundles
+              bundles:
+                type: sequence
+                label: Bundle policies
+                sequence:
+                  type: boolean
+                  label: Enabled
     event_retention_days:
       type: integer
       label: Event retention period in days

@@ -6,6 +6,7 @@ namespace Drupal\changelogify\Form;
 
 use Drupal\changelogify\EventSource\EventSourceRecorderInterface;
 use Drupal\changelogify\EventSource\EventSourceRegistryInterface;
+use Drupal\changelogify\EventSource\ContentCapturePolicyInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Form\ConfigFormBase;
@@ -26,6 +27,7 @@ class SettingsForm extends ConfigFormBase {
     protected RouteProviderInterface $routeProvider,
     protected EventSourceRegistryInterface $eventSourceRegistry,
     protected EventSourceRecorderInterface $eventSourceRecorder,
+    protected ContentCapturePolicyInterface $contentCapturePolicy,
   ) {
     parent::__construct($config_factory, $typedConfigManager);
   }
@@ -41,6 +43,7 @@ class SettingsForm extends ConfigFormBase {
       $container->get('router.route_provider'),
       $container->get(EventSourceRegistryInterface::class),
       $container->get(EventSourceRecorderInterface::class),
+      $container->get(ContentCapturePolicyInterface::class),
       );
   }
 
@@ -107,6 +110,46 @@ class SettingsForm extends ConfigFormBase {
         ],
       ],
     ];
+
+    $form['content_capture'] = [
+      '#type' => 'details',
+      '#tree' => TRUE,
+      '#title' => $this->t('Content capture policy'),
+      '#description' => $this->t('Newly discovered entity types and bundles are disabled until explicitly selected.'),
+      '#open' => FALSE,
+      '#states' => [
+        'visible' => [':input[name="track_content"]' => ['checked' => TRUE]],
+      ],
+    ];
+    foreach ($this->contentCapturePolicy->getEligibleEntityTypes() as $entityTypeId => $info) {
+      $form['content_capture'][$entityTypeId] = [
+        '#type' => 'details',
+        '#title' => $info['label'],
+        '#description' => $info['privacy_sensitive']
+          ? $this->t('Privacy warning: this entity type may contain personal or access-controlled information.')
+          : $this->t('Choose whether this entity type and its bundles may be recorded.'),
+      ];
+      $form['content_capture'][$entityTypeId]['enabled'] = [
+        '#type' => 'checkbox',
+        '#title' => $this->t('Enable @type capture', ['@type' => $info['label']]),
+        '#config_target' => "changelogify.settings:content_capture.entity_types.$entityTypeId.enabled",
+        '#default_value' => $this->contentCapturePolicy->isEntityTypeEnabled($entityTypeId),
+      ];
+      $form['content_capture'][$entityTypeId]['bundles'] = [
+        '#type' => 'container',
+      ];
+      foreach ($info['bundles'] as $bundleId => $bundleLabel) {
+        $form['content_capture'][$entityTypeId]['bundles'][$bundleId] = [
+          '#type' => 'checkbox',
+          '#title' => $bundleLabel,
+          '#config_target' => "changelogify.settings:content_capture.entity_types.$entityTypeId.bundles.$bundleId",
+          '#default_value' => $this->contentCapturePolicy->isBundleEnabled($entityTypeId, $bundleId),
+          '#states' => [
+            'visible' => [":input[name=\"content_capture[$entityTypeId][enabled]\"]" => ['checked' => TRUE]],
+          ],
+        ];
+      }
+    }
 
     $form['retention'] = [
       '#type' => 'details',

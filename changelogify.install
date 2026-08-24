@@ -52,3 +52,24 @@ function changelogify_update_13001(): string {
 
   return 'Added Changelogify privacy and public path defaults.';
 }
+
+/**
+ * Preserves the historical content capture policy for existing sites.
+ */
+function changelogify_update_14001(): string {
+  $config = \Drupal::configFactory()->getEditable('changelogify.settings');
+  if ($config->get('content_capture') === NULL) {
+    $entityTypes = [];
+    foreach (['node', 'media', 'block_content', 'taxonomy_term'] as $entityTypeId) {
+      $entityTypes[$entityTypeId] = [
+        'enabled' => TRUE,
+        'default_bundle_enabled' => TRUE,
+        'bundles' => [],
+      ];
+    }
+    $config->set('content_capture.entity_types', $entityTypes)->save();
+  }
+
+  \Drupal::logger('changelogify')->notice('Preserved the existing content capture policy; newly discovered entity types remain disabled.');
+  return 'Added privacy-first content entity type and bundle policies.';
+}

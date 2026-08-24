@@ -8,7 +8,10 @@ use Drupal\Core\Entity\ContentEntityType;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Url;
 use Drupal\changelogify\EventSource\ContentEventSource;
+use Drupal\block_content\Entity\BlockContentType;
+use Drupal\media\Entity\MediaType;
 use Drupal\node\Entity\Node;
+use Drupal\taxonomy\Entity\Vocabulary;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -26,11 +29,20 @@ final class ContentTrackingKernelTest extends ChangelogifyKernelTestBase {
    * Tests media, custom block, and taxonomy term event descriptions.
    */
   public function testGenericContentEntitiesAreTracked(): void {
+    MediaType::create(['id' => 'image', 'label' => 'Image', 'source' => 'image'])->save();
+    BlockContentType::create(['id' => 'basic', 'label' => 'Basic'])->save();
+    Vocabulary::create(['vid' => 'tags', 'name' => 'Tags'])->save();
+    foreach (['media', 'block_content', 'taxonomy_term'] as $entityTypeId) {
+      $this->config('changelogify.settings')
+        ->set("content_capture.entity_types.$entityTypeId.enabled", TRUE)
+        ->set("content_capture.entity_types.$entityTypeId.default_bundle_enabled", TRUE)
+        ->save();
+    }
     $hooks = $this->container->get(ContentEventSource::class);
 
     $hooks->entityInsert($this->createEntityDouble('media', 'image', 'Homepage Hero', '/media/hero', 10));
     $hooks->entityUpdate($this->createEntityDouble('block_content', 'basic', 'Promo Banner', '/block/1', 11));
-    $hooks->entityDelete($this->createEntityDouble('taxonomy_term', 'tags', 'Drupal', '/taxonomy/term/1', 12));
+    $hooks->entityDelete($this->createEntityDouble('taxonomy_term', 'tags', 'Drupal', '/terms/drupal', 12));
 
     $events = $this->loadEvents();
     self::assertCount(3, $events);

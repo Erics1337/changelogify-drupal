@@ -21,6 +21,12 @@ services:
   Drupal\changelogify\EventSource\EventSourceRecorderInterface:
     alias: Drupal\changelogify\EventSource\EventSourceRecorder
 
+  Drupal\changelogify\EventSource\ContentCapturePolicy:
+    class: Drupal\changelogify\EventSource\ContentCapturePolicy
+
+  Drupal\changelogify\EventSource\ContentCapturePolicyInterface:
+    alias: Drupal\changelogify\EventSource\ContentCapturePolicy
+
   Drupal\changelogify\EventSource\EventSourceRegistry:
     class: Drupal\changelogify\EventSource\EventSourceRegistry
     arguments:
