@@ -15,6 +15,42 @@ use Drupal\user\EntityOwnerTrait;
 
 /**
  * Defines the Changelogify Release entity.
+ *
+ * @ContentEntityType(
+ *   id = "changelogify_release",
+ *   label = @Translation("Release"),
+ *   label_collection = @Translation("Releases"),
+ *   label_singular = @Translation("release"),
+ *   label_plural = @Translation("releases"),
+ *   handlers = {
+ *     "view_builder" = "Drupal\Core\Entity\EntityViewBuilder",
+ *     "list_builder" = "Drupal\changelogify\ReleaseListBuilder",
+ *     "access" = "Drupal\changelogify\Access\ChangelogifyReleaseAccessControlHandler",
+ *     "storage_schema" = "Drupal\changelogify\Entity\ChangelogifyReleaseStorageSchema",
+ *     "form" = {
+ *       "default" = "Drupal\changelogify\Form\ReleaseForm",
+ *       "delete" = "Drupal\Core\Entity\ContentEntityDeleteForm"
+ *     },
+ *     "route_provider" = {
+ *       "html" = "Drupal\Core\Entity\Routing\AdminHtmlRouteProvider"
+ *     }
+ *   },
+ *   base_table = "changelogify_release",
+ *   admin_permission = "manage changelogify releases",
+ *   entity_keys = {
+ *     "id" = "id",
+ *     "uuid" = "uuid",
+ *     "label" = "title",
+ *     "owner" = "uid",
+ *     "published" = "status"
+ *   },
+ *   links = {
+ *     "add-form" = "/admin/content/changelogify/releases/add",
+ *     "edit-form" = "/admin/content/changelogify/releases/{changelogify_release}/edit",
+ *     "delete-form" = "/admin/content/changelogify/releases/{changelogify_release}/delete",
+ *     "collection" = "/admin/content/changelogify/releases"
+ *   }
+ * )
  */
 #[ContentEntityType(
   id: "changelogify_release",

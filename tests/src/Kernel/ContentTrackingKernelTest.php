@@ -13,6 +13,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests supported content event logging.
+ *
+ * @group changelogify
+ * @runTestsInSeparateProcesses
  */
 #[Group('changelogify')]
 #[RunTestsInSeparateProcesses]

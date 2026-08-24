@@ -14,6 +14,8 @@ use PHPUnit\Framework\Attributes\Group;
 
 /**
  * Tests the Changelogify admin interface.
+ *
+ * @group changelogify
  */
 #[Group('changelogify')]
 class ChangelogifyFunctionalTest extends BrowserTestBase {

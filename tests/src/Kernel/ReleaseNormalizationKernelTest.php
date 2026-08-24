@@ -9,6 +9,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests release event normalization.
+ *
+ * @group changelogify
+ * @runTestsInSeparateProcesses
  */
 #[Group('changelogify')]
 #[RunTestsInSeparateProcesses]

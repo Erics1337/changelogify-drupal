@@ -11,6 +11,8 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Tests release item normalization.
+ *
+ * @group changelogify
  */
 #[Group('changelogify')]
 final class ReleaseItemNormalizerTest extends TestCase {

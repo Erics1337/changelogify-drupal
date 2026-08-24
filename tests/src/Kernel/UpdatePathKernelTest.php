@@ -9,6 +9,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests update hooks for sites upgrading from earlier releases.
+ *
+ * @group changelogify
+ * @runTestsInSeparateProcesses
  */
 #[Group('changelogify')]
 #[RunTestsInSeparateProcesses]

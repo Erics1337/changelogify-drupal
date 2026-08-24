@@ -14,6 +14,8 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Tests bounded release generation.
+ *
+ * @group changelogify
  */
 #[Group('changelogify')]
 final class ReleaseGeneratorTest extends TestCase {

@@ -14,3 +14,8 @@ parameters:
     ignoreErrors:
         # new static() is a best practice in Drupal, so we cannot fix that.
         - "#^Unsafe usage of new static#"
+        # Drupal 10 and PHPUnit 9 use the annotations/docblocks paired with
+        # these attributes; the attribute classes exist in the newer lanes.
+        - '#^Attribute class Drupal\\Core\\Entity\\Attribute\\ContentEntityType does not exist\.$#'
+        - '#^Attribute class Drupal\\Core\\Hook\\Attribute\\(Hook|LegacyHook) does not exist\.$#'
+        - '#^Attribute class PHPUnit\\Framework\\Attributes\\(DataProvider|Group|RunTestsInSeparateProcesses) does not exist\.$#'

@@ -14,12 +14,16 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Tests validation at the event logging boundary.
+ *
+ * @group changelogify
  */
 #[Group('changelogify')]
 final class EventManagerValidationTest extends TestCase {
 
   /**
    * Tests invalid event input is rejected before persistence.
+   *
+   * @dataProvider invalidEventDataProvider
    */
   #[DataProvider('invalidEventDataProvider')]
   public function testInvalidEventDataIsRejected(array $data): void {

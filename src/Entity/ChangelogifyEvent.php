@@ -12,6 +12,32 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 
 /**
  * Defines the Changelogify Event entity.
+ *
+ * @ContentEntityType(
+ *   id = "changelogify_event",
+ *   label = @Translation("Changelogify Event"),
+ *   label_collection = @Translation("Events"),
+ *   label_singular = @Translation("event"),
+ *   label_plural = @Translation("events"),
+ *   handlers = {
+ *     "view_builder" = "Drupal\Core\Entity\EntityViewBuilder",
+ *     "list_builder" = "Drupal\changelogify\EventListBuilder",
+ *     "storage_schema" = "Drupal\changelogify\Entity\ChangelogifyEventStorageSchema",
+ *     "route_provider" = {
+ *       "html" = "Drupal\Core\Entity\Routing\AdminHtmlRouteProvider"
+ *     }
+ *   },
+ *   base_table = "changelogify_event",
+ *   admin_permission = "administer changelogify",
+ *   entity_keys = {
+ *     "id" = "id",
+ *     "uuid" = "uuid",
+ *     "label" = "message"
+ *   },
+ *   links = {
+ *     "collection" = "/admin/content/changelogify/events"
+ *   }
+ * )
  */
 #[ContentEntityType(
     id: "changelogify_event",
