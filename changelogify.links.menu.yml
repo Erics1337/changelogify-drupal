@@ -1,20 +1,20 @@
 changelogify.admin:
-  title: "Changelogify"
+  title: 'Changelogify'
   route_name: changelogify.dashboard
-  description: "Manage changelog and releases."
+  description: 'Manage changelog and releases.'
   parent: system.admin_config_development
   weight: 10
 
 changelogify.releases:
-  title: "Releases"
+  title: 'Releases'
   route_name: entity.changelogify_release.collection
-  description: "Manage changelog releases."
+  description: 'Manage changelog releases.'
   parent: system.admin_content
   weight: 10
 
 changelogify.events:
-  title: "Event log"
+  title: 'Event log'
   route_name: entity.changelogify_event.collection
-  description: "Review changes captured for future releases."
+  description: 'Review changes captured for future releases.'
   parent: system.admin_content
   weight: 11

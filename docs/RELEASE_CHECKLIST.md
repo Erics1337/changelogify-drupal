@@ -43,11 +43,11 @@ Before tagging a stable release, verify the pipeline contains and passes:
 - [ ] `phpstan` and all generated PHPStan matrix variants
 - [ ] `phpcs`
 - [ ] `stylelint` for the module's CSS
-- [ ] `eslint` whenever JavaScript is present
+- [ ] `eslint` for applicable JavaScript, JSON, and YAML files
 
 PHPCS, PHPStan, ESLint, and Stylelint are explicitly configured as blocking
-jobs. ESLint remains part of the gate but may be omitted automatically by the
-shared template while the project contains no applicable JavaScript files.
+jobs. Drupal's ESLint configuration also checks formatting in applicable JSON
+and YAML files, so it remains required even while the module has no JavaScript.
 
 ## Maintainer release checklist
 

@@ -1,41 +1,41 @@
 # Admin routes
 changelogify.dashboard:
-  path: "/admin/config/development/changelogify"
+  path: '/admin/config/development/changelogify'
   defaults:
     _controller: '\Drupal\changelogify\Controller\DashboardController::dashboard'
-    _title: "Changelogify"
+    _title: 'Changelogify'
   requirements:
-    _permission: "administer changelogify"
+    _permission: 'administer changelogify'
 
 changelogify.settings:
-  path: "/admin/config/development/changelogify/settings"
+  path: '/admin/config/development/changelogify/settings'
   defaults:
     _form: '\Drupal\changelogify\Form\SettingsForm'
-    _title: "Changelogify Settings"
+    _title: 'Changelogify Settings'
   requirements:
-    _permission: "administer changelogify"
+    _permission: 'administer changelogify'
 
 changelogify.generate_release:
-  path: "/admin/config/development/changelogify/generate"
+  path: '/admin/config/development/changelogify/generate'
   defaults:
     _form: '\Drupal\changelogify\Form\GenerateReleaseForm'
-    _title: "Generate Release"
+    _title: 'Generate Release'
   requirements:
-    _permission: "manage changelogify releases"
+    _permission: 'manage changelogify releases'
 
 # Public routes
 changelogify.changelog:
-  path: "/changelog"
+  path: '/changelog'
   defaults:
     _controller: '\Drupal\changelogify\Controller\ChangelogController::listing'
-    _title: "Changelog"
+    _title: 'Changelog'
   requirements:
-    _permission: "view changelogify releases"
+    _permission: 'view changelogify releases'
 
 changelogify.changelog_release:
-  path: "/changelog/{changelogify_release}"
+  path: '/changelog/{changelogify_release}'
   defaults:
     _controller: '\Drupal\changelogify\Controller\ChangelogController::view'
     _title_callback: '\Drupal\changelogify\Controller\ChangelogController::title'
   requirements:
-    _entity_access: "changelogify_release.view"
+    _entity_access: 'changelogify_release.view'
