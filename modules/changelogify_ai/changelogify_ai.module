@@ -1,0 +1,155 @@
+<?php
+
+/**
+ * @file
+ * Contains procedural hooks for the Changelogify AI module.
+ */
+
+use Drupal\changelogify_ai\AiOperationManager;
+use Drupal\changelogify\ReleaseGeneratorInterface;
+use Drupal\changelogify_ai\CompleteDraftGenerator;
+use Drupal\changelogify_ai\ReleaseSuggestionManager;
+use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
+use Drupal\Core\Entity\EntityFormInterface;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Url;
+
+/**
+ * Implements hook_cron().
+ */
+function changelogify_ai_cron(): void {
+  $days = (int) \Drupal::config('changelogify_ai.settings')->get('history_retention_days');
+  \Drupal::service(AiOperationManager::class)->purge(min(3650, max(1, $days)));
+}
+
+/**
+ * Implements hook_form_changelogify_release_edit_form_alter().
+ */
+function changelogify_ai_form_changelogify_release_edit_form_alter(array &$form, FormStateInterface $form_state): void {
+  if (!\Drupal::currentUser()->hasPermission('use changelogify ai')) {
+    return;
+  }
+  $formObject = $form_state->getFormObject();
+  if (!$formObject instanceof EntityFormInterface) {
+    return;
+  }
+  $release = $formObject->getEntity();
+  if (!$release instanceof ChangelogifyReleaseInterface) {
+    return;
+  }
+  foreach ($form['sections_wrapper']['items'] ?? [] as $key => &$element) {
+    $itemId = (string) ($element['id']['#value'] ?? '');
+    if ($itemId === '' || !\Drupal::service(ReleaseSuggestionManager::class)->canSuggest($release, $itemId)) {
+      continue;
+    }
+    $element['humanize'] = [
+      '#type' => 'link',
+      '#title' => t('Humanize item'),
+      '#url' => Url::fromRoute('changelogify_ai.humanize_item', [
+        'changelogify_release' => $release->id(),
+        'item_id' => $itemId,
+      ]),
+      '#attributes' => ['class' => ['button', 'button--small']],
+    ];
+  }
+  unset($element);
+}
+
+/**
+ * Implements hook_form_changelogify_generate_release_form_alter().
+ */
+function changelogify_ai_form_changelogify_generate_release_form_alter(array &$form, FormStateInterface $form_state): void {
+  if (!$form_state->has('preview') || !\Drupal::currentUser()->hasPermission('use changelogify ai')) {
+    return;
+  }
+  $form['ai_profile'] = [
+    '#type' => 'select',
+    '#title' => t('AI editorial profile'),
+    '#options' => [
+      'public_product' => t('Public product'),
+      'client_report' => t('Client report'),
+      'internal_technical' => t('Internal technical'),
+      'concise' => t('Concise'),
+    ],
+    '#default_value' => 'public_product',
+    '#weight' => 20,
+  ];
+  $form['actions']['ai_commit'] = [
+    '#type' => 'submit',
+    '#value' => t('Create AI draft release'),
+    '#submit' => ['changelogify_ai_generate_draft_submit'],
+    '#button_type' => 'primary',
+  ];
+}
+
+/**
+ * Creates an AI draft only after current evidence and AI output validate.
+ */
+function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface $form_state): void {
+  $preview = $form_state->get('preview');
+  $selection = [];
+  foreach ($form_state->getValue('change_sets', []) as $changeSetId => $value) {
+    if (!empty($value['include'])) {
+      $selection[$changeSetId] = (string) $value['section'];
+    }
+  }
+  $options = [];
+  $title = trim((string) $form_state->getValue('title'));
+  if ($title !== '') {
+    $options['title'] = $title;
+  }
+  $version = trim((string) $form_state->getValue('version'));
+  if ($version !== '') {
+    $options['version'] = $version;
+    $options['label_type'] = 'semantic_version';
+  }
+  $start = new \DateTimeImmutable('@' . $preview['start']);
+  $end = new \DateTimeImmutable('@' . $preview['end']);
+  try {
+    $generator = \Drupal::service(ReleaseGeneratorInterface::class);
+    $currentPreview = $generator->previewRange($start, $end);
+    $drafts = \Drupal::service(CompleteDraftGenerator::class);
+    $threshold = max(1, (int) \Drupal::config('changelogify_ai.settings')->get('queue_threshold'));
+    if (count($selection) >= $threshold) {
+      $operationId = $drafts->queue(
+        $currentPreview->changeSets,
+        $start,
+        $end,
+        $selection,
+        $options,
+        (string) $form_state->getValue('ai_profile'),
+        (bool) $form_state->getValue('confirm_empty'),
+        (bool) $form_state->getValue('confirm_reuse'),
+      );
+      \Drupal::messenger()->addStatus(t('AI draft operation @id was queued. Review the operation history for completion.', ['@id' => substr($operationId, 0, 16)]));
+      $form_state->setRedirect('changelogify_ai.operation_history');
+      return;
+    }
+    $release = $drafts->generate(
+      $currentPreview->changeSets,
+      $start,
+      $end,
+      $selection,
+      $options,
+      (string) $form_state->getValue('ai_profile'),
+      (bool) $form_state->getValue('confirm_empty'),
+      (bool) $form_state->getValue('confirm_reuse'),
+    );
+    $report = $drafts->lastReport();
+    if ($report['omitted_source_ids'] !== []) {
+      \Drupal::messenger()->addWarning(t('The provider omitted selected change sets: @ids.', [
+        '@ids' => implode(', ', $report['omitted_source_ids']),
+      ]));
+    }
+    foreach ($report['warnings'] as $warning) {
+      \Drupal::messenger()->addWarning(t('Provider warning: @warning', ['@warning' => $warning]));
+    }
+    \Drupal::messenger()->addStatus(t('AI draft release created. Review it before publication.'));
+    $form_state->setRedirectUrl($release->toUrl('edit-form'));
+  }
+  catch (\Throwable $exception) {
+    \Drupal::logger('changelogify_ai')->error('AI complete-draft generation failed: @message', ['@message' => $exception->getMessage()]);
+    \Drupal::messenger()->addError(t('No AI draft was created. Review your AI configuration and selected evidence.'));
+    $form_state->setRebuild();
+  }
+}

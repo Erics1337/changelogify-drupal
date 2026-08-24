@@ -1,0 +1,7 @@
+administer changelogify ai:
+  title: 'Administer Changelogify AI'
+  restrict access: true
+use changelogify ai:
+  title: 'Use Changelogify AI drafting'
+view changelogify ai history:
+  title: 'View Changelogify AI operation history'

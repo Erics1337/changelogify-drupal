@@ -1,0 +1,9 @@
+name: Changelogify AI
+type: module
+description: 'Optional, evidence-backed BYOK AI drafting for Changelogify releases.'
+package: Development
+core_version_requirement: ^10.5 || ^11.2
+php: 8.1
+dependencies:
+  - changelogify:changelogify
+  - ai:ai (^1.4)

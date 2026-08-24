@@ -66,9 +66,9 @@ and YAML files, so it remains required even while the module has no JavaScript.
 - [ ] Review the [security and operations guide](SECURITY_AND_OPERATIONS.md)
       against settings defaults, captured metadata, permissions, routes, cron
       behavior, and uninstall behavior.
-- [ ] Confirm the release-specific notes contain current
-      upgrade and rollback steps and do not claim AI summarization or semantic
-      deduplication.
+- [ ] Confirm the release-specific notes contain current upgrade and rollback
+      steps. Describe optional AI drafting only when the release includes the
+      `changelogify_ai` submodule, and do not claim semantic deduplication.
 - [ ] Update release notes, then tag only the exact commit whose pipeline
       passed. Drupal.org packaging injects the module version; do not add a
       `version` key to `changelogify.info.yml`.

@@ -1,0 +1,4 @@
+changelogify_ai.settings:
+  route_name: changelogify_ai.settings
+  title: 'AI drafting'
+  base_route: changelogify.settings
