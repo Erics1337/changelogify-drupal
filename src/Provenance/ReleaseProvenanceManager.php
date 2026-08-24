@@ -47,7 +47,10 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
         }
       }
       unset($event);
-      $item['evidence_status'] = $this->itemStatus($item['events'] ?? []);
+      $item['evidence_status'] = $this->itemStatus(
+        $item['events'] ?? [],
+        (int) ($item['event_count'] ?? count($item['events'] ?? [])),
+      );
     }
     unset($item);
     return $provenance;
@@ -71,7 +74,10 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
             }
           }
           unset($event);
-          $item['evidence_status'] = $this->itemStatus($item['events'] ?? []);
+          $item['evidence_status'] = $this->itemStatus(
+            $item['events'] ?? [],
+            (int) ($item['event_count'] ?? count($item['events'] ?? [])),
+          );
         }
         unset($item);
         if ($changed) {
@@ -93,14 +99,23 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
     foreach ($this->releaseBatches($cutoff) as $releases) {
       foreach ($releases as $release) {
         $provenance = $release->getProvenance();
+        $changed = FALSE;
         foreach ($provenance['items'] as &$item) {
+          if (($item['event_ids'] ?? []) === []
+            && ($item['events'] ?? []) === []
+            && ($item['evidence_status'] ?? NULL) === 'removed') {
+            continue;
+          }
           $item['event_ids'] = [];
           $item['events'] = [];
           $item['evidence_status'] = 'removed';
+          $changed = TRUE;
         }
         unset($item);
-        $release->setProvenance($provenance)->save();
-        $count++;
+        if ($changed) {
+          $release->setProvenance($provenance)->save();
+          $count++;
+        }
       }
     }
     return $count;
@@ -121,13 +136,18 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
           foreach ($sectionItems as $item) {
             $events = $this->loadEventSnapshots($item['event_ids'] ?? []);
             $itemId = (string) $item['id'];
-            $items[$itemId] = [
+            $provenanceKey = $itemId;
+            $suffix = 2;
+            while (isset($items[$provenanceKey])) {
+              $provenanceKey = $itemId . ':' . $suffix++;
+            }
+            $items[$provenanceKey] = [
               'change_set_id' => $itemId,
               'kind' => 'legacy_release_item',
               'section' => $section,
               'event_ids' => array_values(array_map('intval', $item['event_ids'] ?? [])),
               'event_count' => count($item['event_ids'] ?? []),
-              'evidence_status' => $this->itemStatus($events),
+              'evidence_status' => $this->itemStatus($events, count($item['event_ids'] ?? [])),
               'events' => $events,
             ];
           }
@@ -229,12 +249,15 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
   /**
    * Derives an item status from its individual evidence statuses.
    */
-  private function itemStatus(array $events): string {
+  private function itemStatus(array $events, ?int $eventCount = NULL): string {
     if ($events === []) {
       return 'removed';
     }
     $statuses = array_unique(array_column($events, 'evidence_status'));
-    return count($statuses) === 1 ? (string) reset($statuses) : 'partial';
+    if (count($statuses) !== 1 || ($eventCount !== NULL && $eventCount > count($events))) {
+      return 'partial';
+    }
+    return (string) reset($statuses);
   }
 
 }

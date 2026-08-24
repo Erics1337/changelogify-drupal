@@ -118,6 +118,19 @@ final class ChangeSetAggregatorTest extends TestCase {
   }
 
   /**
+   * Tests blank publication events do not suppress valid entity updates.
+   */
+  public function testBlankPublicationDoesNotSuppressUpdate(): void {
+    $result = (new ChangeSetAggregator([]))->aggregate([
+      $this->event(1, 100, 'node_updated', entityType: 'node', entityId: 10),
+      $this->event(2, 100, 'node_published', message: ' ', entityType: 'node', entityId: 10),
+    ]);
+
+    self::assertSame([2 => 'empty_message'], $result->suppressedEvents);
+    self::assertSame([1], $result->changeSets[0]->sourceEventIds);
+  }
+
+  /**
    * Tests provenance snapshots remain bounded for large correlated groups.
    */
   public function testProvenanceSnapshotBound(): void {
@@ -131,6 +144,7 @@ final class ChangeSetAggregatorTest extends TestCase {
       ->provenance;
 
     self::assertSame(201, $provenance['event_count']);
+    self::assertSame('partial', $provenance['evidence_status']);
     self::assertCount(200, $provenance['events']);
   }
 

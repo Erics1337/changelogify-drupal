@@ -90,6 +90,7 @@ final class ReleaseProvenanceKernelTest extends ChangelogifyKernelTestBase {
     $release = $storage->load($release->id());
     self::assertNotNull($release);
     self::assertSame('removed', $release->getProvenance()['items']['retained-item']['evidence_status']);
+    self::assertSame(0, $manager->purgeExpiredProvenance(1));
   }
 
   /**
@@ -105,6 +106,13 @@ final class ReleaseProvenanceKernelTest extends ChangelogifyKernelTestBase {
       'status' => FALSE,
     ]);
     $release->setSections([
+      'changed' => [
+        [
+          'id' => 'legacy-item',
+          'text' => 'Second legacy text',
+          'event_ids' => [],
+        ],
+      ],
       'other' => [[
         'id' => 'legacy-item',
         'text' => 'Legacy text',
@@ -119,10 +127,49 @@ final class ReleaseProvenanceKernelTest extends ChangelogifyKernelTestBase {
     $storage->resetCache([(int) $release->id()]);
     $release = $storage->load($release->id());
     self::assertNotNull($release);
-    $item = $release->getProvenance()['items']['legacy-item'];
+    $provenance = $release->getProvenance();
+    self::assertSame('removed', $provenance['items']['legacy-item']['evidence_status']);
+    $item = $provenance['items']['legacy-item:2'];
     self::assertSame('partial', $item['evidence_status']);
     self::assertSame('missing', $item['events'][0]['evidence_status']);
     self::assertSame('invalid', $item['events'][1]['evidence_status']);
+    self::assertSame('legacy-item', $item['change_set_id']);
+  }
+
+  /**
+   * Tests truncated evidence remains partial when an unstored event expires.
+   */
+  public function testTruncatedEvidenceExpiryRemainsPartial(): void {
+    $events = [];
+    foreach (range(1, 200) as $eventId) {
+      $events[] = [
+        'event_id' => $eventId,
+        'evidence_status' => 'available',
+      ];
+    }
+    $storage = $this->container->get('entity_type.manager')
+      ->getStorage('changelogify_release');
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+    $release = $storage->create(['title' => 'Truncated evidence']);
+    $release->setProvenance([
+      'version' => 1,
+      'items' => [
+        'large-item' => [
+          'event_ids' => range(1, 201),
+          'event_count' => 201,
+          'evidence_status' => 'partial',
+          'events' => $events,
+        ],
+      ],
+    ])->save();
+
+    /** @var \Drupal\changelogify\Provenance\ReleaseProvenanceManagerInterface $manager */
+    $manager = $this->container->get(ReleaseProvenanceManagerInterface::class);
+    $manager->markEventsExpired([201]);
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertNotNull($release);
+    self::assertSame('partial', $release->getProvenance()['items']['large-item']['evidence_status']);
   }
 
   /**

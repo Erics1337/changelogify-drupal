@@ -69,7 +69,9 @@ final class ChangeSetAggregator implements ChangeSetAggregatorInterface {
     foreach ($events as $event) {
       if (str_ends_with($event->getEventType(), '_published')
         || str_ends_with($event->getEventType(), '_unpublished')) {
-        if ($event->getRelatedEntityTypeId() === NULL || $event->getRelatedEntityId() === NULL) {
+        if (trim($event->getMessage()) === ''
+          || $event->getRelatedEntityTypeId() === NULL
+          || $event->getRelatedEntityId() === NULL) {
           continue;
         }
         $publicationKeys[$this->entityTimestampKey($event)] = TRUE;
@@ -174,6 +176,9 @@ final class ChangeSetAggregator implements ChangeSetAggregatorInterface {
           $events,
         ))),
         'event_count' => count($events),
+        'evidence_status' => count($events) > self::MAX_PROVENANCE_EVENTS
+          ? 'partial'
+          : 'available',
         'events' => array_map(
           static fn (ChangelogifyEventInterface $event): array => [
             'event_id' => (int) $event->id(),
