@@ -7,6 +7,7 @@ namespace Drupal\Tests\changelogify\Kernel;
 use Drupal\Core\Entity\ContentEntityType;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Url;
+use Drupal\changelogify\EventSource\ContentEventSource;
 use Drupal\node\Entity\Node;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -25,7 +26,7 @@ final class ContentTrackingKernelTest extends ChangelogifyKernelTestBase {
    * Tests media, custom block, and taxonomy term event descriptions.
    */
   public function testGenericContentEntitiesAreTracked(): void {
-    $hooks = $this->container->get('Drupal\changelogify\Hook\ChangelogifyHooks');
+    $hooks = $this->container->get(ContentEventSource::class);
 
     $hooks->entityInsert($this->createEntityDouble('media', 'image', 'Homepage Hero', '/media/hero', 10));
     $hooks->entityUpdate($this->createEntityDouble('block_content', 'basic', 'Promo Banner', '/block/1', 11));

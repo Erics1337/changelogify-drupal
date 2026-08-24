@@ -17,6 +17,16 @@ changelogify.settings:
     track_users:
       type: boolean
       label: Track user changes
+    event_sources:
+      type: sequence
+      label: Event source settings
+      sequence:
+        type: mapping
+        label: Event source
+        mapping:
+          enabled:
+            type: boolean
+            label: Enabled
     event_retention_days:
       type: integer
       label: Event retention period in days

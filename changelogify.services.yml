@@ -15,6 +15,35 @@ services:
   Drupal\changelogify\EventManagerInterface:
     alias: Drupal\changelogify\EventManager
 
+  Drupal\changelogify\EventSource\EventSourceRecorder:
+    class: Drupal\changelogify\EventSource\EventSourceRecorder
+
+  Drupal\changelogify\EventSource\EventSourceRecorderInterface:
+    alias: Drupal\changelogify\EventSource\EventSourceRecorder
+
+  Drupal\changelogify\EventSource\EventSourceRegistry:
+    class: Drupal\changelogify\EventSource\EventSourceRegistry
+    arguments:
+      - !tagged_iterator changelogify.event_source
+
+  Drupal\changelogify\EventSource\EventSourceRegistryInterface:
+    alias: Drupal\changelogify\EventSource\EventSourceRegistry
+
+  Drupal\changelogify\EventSource\ContentEventSource:
+    class: Drupal\changelogify\EventSource\ContentEventSource
+    tags:
+      - { name: changelogify.event_source }
+
+  Drupal\changelogify\EventSource\ModuleEventSource:
+    class: Drupal\changelogify\EventSource\ModuleEventSource
+    tags:
+      - { name: changelogify.event_source }
+
+  Drupal\changelogify\EventSource\UserEventSource:
+    class: Drupal\changelogify\EventSource\UserEventSource
+    tags:
+      - { name: changelogify.event_source }
+
   Drupal\changelogify\ReleaseGeneratorInterface:
     alias: Drupal\changelogify\ReleaseGenerator
 

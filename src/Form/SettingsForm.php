@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Form;
 
+use Drupal\changelogify\EventSource\EventSourceRecorderInterface;
+use Drupal\changelogify\EventSource\EventSourceRegistryInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Form\ConfigFormBase;
@@ -22,6 +24,8 @@ class SettingsForm extends ConfigFormBase {
     TypedConfigManagerInterface $typedConfigManager,
     protected RouteBuilderInterface $routeBuilder,
     protected RouteProviderInterface $routeProvider,
+    protected EventSourceRegistryInterface $eventSourceRegistry,
+    protected EventSourceRecorderInterface $eventSourceRecorder,
   ) {
     parent::__construct($config_factory, $typedConfigManager);
   }
@@ -35,6 +39,8 @@ class SettingsForm extends ConfigFormBase {
       $container->get('config.typed'),
       $container->get('router.builder'),
       $container->get('router.route_provider'),
+      $container->get(EventSourceRegistryInterface::class),
+      $container->get(EventSourceRecorderInterface::class),
       );
   }
 
@@ -77,41 +83,29 @@ class SettingsForm extends ConfigFormBase {
       '#open' => TRUE,
     ];
 
-    $form['event_sources']['track_content'] = [
-      '#type' => 'checkbox',
-      '#title' => $this->t('Track content changes'),
-      '#description' => $this->t('Log events when content is created, updated, or deleted.'),
-      '#config_target' => 'changelogify.settings:track_content',
-      '#default_value' => $this->setting('track_content', TRUE),
-    ];
+    foreach ($this->eventSourceRegistry->getSources() as $source) {
+      $elementKey = $source->getLegacyEnabledSetting() ?? 'event_source_' . $source->getId();
+      $form['event_sources'][$elementKey] = [
+        '#type' => 'checkbox',
+        '#title' => $source->getLabel(),
+        '#description' => $source->getPrivacyDescription(),
+        '#config_target' => sprintf('changelogify.settings:event_sources.%s.enabled', $source->getId()),
+        '#default_value' => $this->eventSourceRecorder->isEnabled($source),
+      ];
+    }
 
     $form['event_sources']['track_unpublished_content'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Track unpublished content'),
       '#description' => $this->t('Privacy warning: stores labels and paths for unpublished or access-controlled content in the internal event log, where they can be included in draft releases. Restrict administrative access before enabling.'),
       '#config_target' => 'changelogify.settings:track_unpublished_content',
-      '#default_value' => $this->setting('track_unpublished_content', FALSE),
+      '#default_value' => (bool) ($this->config('changelogify.settings')
+        ->get('track_unpublished_content') ?? FALSE),
       '#states' => [
         'visible' => [
           ':input[name="track_content"]' => ['checked' => TRUE],
         ],
       ],
-    ];
-
-    $form['event_sources']['track_modules'] = [
-      '#type' => 'checkbox',
-      '#title' => $this->t('Track module changes'),
-      '#description' => $this->t('Log events when modules are installed or uninstalled.'),
-      '#config_target' => 'changelogify.settings:track_modules',
-      '#default_value' => $this->setting('track_modules', TRUE),
-    ];
-
-    $form['event_sources']['track_users'] = [
-      '#type' => 'checkbox',
-      '#title' => $this->t('Track user changes'),
-      '#description' => $this->t('Privacy warning: stores usernames and old/new role assignments when users are created or roles change. Restrict administrative access and confirm a lawful retention policy before enabling.'),
-      '#config_target' => 'changelogify.settings:track_users',
-      '#default_value' => $this->setting('track_users', FALSE),
     ];
 
     $form['retention'] = [
@@ -160,14 +154,6 @@ class SettingsForm extends ConfigFormBase {
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     parent::submitForm($form, $form_state);
     $this->routeBuilder->rebuild();
-  }
-
-  /**
-   * Gets a boolean setting with an existing-site fallback.
-   */
-  private function setting(string $key, bool $default): bool {
-    $value = $this->config('changelogify.settings')->get($key);
-    return $value === NULL ? $default : (bool) $value;
   }
 
 }

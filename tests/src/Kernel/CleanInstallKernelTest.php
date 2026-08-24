@@ -92,10 +92,10 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
         'schema_version' => EventInput::SCHEMA_VERSION,
       ],
     );
-    self::assertSame([(int) $event->id()], array_map(
+    self::assertSame([(int) $event->id()], array_values(array_map(
       static fn ($matchedEvent): int => (int) $matchedEvent->id(),
       $events,
-    ));
+    )));
   }
 
 }
