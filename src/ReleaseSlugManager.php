@@ -28,7 +28,13 @@ final class ReleaseSlugManager {
     $requested = (string) $release->get('slug')->value;
     $base = $this->normalize($requested !== '' ? $requested : $release->getTitle());
     $slug = $this->uniqueSlug($base, $release->id() === NULL ? NULL : (int) $release->id());
-    $original = $release->getOriginal();
+    $original = NULL;
+    if (method_exists($release, 'getOriginal')) {
+      $original = $release->getOriginal();
+    }
+    elseif (isset($release->original) && $release->original instanceof ChangelogifyReleaseInterface) {
+      $original = $release->original;
+    }
     if ($original instanceof ChangelogifyReleaseInterface) {
       $oldSlug = $original->getSlug();
       if ($oldSlug !== '' && $oldSlug !== $slug) {

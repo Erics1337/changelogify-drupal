@@ -400,7 +400,13 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
     if ($this->isNewRevision()) {
       $this->setRevisionCreationTime(\Drupal::time()->getRequestTime());
       $this->setRevisionUserId((int) \Drupal::currentUser()->id());
-      $original = $this->getOriginal();
+      $original = NULL;
+      if (method_exists($this, 'getOriginal')) {
+        $original = $this->getOriginal();
+      }
+      elseif (isset($this->original) && $this->original instanceof ChangelogifyReleaseInterface) {
+        $original = $this->original;
+      }
       $log = trim((string) $this->getRevisionLogMessage());
       $originalLog = $original === NULL ? '' : trim((string) $original->getRevisionLogMessage());
       if ($log === '' || ($original !== NULL && $log === $originalLog)) {

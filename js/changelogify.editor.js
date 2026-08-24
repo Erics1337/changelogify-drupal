@@ -1,4 +1,4 @@
-(function (Drupal, once) {
+(function changelogifyReleaseEditor(Drupal, once) {
   Drupal.behaviors.changelogifyReleaseItemEditor = {
     attach(context) {
       once(
