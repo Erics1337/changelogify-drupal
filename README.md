@@ -130,7 +130,9 @@ Unpublished tracking stores labels and paths for content that may be private;
 user tracking stores usernames and old/new role assignments.
 
 Captured events can be reviewed at `/admin/content/changelogify/events` by
-users with the `administer changelogify` permission.
+users with the `administer changelogify` permission. The administrative event
+explorer supports combinable evidence filters and escaped, defensively redacted
+event detail views; see the [event explorer guide](docs/EVENT_EXPLORER.md).
 
 ---
 

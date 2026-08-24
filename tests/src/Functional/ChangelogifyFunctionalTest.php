@@ -73,6 +73,124 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
   }
 
   /**
+   * Tests event explorer filters, details, redaction, and access control.
+   */
+  public function testEventExplorer(): void {
+    /** @var \Drupal\changelogify\EventManagerInterface $eventManager */
+    $eventManager = \Drupal::service(EventManagerInterface::class);
+    $first = $eventManager->logEvent([
+      'timestamp' => strtotime('2025-02-10 12:00:00 UTC'),
+      'event_type' => 'content_updated',
+      'source' => 'content_entity',
+      'message' => '<script>unsafe event</script>',
+      'entity_type_id' => 'node',
+      'entity_id' => 42,
+      'bundle' => 'article',
+      'section_hint' => 'changed',
+      'correlation_id' => 'deployment-123',
+      'metadata' => [
+        'label' => '<b>Escaped label</b>',
+        'api_token' => 'must-not-render',
+      ],
+    ]);
+    $eventManager->logEvent([
+      'timestamp' => strtotime('2025-02-10 12:01:00 UTC'),
+      'event_type' => 'config_imported',
+      'source' => 'config',
+      'message' => 'Correlated configuration change',
+      'section_hint' => 'changed',
+      'correlation_id' => 'deployment-123',
+    ]);
+    $eventManager->logEvent([
+      'timestamp' => strtotime('2025-02-11 12:00:00 UTC'),
+      'event_type' => 'user_created',
+      'source' => 'user',
+      'message' => 'Filtered out event',
+      'section_hint' => 'added',
+    ]);
+
+    $detailPath = '/admin/content/changelogify/events/' . $first->id();
+    $this->drupalGet($detailPath);
+    $this->assertSession()->statusCodeEquals(403);
+
+    $admin = $this->drupalCreateUser([
+      'administer changelogify',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($admin);
+    $this->drupalGet('/admin/content/changelogify/events', [
+      'query' => [
+        'date_from' => '2025-02-10',
+        'date_to' => '2025-02-10',
+        'source' => 'content_entity',
+        'event_type' => 'content_updated',
+        'entity_type' => 'node',
+        'bundle' => 'article',
+        'section_hint' => 'changed',
+        'correlation_id' => 'deployment-123',
+        'release_inclusion' => 'unused',
+      ],
+    ]);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('unsafe event');
+    $this->assertSession()->pageTextNotContains('Filtered out event');
+    $this->assertSession()->responseNotContains('<script>unsafe event</script>');
+
+    $releaseStorage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    $release = $releaseStorage->create([
+      'title' => 'Explorer evidence release',
+      'release_date' => strtotime('2025-02-12 12:00:00 UTC'),
+      'status' => FALSE,
+    ]);
+    $release->setSections([
+      'changed' => [
+        [
+          'id' => 'explorer-evidence-item',
+          'text' => 'Evidence-backed item',
+          'event_ids' => [(int) $first->id()],
+        ],
+      ],
+    ])->save();
+    $this->drupalGet('/admin/content/changelogify/events', [
+      'query' => ['release_inclusion' => 'included'],
+    ]);
+    $this->assertSession()->pageTextContains('unsafe event');
+    $this->assertSession()->pageTextNotContains('Filtered out event');
+
+    $this->drupalGet($detailPath);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Normalized metadata');
+    $this->assertSession()->pageTextContains('[redacted]');
+    $this->assertSession()->pageTextNotContains('must-not-render');
+    $this->assertSession()->pageTextContains('Correlated configuration change');
+    $this->assertSession()->responseNotContains('<b>Escaped label</b>');
+
+    $this->drupalGet('/admin/content/changelogify/events', [
+      'query' => [
+        'date_from' => '2025-02-12',
+        'date_to' => '2025-02-10',
+      ],
+    ]);
+    $this->assertSession()->pageTextContains('The end date must not be before the start date.');
+
+    for ($index = 0; $index < 51; $index++) {
+      $eventManager->logEvent([
+        'timestamp' => strtotime('2025-03-01 12:00:00 UTC') + $index,
+        'event_type' => 'pagination_test',
+        'source' => 'test',
+        'message' => 'Paginated event ' . $index,
+        'section_hint' => 'other',
+      ]);
+    }
+    $this->drupalGet('/admin/content/changelogify/events', [
+      'query' => ['event_type' => 'pagination_test'],
+    ]);
+    $this->assertSession()->elementExists('css', 'nav.pager');
+    $this->assertSession()->pageTextContains('Paginated event 50');
+    $this->assertSession()->pageTextNotContains('Paginated event 0');
+  }
+
+  /**
    * Tests attribute and legacy hook implementations do not both execute.
    */
   public function testHooksExecuteOnlyOnce(): void {

@@ -9,6 +9,9 @@ services:
   Drupal\changelogify\ReleaseGenerator:
     class: Drupal\changelogify\ReleaseGenerator
 
+  Drupal\changelogify\EventReleaseUsage:
+    class: Drupal\changelogify\EventReleaseUsage
+
   Drupal\changelogify\ReleaseItemNormalizer:
     arguments: ['@uuid']
 

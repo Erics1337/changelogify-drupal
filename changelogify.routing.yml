@@ -35,6 +35,18 @@ changelogify.release_provenance:
       changelogify_release:
         type: entity:changelogify_release
 
+changelogify.event_detail:
+  path: '/admin/content/changelogify/events/{changelogify_event}'
+  defaults:
+    _controller: '\Drupal\changelogify\Controller\EventExplorerController::view'
+    _title: 'Event details'
+  requirements:
+    _permission: 'administer changelogify'
+  options:
+    parameters:
+      changelogify_event:
+        type: entity:changelogify_event
+
 # Public routes
 changelogify.changelog:
   path: '/changelog'
