@@ -100,6 +100,10 @@ The release edit form shows all sections:
 Edit the bullet points, select **Published**, and save the release. Unpublished
 drafts are never available on the public list or detail routes.
 
+The [structured item editor](docs/RELEASE_ITEM_EDITOR.md) preserves stable item
+identity and evidence while supporting edits, movement, ordering, deletion, and
+manual editorial context.
+
 ### 4. Public Changelog
 
 Published releases appear at:

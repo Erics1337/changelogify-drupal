@@ -7,3 +7,13 @@ public:
   css:
     theme:
       css/changelogify.public.css: {}
+
+editor:
+  css:
+    theme:
+      css/changelogify.editor.css: {}
+  js:
+    js/changelogify.editor.js: {}
+  dependencies:
+    - core/drupal
+    - core/once

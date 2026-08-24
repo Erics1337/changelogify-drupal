@@ -1,0 +1,20 @@
+.changelogify-release-items {
+  display: grid;
+  gap: 1rem;
+}
+
+.changelogify-release-item {
+  min-inline-size: 0;
+}
+
+.changelogify-release-item__move {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-end: 0.75rem;
+}
+
+.changelogify-release-item:focus {
+  outline: 0.2rem solid currentColor;
+  outline-offset: 0.2rem;
+}

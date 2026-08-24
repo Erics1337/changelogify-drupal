@@ -43,6 +43,7 @@ class ReleaseForm extends ContentEntityForm {
    */
   public function form(array $form, FormStateInterface $form_state): array {
     $form = parent::form($form, $form_state);
+    $form['#attached']['library'][] = 'changelogify/editor';
 
     // Sections are edited through the structured textareas below. Never expose
     // the JSON storage field as a second, conflicting form widget.
@@ -51,10 +52,10 @@ class ReleaseForm extends ContentEntityForm {
     /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
     $release = $this->entity;
 
-    // Add sections editing.
+    // Add item-level editing without exposing provenance as client input.
     $form['sections_wrapper'] = [
       '#type' => 'details',
-      '#title' => $this->t('Release Sections'),
+      '#title' => $this->t('Release items'),
       '#open' => TRUE,
       '#weight' => 5,
       '#tree' => TRUE,
@@ -70,22 +71,45 @@ class ReleaseForm extends ContentEntityForm {
       'other' => $this->t('Other'),
     ];
 
+    $sectionOptions = [];
     foreach ($section_labels as $key => $label) {
-      $items = $sections[$key] ?? [];
-
-      $form['sections_wrapper']['section_' . $key] = [
-        '#type' => 'details',
-        '#title' => $label . ' (' . count($items) . ')',
-        '#open' => !empty($items),
-      ];
-
-      $form['sections_wrapper']['section_' . $key]['items'] = [
-        '#type' => 'textarea',
-        '#title' => $this->t('Items'),
-        '#description' => $this->t('One item per line.'),
-        '#default_value' => $this->itemsToText($items),
-        '#rows' => max(3, count($items)),
-      ];
+      $sectionOptions[$key] = $label;
+    }
+    $form['sections_wrapper']['items'] = [
+      '#type' => 'container',
+      '#tree' => TRUE,
+      '#attributes' => ['class' => ['changelogify-release-items']],
+    ];
+    $position = 0;
+    foreach ($sections as $section => $items) {
+      foreach ($items as $item) {
+        $id = (string) $item['id'];
+        $form['sections_wrapper']['items']['existing_' . $position] = $this->itemElement(
+          $id,
+          (string) $item['text'],
+          $section,
+          $position,
+          $sectionOptions,
+          $item['event_ids'] === [] ? $this->t('Manual item') : $this->t('Evidence-backed item'),
+        );
+        $position++;
+      }
+    }
+    $form['sections_wrapper']['manual_title'] = [
+      '#type' => 'html_tag',
+      '#tag' => 'h3',
+      '#value' => $this->t('Add manual items'),
+    ];
+    for ($manual = 0; $manual < 3; $manual++) {
+      $form['sections_wrapper']['items']['manual_' . $manual] = $this->itemElement(
+        '',
+        '',
+        'other',
+        $position + $manual,
+        $sectionOptions,
+        $this->t('New manual item @number', ['@number' => $manual + 1]),
+        FALSE,
+      );
     }
 
     return $form;
@@ -94,12 +118,68 @@ class ReleaseForm extends ContentEntityForm {
   /**
    * Converts items array to text.
    */
-  protected function itemsToText(array $items): string {
-    $lines = [];
-    foreach ($items as $item) {
-      $lines[] = $item['text'] ?? '';
+  private function itemElement(
+    string $id,
+    string $text,
+    string $section,
+    int $order,
+    array $sectionOptions,
+    mixed $label,
+    bool $existing = TRUE,
+  ): array {
+    $element = [
+      '#type' => 'fieldset',
+      '#title' => $label,
+      '#attributes' => ['class' => ['changelogify-release-item']],
+    ];
+    $element['id'] = ['#type' => 'hidden', '#value' => $id];
+    $element['text'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Item text'),
+      '#default_value' => $text,
+      '#maxlength' => 2048,
+    ];
+    $element['section'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Section'),
+      '#options' => $sectionOptions,
+      '#default_value' => $section,
+    ];
+    $element['order'] = [
+      '#type' => 'number',
+      '#title' => $this->t('Order'),
+      '#default_value' => $order,
+      '#step' => 1,
+    ];
+    if ($existing) {
+      $element['remove'] = [
+        '#type' => 'checkbox',
+        '#title' => $this->t('Remove this item'),
+      ];
     }
-    return implode("\n", $lines);
+    return $element;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function validateForm(array &$form, FormStateInterface $form_state): void {
+    parent::validateForm($form, $form_state);
+    if ($form_state->hasAnyErrors()) {
+      return;
+    }
+    try {
+      /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+      $release = $this->entity;
+      $normalized = $this->itemNormalizer->fromStructured(
+        $form_state->getValue(['sections_wrapper', 'items'], []),
+        $release->getSections(),
+      );
+      $form_state->set('normalized_release_sections', $normalized);
+    }
+    catch (\InvalidArgumentException $exception) {
+      $form_state->setErrorByName('sections_wrapper', $exception->getMessage());
+    }
   }
 
   /**
@@ -109,20 +189,21 @@ class ReleaseForm extends ContentEntityForm {
     /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
     $release = $this->entity;
 
-    // Build sections from form values while preserving source event IDs.
-    $existingSections = $release->getSections();
-    $sections = [];
-    $section_keys = ['added', 'changed', 'fixed', 'removed', 'security', 'other'];
-
-    foreach ($section_keys as $key) {
-      $text = $form_state->getValue(['sections_wrapper', 'section_' . $key, 'items'], '');
-      $sections[$key] = $this->itemNormalizer->fromText(
-            $text,
-            $existingSections[$key] ?? [],
-        );
-    }
-
+    $sections = $form_state->get('normalized_release_sections');
     $release->setSections($sections);
+    $provenance = $release->getProvenance();
+    $retainedIds = [];
+    foreach ($sections as $section => $items) {
+      foreach ($items as $item) {
+        $itemId = $item['id'];
+        if (isset($provenance['items'][$itemId])) {
+          $provenance['items'][$itemId]['section'] = $section;
+          $retainedIds[$itemId] = TRUE;
+        }
+      }
+    }
+    $provenance['items'] = array_intersect_key($provenance['items'], $retainedIds);
+    $release->setProvenance($provenance);
 
     $status = parent::save($form, $form_state);
 

@@ -392,13 +392,14 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Draft release "January release" has been created.');
+    $this->assertSession()->responseContains('changelogify.editor.js');
     $this->assertSession()->elementExists(
       'css',
-      'textarea[name="sections_wrapper[section_added][items]"]',
+      'input[name="sections_wrapper[items][existing_0][text]"]',
     );
     $this->assertSession()->elementNotExists(
       'css',
-      'textarea[name="sections[0][value]"]',
+      'textarea[name^="sections_wrapper"]',
     );
 
     $ids = \Drupal::entityQuery('changelogify_release')
@@ -416,6 +417,26 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     self::assertCount(1, $sections['fixed']);
     self::assertSame('Selected change', $sections['fixed'][0]['text']);
     self::assertSame('1.2.0-beta.1', $release->getVersion());
+
+    $itemId = $sections['fixed'][0]['id'];
+    $itemEvidence = $sections['fixed'][0]['event_ids'];
+    $this->submitForm([
+      'sections_wrapper[items][existing_0][text]' => 'Edited selected change',
+      'sections_wrapper[items][existing_0][section]' => 'security',
+      'sections_wrapper[items][existing_0][order]' => 0,
+      'sections_wrapper[items][manual_0][text]' => 'Editorial context',
+      'sections_wrapper[items][manual_0][section]' => 'added',
+      'sections_wrapper[items][manual_0][order]' => 0,
+    ], 'Save');
+    $release = \Drupal::entityTypeManager()
+      ->getStorage('changelogify_release')
+      ->load($release->id());
+    $sections = $release->getSections();
+    self::assertSame($itemId, $sections['security'][0]['id']);
+    self::assertSame($itemEvidence, $sections['security'][0]['event_ids']);
+    self::assertSame('Edited selected change', $sections['security'][0]['text']);
+    self::assertSame([], $sections['added'][0]['event_ids']);
+    self::assertSame('security', $release->getProvenance()['items'][$itemId]['section']);
   }
 
   /**
