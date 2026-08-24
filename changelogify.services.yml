@@ -33,6 +33,14 @@ services:
   Drupal\changelogify\EntityDifference\EntityDifferenceServiceInterface:
     alias: Drupal\changelogify\EntityDifference\EntityDifferenceService
 
+  Drupal\changelogify\ConfigClassifier\ConfigClassifier:
+    class: Drupal\changelogify\ConfigClassifier\ConfigClassifier
+    arguments:
+      - !tagged_iterator changelogify.config_classifier
+
+  Drupal\changelogify\ConfigClassifier\ConfigClassifierInterface:
+    alias: Drupal\changelogify\ConfigClassifier\ConfigClassifier
+
   Drupal\changelogify\EventSource\EventSourceRegistry:
     class: Drupal\changelogify\EventSource\EventSourceRegistry
     arguments:
