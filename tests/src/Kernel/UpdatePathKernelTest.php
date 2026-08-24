@@ -162,6 +162,7 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     changelogify_update_12001();
     changelogify_update_13001();
     changelogify_update_14001();
+    changelogify_update_14002();
     changelogify_post_update_ensure_query_indexes();
     changelogify_post_update_add_event_contract_fields();
   }
@@ -240,6 +241,10 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
             'bundles' => [],
           ],
         ),
+      ],
+      'config_import' => [
+        'include_sensitive' => FALSE,
+        'excluded_patterns' => [],
       ],
     ];
     self::assertEquals($expected, $this->config('changelogify.settings')->getRawData());

@@ -73,3 +73,18 @@ function changelogify_update_14001(): string {
   \Drupal::logger('changelogify')->notice('Preserved the existing content capture policy; newly discovered entity types remain disabled.');
   return 'Added privacy-first content entity type and bundle policies.';
 }
+
+/**
+ * Adds privacy defaults for configuration import capture.
+ */
+function changelogify_update_14002(): string {
+  $config = \Drupal::configFactory()->getEditable('changelogify.settings');
+  if ($config->get('config_import.include_sensitive') === NULL) {
+    $config->set('config_import.include_sensitive', FALSE);
+  }
+  if ($config->get('config_import.excluded_patterns') === NULL) {
+    $config->set('config_import.excluded_patterns', []);
+  }
+  $config->save();
+  return 'Added privacy defaults for correlated configuration import events.';
+}

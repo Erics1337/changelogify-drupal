@@ -37,6 +37,10 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
         ],
       ],
       'event_retention_days' => 90,
+      'config_import' => [
+        'include_sensitive' => FALSE,
+        'excluded_patterns' => [],
+      ],
     ], $settings);
 
     $typedConfig = $this->container->get('config.typed')

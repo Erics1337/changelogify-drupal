@@ -53,3 +53,16 @@ changelogify.settings:
     event_retention_days:
       type: integer
       label: Event retention period in days
+    config_import:
+      type: mapping
+      label: Configuration import capture
+      mapping:
+        include_sensitive:
+          type: boolean
+          label: Include sensitive configuration names
+        excluded_patterns:
+          type: sequence
+          label: Excluded configuration name patterns
+          sequence:
+            type: string
+            label: Pattern

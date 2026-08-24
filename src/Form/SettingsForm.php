@@ -151,6 +151,29 @@ class SettingsForm extends ConfigFormBase {
       }
     }
 
+    $form['config_import'] = [
+      '#type' => 'details',
+      '#tree' => TRUE,
+      '#title' => $this->t('Configuration import capture'),
+      '#description' => $this->t('Configuration values and exported YAML are never stored.'),
+      '#open' => FALSE,
+    ];
+    $form['config_import']['include_sensitive'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Include names of sensitive configuration objects'),
+      '#description' => $this->t('Includes technical names for roles, permissions, text formats, and extension configuration. Values are still excluded.'),
+      '#config_target' => 'changelogify.settings:config_import.include_sensitive',
+      '#default_value' => (bool) ($this->config('changelogify.settings')
+        ->get('config_import.include_sensitive') ?? FALSE),
+    ];
+    $form['config_import']['excluded_patterns'] = [
+      '#type' => 'textarea',
+      '#title' => $this->t('Excluded configuration name patterns'),
+      '#description' => $this->t('Enter one shell-style pattern per line, such as webform.*.'),
+      '#default_value' => implode("\n", $this->config('changelogify.settings')
+        ->get('config_import.excluded_patterns') ?? []),
+    ];
+
     $form['retention'] = [
       '#type' => 'details',
       '#title' => $this->t('Event Retention'),
@@ -196,6 +219,14 @@ class SettingsForm extends ConfigFormBase {
    */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     parent::submitForm($form, $form_state);
+    $patterns = preg_split('/\R/', (string) $form_state->getValue([
+      'config_import',
+      'excluded_patterns',
+    ])) ?: [];
+    $patterns = array_values(array_filter(array_map('trim', $patterns)));
+    $this->configFactory()->getEditable('changelogify.settings')
+      ->set('config_import.excluded_patterns', $patterns)
+      ->save();
     $this->routeBuilder->rebuild();
   }
 

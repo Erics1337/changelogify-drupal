@@ -64,6 +64,16 @@ services:
     tags:
       - { name: changelogify.event_source }
 
+  Drupal\changelogify\EventSource\ConfigImportEventSource:
+    class: Drupal\changelogify\EventSource\ConfigImportEventSource
+    tags:
+      - { name: changelogify.event_source }
+
+  Drupal\changelogify\EventSubscriber\ConfigImportSubscriber:
+    class: Drupal\changelogify\EventSubscriber\ConfigImportSubscriber
+    tags:
+      - { name: event_subscriber }
+
   Drupal\changelogify\ReleaseGeneratorInterface:
     alias: Drupal\changelogify\ReleaseGenerator
 
