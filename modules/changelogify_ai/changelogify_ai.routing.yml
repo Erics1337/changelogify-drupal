@@ -1,0 +1,45 @@
+changelogify_ai.settings:
+  path: '/admin/config/development/changelogify/ai'
+  defaults:
+    _form: '\Drupal\changelogify_ai\Form\SettingsForm'
+    _title: 'Changelogify AI'
+  requirements:
+    _permission: 'administer changelogify ai'
+
+changelogify_ai.operation_history:
+  path: '/admin/config/development/changelogify/ai/history'
+  defaults:
+    _controller: '\Drupal\changelogify_ai\Controller\OperationHistoryController::view'
+    _title: 'Changelogify AI history'
+  requirements:
+    _permission: 'view changelogify ai history'
+
+changelogify_ai.cancel_operation:
+  path: '/admin/config/development/changelogify/ai/history/{operation_id}/cancel'
+  defaults:
+    _form: '\Drupal\changelogify_ai\Form\CancelOperationForm'
+    _title: 'Cancel queued AI operation'
+  requirements:
+    _permission: 'administer changelogify ai'
+    operation_id: '[A-Fa-f0-9]{64}'
+
+changelogify_ai.payload_preview:
+  path: '/admin/config/development/changelogify/ai/payload-preview'
+  defaults:
+    _controller: '\Drupal\changelogify_ai\Controller\PayloadPreviewController::view'
+    _title: 'Changelogify AI payload preview'
+  requirements:
+    _permission: 'administer changelogify ai'
+
+changelogify_ai.humanize_item:
+  path: '/admin/content/changelogify/releases/{changelogify_release}/items/{item_id}/humanize'
+  defaults:
+    _form: '\Drupal\changelogify_ai\Form\HumanizeItemForm'
+    _title: 'Humanize release item'
+  requirements:
+    _permission: 'use changelogify ai'
+    _entity_access: 'changelogify_release.update'
+  options:
+    parameters:
+      changelogify_release:
+        type: entity:changelogify_release

@@ -26,6 +26,9 @@
     "require-dev": {
         "drush/drush": "^12.5 || ^13"
     },
+    "suggest": {
+        "drupal/ai": "Version ^1.4 is required only when enabling the optional changelogify_ai submodule for BYOK AI drafting."
+    },
     "config": {
         "allow-plugins": {
             "php-http/discovery": true,

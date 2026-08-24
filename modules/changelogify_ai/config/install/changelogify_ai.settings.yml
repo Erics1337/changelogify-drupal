@@ -1,0 +1,20 @@
+consent_external_processing: false
+provider:
+  use_default: true
+  provider: ''
+  model: ''
+  config: { }
+policy:
+  usernames: redact
+  actor_ids: redact
+  entity_ids: redact
+  paths: redact
+  unpublished_labels: redact
+  bundle_labels: include
+  changed_field_names: include
+  allowlisted_values: { }
+  allow_manual_humanization: false
+organization_guidance: ''
+output_language: en
+history_retention_days: 90
+queue_threshold: 25
