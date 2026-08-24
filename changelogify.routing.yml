@@ -54,12 +54,26 @@ changelogify.changelog:
     _controller: '\Drupal\changelogify\Controller\ChangelogController::listing'
     _title: 'Changelog'
   requirements:
-    _permission: 'view changelogify releases'
+    _access: 'TRUE'
 
 changelogify.changelog_release:
-  path: '/changelog/{changelogify_release}'
+  path: '/changelog/{release_slug}'
   defaults:
     _controller: '\Drupal\changelogify\Controller\ChangelogController::view'
     _title_callback: '\Drupal\changelogify\Controller\ChangelogController::title'
   requirements:
-    _entity_access: 'changelogify_release.view'
+    _access: 'TRUE'
+    release_slug: '[a-z][a-z0-9-]{0,127}'
+
+changelogify.changelog_release_legacy:
+  path: '/changelog/{changelogify_release}'
+  defaults:
+    _controller: '\Drupal\changelogify\Controller\ChangelogController::legacyRedirect'
+    _title: 'Release'
+  requirements:
+    _permission: 'view changelogify releases'
+    changelogify_release: '\d+'
+  options:
+    parameters:
+      changelogify_release:
+        type: entity:changelogify_release

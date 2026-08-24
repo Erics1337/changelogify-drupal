@@ -64,6 +64,7 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
       'provenance',
       'editorial_state', 'revision_created', 'revision_user',
       'revision_log_message', 'revision_id', 'revision_default',
+      'slug', 'slug_history',
     ], array_keys($fieldManager->getBaseFieldDefinitions('changelogify_release')));
 
     $schema = Database::getConnection()->schema();
@@ -75,6 +76,7 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
     self::assertTrue($schema->indexExists('changelogify_event', 'changelogify_event__schema_timestamp'));
     self::assertTrue($schema->indexExists('changelogify_release', 'changelogify_release__status_date'));
     self::assertTrue($schema->tableExists('changelogify_release_revision'));
+    self::assertTrue($schema->indexExists('changelogify_release', 'changelogify_release__slug'));
   }
 
   /**

@@ -160,6 +160,7 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     self::assertSame($fixture['release_status'], $release->isPublished());
     self::assertSame($release->isPublished() ? 'published' : 'draft', $release->getEditorialState());
     self::assertNotNull($release->getRevisionId());
+    self::assertNotSame('', $release->getSlug());
   }
 
   /**
@@ -178,6 +179,10 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     $sandbox = [];
     do {
       changelogify_post_update_add_release_revisions($sandbox);
+    } while (($sandbox['#finished'] ?? 1) < 1);
+    $sandbox = [];
+    do {
+      changelogify_post_update_add_release_slugs($sandbox);
     } while (($sandbox['#finished'] ?? 1) < 1);
   }
 

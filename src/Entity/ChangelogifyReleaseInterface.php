@@ -46,6 +46,27 @@ interface ChangelogifyReleaseInterface extends ContentEntityInterface, EntityCha
   public function setEditorialState(string $state): self;
 
   /**
+   * Gets the stable current public slug.
+   */
+  public function getSlug(): string;
+
+  /**
+   * Gets prior public slugs retained for canonical redirects.
+   *
+   * @return string[]
+   *   Historical slugs in oldest-first order.
+   */
+  public function getSlugHistory(): array;
+
+  /**
+   * Sets validated prior public slugs.
+   *
+   * @param string[] $history
+   *   Historical slugs.
+   */
+  public function setSlugHistory(array $history): self;
+
+  /**
    * Gets the sections array.
    */
   public function getSections(): array;

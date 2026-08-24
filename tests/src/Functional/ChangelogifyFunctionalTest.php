@@ -256,13 +256,18 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextNotContains('Private draft release');
     $this->assertSession()->responseContains('changelogify.public.css');
 
-    $this->drupalGet('/changelog/' . $published->id());
+    $this->drupalGet('/changelog/' . $published->getSlug());
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Visible public change');
 
-    $this->drupalGet('/changelog/' . $draft->id());
-    $this->assertSession()->statusCodeEquals(403);
+    $this->drupalGet('/changelog/' . $draft->getSlug());
+    $this->assertSession()->statusCodeEquals(404);
     $this->assertSession()->pageTextNotContains('Confidential draft change');
+    $response = $this->getHttpClient()->get($this->buildUrl('/changelog/' . $draft->id()), [
+      'allow_redirects' => FALSE,
+      'http_errors' => FALSE,
+    ]);
+    self::assertSame(404, $response->getStatusCode());
   }
 
   /**
@@ -309,8 +314,8 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     self::assertSame('review', $release->getEditorialState());
     self::assertFalse($release->isPublished());
     $this->drupalLogout();
-    $this->drupalGet('/changelog/' . $release->id());
-    $this->assertSession()->statusCodeEquals(403);
+    $this->drupalGet('/changelog/' . $release->getSlug());
+    $this->assertSession()->statusCodeEquals(404);
     $this->drupalLogin($editor);
 
     $this->drupalGet($release->toUrl('edit-form'));
@@ -330,7 +335,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       ->execute();
     self::assertGreaterThanOrEqual(3, count($revisionIds));
     $this->drupalLogout();
-    $this->drupalGet('/changelog/' . $release->id());
+    $this->drupalGet('/changelog/' . $release->getSlug());
     $this->assertSession()->statusCodeEquals(200);
     $this->drupalGet('/admin/content/changelogify/releases/' . $release->id() . '/view');
     $this->assertSession()->statusCodeEquals(403);
@@ -353,8 +358,8 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     self::assertSame('archived', $release->getEditorialState());
     self::assertFalse($release->isPublished());
     $this->drupalLogout();
-    $this->drupalGet('/changelog/' . $release->id());
-    $this->assertSession()->statusCodeEquals(403);
+    $this->drupalGet('/changelog/' . $release->getSlug());
+    $this->assertSession()->statusCodeEquals(404);
     $this->drupalLogin($editor);
 
     $revertUrl = '/admin/content/changelogify/releases/' . $release->id()
@@ -368,7 +373,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     self::assertTrue($release->isPublished());
     self::assertGreaterThan($publishedRevisionId, (int) $release->getRevisionId());
     $this->drupalLogout();
-    $this->drupalGet('/changelog/' . $release->id());
+    $this->drupalGet('/changelog/' . $release->getSlug());
     $this->assertSession()->statusCodeEquals(200);
   }
 
@@ -827,6 +832,67 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     $this->drupalGet('/changelog');
     $this->assertSession()->statusCodeEquals(404);
+  }
+
+  /**
+   * Tests slug generation, collisions, history, and canonical redirects.
+   */
+  public function testPublicReleaseSlugs(): void {
+    $anonymousRole = Role::load(RoleInterface::ANONYMOUS_ID);
+    self::assertNotNull($anonymousRole);
+    $anonymousRole->grantPermission('view changelogify releases')->save();
+    $user = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'view changelogify releases',
+    ]);
+    $this->drupalLogin($user);
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $first */
+    $first = $storage->create([
+      'title' => 'Summer Launch',
+      'release_date' => 1_700_000_000,
+      'status' => TRUE,
+    ]);
+    $first->save();
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $second */
+    $second = $storage->create([
+      'title' => 'Summer Launch',
+      'release_date' => 1_700_000_001,
+      'status' => TRUE,
+    ]);
+    $second->save();
+    self::assertSame('summer-launch', $first->getSlug());
+    self::assertSame('summer-launch-2', $second->getSlug());
+
+    $first->setTitle('Renamed release')->save();
+    self::assertSame('summer-launch', $first->getSlug(), 'Title edits do not change a stable slug.');
+    $first->set('slug', 'Custom Launch')->save();
+    self::assertSame('custom-launch', $first->getSlug());
+    self::assertContains('summer-launch', $first->getSlugHistory());
+
+    $this->drupalGet('/changelog/custom-launch');
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Renamed release');
+    $response = $this->getHttpClient()->get($this->buildUrl('/changelog/summer-launch'), [
+      'allow_redirects' => FALSE,
+    ]);
+    self::assertSame(301, $response->getStatusCode());
+    self::assertStringContainsString('/changelog/custom-launch', $response->getHeaderLine('Location'));
+    $response = $this->getHttpClient()->get($this->buildUrl('/changelog/' . $first->id()), [
+      'allow_redirects' => FALSE,
+    ]);
+    self::assertSame(301, $response->getStatusCode());
+    self::assertStringContainsString('/changelog/custom-launch', $response->getHeaderLine('Location'));
+
+    $this->config('changelogify.settings')->set('changelog_path', '/product-updates')->save();
+    \Drupal::service('router.builder')->rebuild();
+    $this->drupalGet('/product-updates/custom-launch');
+    $this->assertSession()->statusCodeEquals(200);
+    $response = $this->getHttpClient()->get($this->buildUrl('/product-updates/' . $first->id()), [
+      'allow_redirects' => FALSE,
+    ]);
+    self::assertSame(301, $response->getStatusCode());
+    self::assertStringContainsString('/product-updates/custom-launch', $response->getHeaderLine('Location'));
   }
 
   /**

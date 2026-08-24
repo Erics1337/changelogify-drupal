@@ -116,7 +116,12 @@ Published releases appear at:
 /changelog
 ```
 
-Individual releases are viewable at `/changelog/{release-id}`.
+Individual releases use stable readable URLs such as `/changelog/august-2026`.
+Legacy numeric URLs permanently redirect when the release is publicly
+accessible.
+
+See [public release slugs](docs/PUBLIC_RELEASE_SLUGS.md) for normalization,
+collision, history, redirect, and draft-privacy behavior.
 
 ---
 

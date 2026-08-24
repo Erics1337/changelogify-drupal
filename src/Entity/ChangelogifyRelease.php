@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Entity;
 
+use Drupal\changelogify\ReleaseSlugManager;
 use Drupal\Core\Entity\Attribute\ContentEntityType;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 
@@ -178,6 +179,21 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ->setDisplayConfigurable('form', TRUE)
       ->setDisplayConfigurable('view', TRUE);
 
+    $fields['slug'] = BaseFieldDefinition::create('string')
+      ->setLabel(t('Public slug'))
+      ->setDescription(t('Stable public URL segment. Leave empty to generate it from the title.'))
+      ->setSetting('max_length', 128)
+      ->setRevisionable(TRUE)
+      ->setDisplayOptions('form', [
+        'type' => 'string_textfield',
+        'weight' => -7,
+      ]);
+
+    $fields['slug_history'] = BaseFieldDefinition::create('string_long')
+      ->setLabel(t('Historical public slugs'))
+      ->setDefaultValue('[]')
+      ->setRevisionable(TRUE);
+
     $fields['release_date'] = BaseFieldDefinition::create('timestamp')
       ->setLabel(t('Release Date'))
       ->setDescription(t('The date of the release.'))
@@ -340,8 +356,41 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   /**
    * {@inheritdoc}
    */
+  public function getSlug(): string {
+    return (string) $this->get('slug')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSlugHistory(): array {
+    $value = (string) $this->get('slug_history')->value;
+    $history = json_decode($value !== '' ? $value : '[]', TRUE, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($history) || array_filter($history, static fn (mixed $slug): bool => !is_string($slug))) {
+      throw new \UnexpectedValueException('Release slug history must contain strings.');
+    }
+    return array_values($history);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setSlugHistory(array $history): ChangelogifyReleaseInterface {
+    foreach ($history as $slug) {
+      if (!is_string($slug) || !preg_match('/^[a-z][a-z0-9-]{0,127}$/', $slug)) {
+        throw new \InvalidArgumentException('Release slug history contains an invalid slug.');
+      }
+    }
+    $this->set('slug_history', json_encode(array_values($history), JSON_THROW_ON_ERROR));
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function preSave(EntityStorageInterface $storage): void {
     parent::preSave($storage);
+    \Drupal::service(ReleaseSlugManager::class)->prepare($this);
     if ($this->isNew() && $this->isPublished() && $this->getEditorialState() === 'draft') {
       $this->set('editorial_state', 'published');
     }

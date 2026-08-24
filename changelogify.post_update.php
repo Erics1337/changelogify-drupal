@@ -230,3 +230,47 @@ function changelogify_post_update_add_release_revisions(?array &$sandbox = NULL)
     ]);
   }
 }
+
+/**
+ * Adds stable public slugs and backfills them deterministically by release ID.
+ */
+function changelogify_post_update_add_release_slugs(?array &$sandbox = NULL): void {
+  $sandbox ??= [];
+  $updateManager = \Drupal::entityDefinitionUpdateManager();
+  $definitions = \Drupal::service('entity_field.manager')
+    ->getBaseFieldDefinitions('changelogify_release');
+  foreach (['slug', 'slug_history'] as $fieldName) {
+    if ($updateManager->getFieldStorageDefinition($fieldName, 'changelogify_release') === NULL) {
+      $updateManager->installFieldStorageDefinition(
+        $fieldName,
+        'changelogify',
+        'changelogify_release',
+        $definitions[$fieldName],
+      );
+    }
+  }
+  $schema = Database::getConnection()->schema();
+  if (!$schema->indexExists('changelogify_release', 'changelogify_release__slug')) {
+    $schema->addUniqueKey('changelogify_release', 'changelogify_release__slug', ['slug']);
+  }
+
+  $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+  if (!isset($sandbox['release_ids'])) {
+    $sandbox['release_ids'] = array_values($storage->getQuery()
+      ->accessCheck(FALSE)
+      ->sort('id', 'ASC')
+      ->execute());
+    $sandbox['processed'] = 0;
+    $sandbox['total'] = count($sandbox['release_ids']);
+  }
+  $ids = array_splice($sandbox['release_ids'], 0, 50);
+  foreach ($storage->loadMultiple($ids) as $release) {
+    if ($release->getSlug() === '') {
+      $release->setRevisionLogMessage('Generated stable public release slug.')->save();
+    }
+    $sandbox['processed']++;
+  }
+  $sandbox['#finished'] = $sandbox['total'] === 0
+    ? 1
+    : min(1, $sandbox['processed'] / $sandbox['total']);
+}

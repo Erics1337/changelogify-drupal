@@ -12,7 +12,7 @@
       <article class="changelogify-release-teaser">
         <header>
           <h2>
-            <a href="{{ path('changelogify.changelog_release', {'changelogify_release': item.release.id.value}) }}" rel="bookmark">
+            <a href="{{ path('changelogify.changelog_release', {'release_slug': item.release.slug.value}) }}" rel="bookmark">
               {{ item.release.title.value }}
             </a>
           </h2>

@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace Drupal\changelogify\Controller;
 
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
+use Drupal\changelogify\ReleaseSlugManager;
 use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Url;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * Controller for public changelog pages.
@@ -19,6 +23,7 @@ class ChangelogController extends ControllerBase {
   public function __construct(
     private readonly EntityTypeManagerInterface $changelogEntityTypeManager,
     private readonly DateFormatterInterface $dateFormatter,
+    private readonly ReleaseSlugManager $slugManager,
   ) {
   }
 
@@ -29,6 +34,7 @@ class ChangelogController extends ControllerBase {
     return new static(
           $container->get('entity_type.manager'),
           $container->get('date.formatter'),
+          $container->get(ReleaseSlugManager::class),
       );
   }
 
@@ -83,7 +89,12 @@ class ChangelogController extends ControllerBase {
   /**
    * Displays a single release.
    */
-  public function view(ChangelogifyReleaseInterface $changelogify_release): array {
+  public function view(string $release_slug): array|RedirectResponse {
+    $resolved = $this->resolveAccessible($release_slug);
+    $changelogify_release = $resolved['release'];
+    if ($resolved['historical']) {
+      return $this->canonicalRedirect($changelogify_release);
+    }
     $sections = $changelogify_release->getSections();
     $section_labels = [
       'added' => $this->t('Added'),
@@ -123,8 +134,39 @@ class ChangelogController extends ControllerBase {
   /**
    * Title callback for release view.
    */
-  public function title(ChangelogifyReleaseInterface $changelogify_release): string {
-    return $changelogify_release->getTitle();
+  public function title(string $release_slug): string {
+    return $this->resolveAccessible($release_slug)['release']->getTitle();
+  }
+
+  /**
+   * Permanently redirects an accessible legacy numeric release URL.
+   */
+  public function legacyRedirect(ChangelogifyReleaseInterface $changelogify_release): RedirectResponse {
+    if (!$changelogify_release->access('view', $this->currentUser())) {
+      throw new NotFoundHttpException();
+    }
+    return $this->canonicalRedirect($changelogify_release);
+  }
+
+  /**
+   * Resolves an accessible current or historical slug without draft leakage.
+   */
+  private function resolveAccessible(string $slug): array {
+    $resolved = $this->slugManager->resolve($slug);
+    if ($resolved === NULL || !$resolved['release']->access('view', $this->currentUser())) {
+      throw new NotFoundHttpException();
+    }
+    return $resolved;
+  }
+
+  /**
+   * Builds a permanent redirect to a release's current public slug.
+   */
+  private function canonicalRedirect(ChangelogifyReleaseInterface $release): RedirectResponse {
+    $url = Url::fromRoute('changelogify.changelog_release', [
+      'release_slug' => $release->getSlug(),
+    ])->toString();
+    return new RedirectResponse($url, 301);
   }
 
   /**
