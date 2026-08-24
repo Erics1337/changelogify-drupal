@@ -1,9 +1,12 @@
 # Project and Drupal tooling terms.
 Changelogify
+BYOK
 DDEV
 Erics
+Ollama
 Salut
 unconfigured
+unvalidated
 unpublication
 unstored
 updb
