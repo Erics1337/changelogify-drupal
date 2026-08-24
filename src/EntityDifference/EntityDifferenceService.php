@@ -18,6 +18,9 @@ final class EntityDifferenceService implements EntityDifferenceServiceInterface 
     'default_langcode',
     'revision_id',
     'revision_created',
+    'revision_default',
+    'revision_timestamp',
+    'revision_uid',
     'revision_user',
     'revision_log_message',
     'revision_translation_affected',
@@ -60,7 +63,7 @@ final class EntityDifferenceService implements EntityDifferenceServiceInterface 
       }
       $old = $original->get($fieldName)->getValue();
       $new = $updated->get($fieldName)->getValue();
-      if ($this->normalizeItems($old) === $this->normalizeItems($new)) {
+      if ($this->valuesAreEquivalent($definition, $original, $updated, $old, $new)) {
         continue;
       }
 
@@ -117,6 +120,28 @@ final class EntityDifferenceService implements EntityDifferenceServiceInterface 
     }
     unset($item);
     return array_values($items);
+  }
+
+  /**
+   * Treats newly materialized field defaults as unchanged values.
+   */
+  private function valuesAreEquivalent(
+    FieldDefinitionInterface $definition,
+    FieldableEntityInterface $original,
+    FieldableEntityInterface $updated,
+    array $old,
+    array $new,
+  ): bool {
+    $old = $this->normalizeItems($old);
+    $new = $this->normalizeItems($new);
+    if ($old == $new) {
+      return TRUE;
+    }
+    if ($old === [] && $new == $this->normalizeItems($definition->getDefaultValue($updated))) {
+      return TRUE;
+    }
+    return $new === []
+      && $old == $this->normalizeItems($definition->getDefaultValue($original));
   }
 
   /**

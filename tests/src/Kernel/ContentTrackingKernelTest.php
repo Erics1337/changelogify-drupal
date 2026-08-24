@@ -81,6 +81,28 @@ final class ContentTrackingKernelTest extends ChangelogifyKernelTestBase {
       static fn ($event): string => $event->getEventType(),
       $this->loadEvents(),
     ));
+    $events = $this->loadEvents();
+    self::assertSame(['title'], $events[1]->getMetadata()['changed_fields']);
+    self::assertSame('published', $events[2]->getMetadata()['publication_transition']);
+    self::assertArrayNotHasKey('changed_fields', $events[2]->getMetadata());
+    self::assertSame('unpublished', $events[3]->getMetadata()['publication_transition']);
+  }
+
+  /**
+   * Tests no-op saves do not create generic update events.
+   */
+  public function testNoOpSaveIsSuppressed(): void {
+    $node = Node::create([
+      'type' => 'page',
+      'title' => 'No-op page',
+      'status' => TRUE,
+    ]);
+    $node->save();
+    self::assertCount(1, $this->loadEvents());
+
+    $node->save();
+    $events = $this->loadEvents();
+    self::assertCount(1, $events);
   }
 
   /**

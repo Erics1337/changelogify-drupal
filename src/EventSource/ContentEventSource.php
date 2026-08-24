@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\EventSource;
 
+use Drupal\changelogify\EntityDifference\EntityDifference;
+use Drupal\changelogify\EntityDifference\EntityDifferenceServiceInterface;
 use Drupal\changelogify\EventInput;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\Core\Entity\EntityTypeBundleInfoInterface;
+use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 
@@ -23,6 +26,7 @@ final class ContentEventSource implements EventSourceInterface {
   public function __construct(
     private readonly EventSourceRecorderInterface $recorder,
     private readonly ContentCapturePolicyInterface $capturePolicy,
+    private readonly EntityDifferenceServiceInterface $differenceService,
     private readonly ConfigFactoryInterface $configFactory,
     private readonly EntityTypeBundleInfoInterface $entityTypeBundleInfo,
     private readonly TimeInterface $time,
@@ -95,15 +99,21 @@ final class ContentEventSource implements EventSourceInterface {
       return;
     }
 
-    $publicationAction = $this->getPublicationAction($entity);
+    $difference = $this->getDifference($entity);
+    if ($difference?->isEmpty()) {
+      return;
+    }
+
+    $publicationAction = $difference?->publicationTransition
+      ?? $this->getPublicationAction($entity);
     if ($publicationAction === 'published') {
-      $this->record($entity, 'published', 'added');
+      $this->record($entity, 'published', 'added', $difference);
     }
     elseif ($publicationAction === 'unpublished') {
-      $this->record($entity, 'unpublished', 'removed');
+      $this->record($entity, 'unpublished', 'removed', $difference);
     }
     else {
-      $this->record($entity, 'updated', 'changed');
+      $this->record($entity, 'updated', 'changed', $difference);
     }
   }
 
@@ -138,7 +148,12 @@ final class ContentEventSource implements EventSourceInterface {
   /**
    * Records a supported content change.
    */
-  private function record(EntityInterface $entity, string $action, string $sectionHint): void {
+  private function record(
+    EntityInterface $entity,
+    string $action,
+    string $sectionHint,
+    ?EntityDifference $difference = NULL,
+  ): void {
     $this->recorder->record($this, new EventInput(
       eventType: $entity->getEntityTypeId() . '_' . $action,
       source: 'content_entity',
@@ -149,7 +164,7 @@ final class ContentEventSource implements EventSourceInterface {
       entityId: $entity->id() === NULL ? NULL : (int) $entity->id(),
       bundle: $entity->bundle() ?: NULL,
       sectionHint: $sectionHint,
-      metadata: $this->buildMetadata($entity, $action),
+      metadata: $this->buildMetadata($entity, $action, $difference),
     ));
   }
 
@@ -174,7 +189,11 @@ final class ContentEventSource implements EventSourceInterface {
   /**
    * Builds privacy-bounded event metadata.
    */
-  private function buildMetadata(EntityInterface $entity, string $action): array {
+  private function buildMetadata(
+    EntityInterface $entity,
+    string $action,
+    ?EntityDifference $difference = NULL,
+  ): array {
     $metadata = ['action' => $action, 'label' => $this->buildLabel($entity)];
     try {
       $metadata['path'] = $entity->toUrl()->toString();
@@ -182,7 +201,24 @@ final class ContentEventSource implements EventSourceInterface {
     catch (\Throwable) {
       // Some new or deleted entities do not have a routable URL.
     }
-    return $metadata;
+    return $difference === NULL
+      ? $metadata
+      : array_replace($metadata, $difference->toArray());
+  }
+
+  /**
+   * Gets a safe difference when both matching entity versions are available.
+   */
+  private function getDifference(EntityInterface $entity): ?EntityDifference {
+    $original = $this->getOriginalEntity($entity);
+    if (!$entity instanceof FieldableEntityInterface || !$original instanceof FieldableEntityInterface) {
+      return NULL;
+    }
+
+    if ($entity->isTranslatable() && $original->hasTranslation($entity->language()->getId())) {
+      $original = $original->getTranslation($entity->language()->getId());
+    }
+    return $this->differenceService->compare($entity, $original);
   }
 
   /**

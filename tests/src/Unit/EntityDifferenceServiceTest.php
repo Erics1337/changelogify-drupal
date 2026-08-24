@@ -142,6 +142,7 @@ final class EntityDifferenceServiceTest extends TestCase {
       $definition->method('getType')->willReturn($type);
       $definition->method('isComputed')->willReturn($computed);
       $definition->method('isReadOnly')->willReturn(FALSE);
+      $definition->method('getDefaultValue')->willReturn([]);
       $definitions[$name] = $definition;
       $list = $this->createMock(FieldItemListInterface::class);
       $list->method('getValue')->willReturn($value);
