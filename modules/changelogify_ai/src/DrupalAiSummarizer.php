@@ -111,7 +111,7 @@ final class DrupalAiSummarizer implements SummarizerInterface {
    */
   private function structuredOutputCapability(): mixed {
     $name = 'Drupal\\ai\\Enum\\AiModelCapability::ChatStructuredResponse';
-    $capability = defined($name) ? constant($name) : 'chat_json_output';
+    $capability = defined($name) ? constant($name) : 'chat_structured_response';
     return $capability;
   }
 
