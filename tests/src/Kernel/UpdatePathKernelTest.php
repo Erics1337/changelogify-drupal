@@ -77,6 +77,63 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
   }
 
   /**
+   * Tests event contract fields are installed with the correct entity type.
+   */
+  public function testEventContractFieldsInstallOnHistoricalSchema(): void {
+    $this->includeUpdateFiles();
+    $updateManager = $this->container->get('entity.definition_update_manager');
+    foreach (['schema_version', 'correlation_id'] as $fieldName) {
+      $definition = $updateManager->getFieldStorageDefinition($fieldName, 'changelogify_event');
+      self::assertNotNull($definition);
+      $updateManager->uninstallFieldStorageDefinition($definition);
+    }
+
+    changelogify_post_update_add_event_contract_fields();
+
+    foreach (['schema_version', 'correlation_id'] as $fieldName) {
+      self::assertNotNull(
+        $updateManager->getFieldStorageDefinition($fieldName, 'changelogify_event'),
+      );
+      self::assertTrue(
+        Database::getConnection()->schema()->fieldExists('changelogify_event', $fieldName),
+      );
+    }
+  }
+
+  /**
+   * Tests release provenance is installed on the release entity type.
+   */
+  public function testReleaseProvenanceInstallsOnHistoricalSchema(): void {
+    $this->includeUpdateFiles();
+    $this->uninstallField('provenance', 'changelogify_release');
+
+    changelogify_post_update_add_release_provenance();
+
+    self::assertNotNull($this->container
+      ->get('entity.definition_update_manager')
+      ->getFieldStorageDefinition('provenance', 'changelogify_release'));
+  }
+
+  /**
+   * Tests release slug fields are installed on the release entity type.
+   */
+  public function testReleaseSlugsInstallOnHistoricalSchema(): void {
+    $this->includeUpdateFiles();
+    $this->uninstallField('slug_history', 'changelogify_release');
+    $this->uninstallField('slug', 'changelogify_release');
+
+    $sandbox = [];
+    changelogify_post_update_add_release_slugs($sandbox);
+
+    $updateManager = $this->container->get('entity.definition_update_manager');
+    foreach (['slug', 'slug_history'] as $fieldName) {
+      self::assertNotNull(
+        $updateManager->getFieldStorageDefinition($fieldName, 'changelogify_release'),
+      );
+    }
+  }
+
+  /**
    * Provides real configuration shapes from supported releases.
    */
   public static function historicalStateProvider(): array {
@@ -211,6 +268,16 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
       ->getPath('changelogify');
     require_once DRUPAL_ROOT . '/' . $modulePath . '/changelogify.install';
     require_once DRUPAL_ROOT . '/' . $modulePath . '/changelogify.post_update.php';
+  }
+
+  /**
+   * Removes one installed field to model a historical entity schema.
+   */
+  private function uninstallField(string $fieldName, string $entityTypeId): void {
+    $updateManager = $this->container->get('entity.definition_update_manager');
+    $definition = $updateManager->getFieldStorageDefinition($fieldName, $entityTypeId);
+    self::assertNotNull($definition);
+    $updateManager->uninstallFieldStorageDefinition($definition);
   }
 
   /**

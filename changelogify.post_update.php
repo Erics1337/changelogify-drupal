@@ -103,8 +103,8 @@ function changelogify_post_update_add_event_contract_fields(): void {
     if ($updateManager->getFieldStorageDefinition($fieldName, 'changelogify_event') === NULL) {
       $updateManager->installFieldStorageDefinition(
         $fieldName,
-        'changelogify',
         'changelogify_event',
+        'changelogify',
         $definitions[$fieldName],
       );
     }
@@ -152,8 +152,8 @@ function changelogify_post_update_add_release_provenance(): void {
       ->getBaseFieldDefinitions('changelogify_release');
     $updateManager->installFieldStorageDefinition(
       'provenance',
-      'changelogify',
       'changelogify_release',
+      'changelogify',
       $definitions['provenance'],
     );
   }
@@ -247,8 +247,8 @@ function changelogify_post_update_add_release_slugs(?array &$sandbox = NULL): vo
     if ($updateManager->getFieldStorageDefinition($fieldName, 'changelogify_release') === NULL) {
       $updateManager->installFieldStorageDefinition(
         $fieldName,
-        'changelogify',
         'changelogify_release',
+        'changelogify',
         $definitions[$fieldName],
       );
     }
