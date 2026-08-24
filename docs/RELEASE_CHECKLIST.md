@@ -1,6 +1,6 @@
-# Changelogify 1.3 release gate
+# Changelogify stable release gate
 
-This document is the compatibility contract for the 1.3 release line. A commit
+This document is the compatibility contract for stable releases. A commit
 is releasable only when its Drupal.org GitLab pipeline completes successfully
 with every job below green. Manual or skipped required jobs do not satisfy the
 gate.
@@ -66,11 +66,12 @@ and YAML files, so it remains required even while the module has no JavaScript.
 - [ ] Review the [security and operations guide](SECURITY_AND_OPERATIONS.md)
       against settings defaults, captured metadata, permissions, routes, cron
       behavior, and uninstall behavior.
-- [ ] Confirm the [1.3 release notes](RELEASE_NOTES_1.3.md) contain current
+- [ ] Confirm the release-specific notes contain current
       upgrade and rollback steps and do not claim AI summarization or semantic
       deduplication.
-- [ ] Update release notes and the project version, then tag only the exact
-      commit whose pipeline passed.
+- [ ] Update release notes, then tag only the exact commit whose pipeline
+      passed. Drupal.org packaging injects the module version; do not add a
+      `version` key to `changelogify.info.yml`.
 
 When support metadata changes, update this document and `.gitlab-ci.yml` in the
 same commit. Dropping the pinned Drupal 10.3 lane requires dropping `^10.3` from
