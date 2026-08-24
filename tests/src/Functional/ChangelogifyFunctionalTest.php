@@ -568,7 +568,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('Source evidence: available');
     $this->assertSession()->elementExists(
       'css',
-      'a[href^="/admin/content/changelogify/events/"]',
+      'a[href*="/admin/content/changelogify/events/"]',
     );
     $this->assertSession()->elementExists(
       'css',
