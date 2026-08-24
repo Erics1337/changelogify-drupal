@@ -929,7 +929,6 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     $this->config('changelogify.settings')->set('changelog_path', '/product-updates')->save();
     \Drupal::service('router.builder')->rebuild();
-    $this->rebuildContainer();
     $this->drupalGet('/product-updates/custom-launch');
     $this->assertSession()->statusCodeEquals(200);
     $response = $this->getHttpClient()->get($this->buildUrl('/product-updates/' . $first->id()), [

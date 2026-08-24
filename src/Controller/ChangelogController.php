@@ -68,9 +68,7 @@ class ChangelogController extends ControllerBase {
         'date_iso' => $this->dateFormatter->format($release->getReleaseDate(), 'custom', 'c'),
         'version' => $release->getVersion(),
         'excerpt' => $excerpt,
-        'url' => Url::fromRoute('changelogify.changelog_release', [
-          'release_slug' => $release->getSlug(),
-        ])->toString(),
+        'url' => $this->publicUrl($release->getSlug())->toString(),
       ];
     }
 
@@ -79,7 +77,7 @@ class ChangelogController extends ControllerBase {
     if (is_scalar($page) && (string) $page !== '') {
       $canonicalOptions['query'] = ['page' => (string) $page];
     }
-    $canonical = Url::fromRoute('changelogify.changelog', [], $canonicalOptions)->toString();
+    $canonical = $this->publicUrl(NULL, $canonicalOptions)->toString();
 
     $build = [
       '#theme' => 'changelogify_release_list',
@@ -98,6 +96,7 @@ class ChangelogController extends ControllerBase {
     ];
 
     (new CacheableMetadata())
+      ->addCacheableDependency($this->config('changelogify.settings'))
       ->addCacheTags($this->changelogEntityTypeManager
         ->getDefinition('changelogify_release')
         ->getListCacheTags())
@@ -156,9 +155,10 @@ class ChangelogController extends ControllerBase {
         'html_head_link' => [[
           [
             'rel' => 'canonical',
-            'href' => Url::fromRoute('changelogify.changelog_release', [
-              'release_slug' => $changelogify_release->getSlug(),
-            ], ['absolute' => TRUE])->toString(),
+            'href' => $this->publicUrl(
+              $changelogify_release->getSlug(),
+              ['absolute' => TRUE],
+            )->toString(),
           ],
           TRUE,
         ],
@@ -167,6 +167,7 @@ class ChangelogController extends ControllerBase {
     ];
 
     CacheableMetadata::createFromObject($changelogify_release)
+      ->addCacheableDependency($this->config('changelogify.settings'))
       ->addCacheContexts([
         'languages:language_content',
         'languages:language_interface',
@@ -209,17 +210,33 @@ class ChangelogController extends ControllerBase {
    * Builds a permanent redirect to a release's current public slug.
    */
   private function canonicalRedirect(ChangelogifyReleaseInterface $release): CacheableRedirectResponse {
-    $url = Url::fromRoute('changelogify.changelog_release', [
-      'release_slug' => $release->getSlug(),
-    ])->toString();
+    $url = $this->publicUrl($release->getSlug())->toString();
     $response = new CacheableRedirectResponse($url, 301);
     $metadata = CacheableMetadata::createFromObject($release)
+      ->addCacheableDependency($this->config('changelogify.settings'))
       ->addCacheContexts([
         'languages:language_content',
         'languages:language_interface',
         'user.permissions',
       ]);
     return $response->addCacheableDependency($metadata);
+  }
+
+  /**
+   * Builds a public URL from the current configured base path.
+   *
+   * Drupal 10 can retain a compiled route generator after a runtime route
+   * rebuild. Reading the configuration directly keeps generated URLs aligned
+   * with the route subscriber in persistent kernels as well as PHP-FPM.
+   */
+  private function publicUrl(?string $slug = NULL, array $options = []): Url {
+    $configuredPath = (string) $this->config('changelogify.settings')
+      ->get('changelog_path');
+    $path = '/' . trim($configuredPath ?: '/changelog', '/');
+    if ($slug !== NULL) {
+      $path .= '/' . rawurlencode($slug);
+    }
+    return Url::fromUserInput($path, $options);
   }
 
   /**
