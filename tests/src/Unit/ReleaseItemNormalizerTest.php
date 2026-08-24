@@ -109,6 +109,7 @@ final class ReleaseItemNormalizerTest extends TestCase {
     ], $existing);
 
     self::assertSame(['second-id', 'manual-id', 'first-id'], array_column($sections['fixed'], 'id'));
+    self::assertSame(['Second', 'Manual', 'First edited'], array_column($sections['fixed'], 'text'));
     self::assertSame([3], $sections['fixed'][0]['event_ids']);
     self::assertSame([], $sections['fixed'][1]['event_ids']);
     self::assertSame([1], $sections['fixed'][2]['event_ids']);

@@ -189,9 +189,10 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
         'weight' => -7,
       ]);
 
-    $fields['slug_history'] = BaseFieldDefinition::create('string_long')
+    $fields['slug_history'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Historical public slugs'))
-      ->setDefaultValue('[]')
+      ->setSetting('max_length', 128)
+      ->setCardinality(BaseFieldDefinition::CARDINALITY_UNLIMITED)
       ->setRevisionable(TRUE);
 
     $fields['release_date'] = BaseFieldDefinition::create('timestamp')
@@ -364,12 +365,10 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
    * {@inheritdoc}
    */
   public function getSlugHistory(): array {
-    $value = (string) $this->get('slug_history')->value;
-    $history = json_decode($value !== '' ? $value : '[]', TRUE, 512, JSON_THROW_ON_ERROR);
-    if (!is_array($history) || array_filter($history, static fn (mixed $slug): bool => !is_string($slug))) {
-      throw new \UnexpectedValueException('Release slug history must contain strings.');
-    }
-    return array_values($history);
+    return array_values(array_map(
+      static fn (array $item): string => (string) $item['value'],
+      $this->get('slug_history')->getValue(),
+    ));
   }
 
   /**
@@ -381,7 +380,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
         throw new \InvalidArgumentException('Release slug history contains an invalid slug.');
       }
     }
-    $this->set('slug_history', json_encode(array_values($history), JSON_THROW_ON_ERROR));
+    $this->set('slug_history', array_values(array_unique($history)));
     return $this;
   }
 

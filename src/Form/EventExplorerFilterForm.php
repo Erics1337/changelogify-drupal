@@ -30,7 +30,9 @@ final class EventExplorerFilterForm extends FormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $request = $this->getRequest();
+    $form_state->setMethod('GET');
     $form['#method'] = 'get';
+    $form['#after_build'][] = [static::class, 'removeInternalFormValues'];
     $form['#attributes']['class'][] = 'changelogify-event-filters';
     $textFields = [
       'source' => $this->t('Source'),
@@ -84,6 +86,14 @@ final class EventExplorerFilterForm extends FormBase {
       '#url' => Url::fromRoute('entity.changelogify_event.collection'),
       '#attributes' => ['class' => ['button']],
     ];
+    return $form;
+  }
+
+  /**
+   * Removes internal form values from the public GET query string.
+   */
+  public static function removeInternalFormValues(array $form): array {
+    unset($form['form_build_id'], $form['form_token'], $form['form_id']);
     return $form;
   }
 

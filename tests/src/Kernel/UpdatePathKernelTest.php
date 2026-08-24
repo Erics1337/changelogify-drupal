@@ -61,6 +61,22 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
   }
 
   /**
+   * Tests an interrupted entity schema batch continues after table creation.
+   */
+  public function testRevisionSchemaBatchResumesWithRevisionTablePresent(): void {
+    $this->includeUpdateFiles();
+    $sandbox = [
+      'entity_schema' => ['#finished' => 0],
+      '#finished' => 0,
+    ];
+
+    changelogify_post_update_add_release_revisions($sandbox);
+
+    self::assertArrayNotHasKey('entity_schema', $sandbox);
+    self::assertSame(1, $sandbox['#finished']);
+  }
+
+  /**
    * Provides real configuration shapes from supported releases.
    */
   public static function historicalStateProvider(): array {

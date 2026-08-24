@@ -175,7 +175,10 @@ function changelogify_post_update_add_release_revisions(?array &$sandbox = NULL)
     throw new UpdateException('Changelogify cannot add release revisions because the release table is missing. Restore the module database tables from backup, then rerun database updates.');
   }
 
-  if (!$schema->tableExists('changelogify_release_revision')) {
+  // A schema batch can create the revision table before all field migration
+  // work is complete. Continue that same sandbox until the update manager says
+  // it is finished instead of treating table existence as completion.
+  if (isset($sandbox['entity_schema']) || !$schema->tableExists('changelogify_release_revision')) {
     $entityType = \Drupal::entityTypeManager()->getDefinition('changelogify_release');
     $definitions = \Drupal::service('entity_field.manager')
       ->getFieldStorageDefinitions('changelogify_release');
@@ -189,6 +192,7 @@ function changelogify_post_update_add_release_revisions(?array &$sandbox = NULL)
       $sandbox['#finished'] = 0.5 * $sandbox['entity_schema']['#finished'];
       return;
     }
+    unset($sandbox['entity_schema']);
   }
 
   $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');

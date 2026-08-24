@@ -74,10 +74,12 @@ class ChangelogController extends ControllerBase {
       ];
     }
 
-    $canonical = Url::fromRoute('changelogify.changelog', [], [
-      'absolute' => TRUE,
-      'query' => $this->requestStack->getCurrentRequest()?->query->all() ?? [],
-    ])->toString();
+    $page = $this->requestStack->getCurrentRequest()?->query->get('page');
+    $canonicalOptions = ['absolute' => TRUE];
+    if (is_scalar($page) && (string) $page !== '') {
+      $canonicalOptions['query'] = ['page' => (string) $page];
+    }
+    $canonical = Url::fromRoute('changelogify.changelog', [], $canonicalOptions)->toString();
 
     $build = [
       '#theme' => 'changelogify_release_list',

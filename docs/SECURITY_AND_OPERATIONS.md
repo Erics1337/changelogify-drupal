@@ -44,6 +44,10 @@ IDs, usernames, and role assignments are personal or security-relevant data in
 many organizations. Decide whether there is a lawful and operational need to
 store them before enabling user or unpublished-content tracking.
 
+Changelogify 1.5 supports Drupal 10.3 and later Drupal 10 releases, Drupal 11,
+and PHP 8.1 or newer within those Drupal versions' PHP support ranges. The
+upgrade and rollback procedures below apply across that supported matrix.
+
 ## Permissions and routes
 
 | Permission | Surfaces and consequences |

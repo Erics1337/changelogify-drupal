@@ -68,25 +68,14 @@ final class ReleaseSlugManager {
     if ($ids !== []) {
       return ['release' => $storage->load(reset($ids)), 'historical' => FALSE];
     }
-    $lastId = 0;
-    do {
-      $ids = array_values($storage->getQuery()
-        ->accessCheck(FALSE)
-        ->condition('id', $lastId, '>')
-        ->sort('id', 'ASC')
-        ->range(0, 100)
-        ->execute());
-      foreach ($storage->loadMultiple($ids) as $release) {
-        if (in_array($slug, $release->getSlugHistory(), TRUE)) {
-          return ['release' => $release, 'historical' => TRUE];
-        }
-      }
-      if ($ids !== []) {
-        $lastId = (int) end($ids);
-        $storage->resetCache($ids);
-      }
-    } while (count($ids) === 100);
-    return NULL;
+    $ids = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('slug_history', $slug)
+      ->range(0, 1)
+      ->execute();
+    return $ids === []
+      ? NULL
+      : ['release' => $storage->load(reset($ids)), 'historical' => TRUE];
   }
 
   /**
