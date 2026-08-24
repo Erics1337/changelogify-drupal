@@ -13,6 +13,13 @@ bounded event range, aggregates it again, and verifies every selected ID and
 section. Deleted or regrouped evidence produces a recoverable error and asks the
 editor to preview again.
 
+The preview warns about overlapping draft or published windows, a gap since the
+latest earlier covered window, and evidence already referenced by another
+release. Reused evidence requires explicit confirmation and stores a minimal
+attribution record in private provenance. Boundary timestamps are included in
+the next preview instead of being advanced by one second; any reused boundary
+evidence is therefore visible and cannot be duplicated silently.
+
 Both custom ranges and **Since last release** use the same preview and commit
 contract. The original preview timestamps are retained through commit so a
 change to the latest published release cannot silently move the window between

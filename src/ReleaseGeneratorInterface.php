@@ -34,6 +34,8 @@ interface ReleaseGeneratorInterface {
    *   Release title, version, and label options.
    * @param bool $allowEmpty
    *   Whether an explicitly confirmed empty draft may be created.
+   * @param bool $allowEvidenceReuse
+   *   Whether evidence already referenced by another release may be reused.
    */
   public function generateReleaseFromSelection(
     \DateTimeInterface $start,
@@ -41,6 +43,7 @@ interface ReleaseGeneratorInterface {
     array $selection,
     array $options = [],
     bool $allowEmpty = FALSE,
+    bool $allowEvidenceReuse = FALSE,
   ): ChangelogifyReleaseInterface;
 
   /**

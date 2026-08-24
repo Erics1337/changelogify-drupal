@@ -360,6 +360,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       'event_count',
       'evidence_status',
       'events',
+      'evidence_reuse',
     ];
     if (array_diff(array_keys($item), $allowed) !== []) {
       throw new \InvalidArgumentException('Release provenance item contains unsupported data.');
@@ -372,6 +373,24 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
         throw new \InvalidArgumentException('Release provenance contains invalid event evidence.');
       }
       $this->validateProvenanceEvent($event);
+    }
+    if (isset($item['evidence_reuse'])) {
+      $reuse = $item['evidence_reuse'];
+      if (!is_array($reuse)
+        || array_diff(array_keys($reuse), ['release_ids', 'confirmed_by', 'confirmed_at']) !== []
+        || !is_array($reuse['release_ids'] ?? NULL)) {
+        throw new \InvalidArgumentException('Release provenance contains invalid evidence reuse attribution.');
+      }
+      foreach ($reuse['release_ids'] as $releaseId) {
+        if (!is_int($releaseId) || $releaseId < 1) {
+          throw new \InvalidArgumentException('Release provenance contains an invalid reused release ID.');
+        }
+      }
+      foreach (['confirmed_by', 'confirmed_at'] as $key) {
+        if (!is_int($reuse[$key] ?? NULL) || $reuse[$key] < 0) {
+          throw new \InvalidArgumentException('Release provenance contains invalid evidence reuse attribution.');
+        }
+      }
     }
     $this->validateEvidenceStatus($item['evidence_status'] ?? NULL);
     return $item;

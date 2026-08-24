@@ -174,6 +174,14 @@ class GenerateReleaseForm extends FormBase {
       if ($selected === 0 && !$form_state->getValue('confirm_empty')) {
         $form_state->setErrorByName('confirm_empty', $this->t('Confirm that you want to create an empty draft.'));
       }
+      $reused = array_keys($preview['coverage']['reused_change_sets'] ?? []);
+      $selectedReused = array_filter(
+        $reused,
+        static fn (string $id): bool => !empty($values[$id]['include']),
+      );
+      if ($selectedReused !== [] && !$form_state->getValue('confirm_reuse')) {
+        $form_state->setErrorByName('confirm_reuse', $this->t('Confirm the intentional reuse of evidence from another release.'));
+      }
     }
   }
 
@@ -190,6 +198,36 @@ class GenerateReleaseForm extends FormBase {
         '@end' => date('Y-m-d H:i:s T', $preview['end']),
       ]),
     ];
+    $warnings = [];
+    foreach ($preview['coverage']['overlaps'] ?? [] as $overlap) {
+      $warnings[] = $this->t('This window overlaps @status release "@title" (@start through @end).', [
+        '@status' => $overlap['status'],
+        '@title' => $overlap['title'],
+        '@start' => date('Y-m-d H:i:s T', $overlap['start']),
+        '@end' => date('Y-m-d H:i:s T', $overlap['end']),
+      ]);
+    }
+    if (!empty($preview['coverage']['gap_before'])) {
+      $gap = $preview['coverage']['gap_before'];
+      $warnings[] = $this->t('A coverage gap exists from @start through @end.', [
+        '@start' => date('Y-m-d H:i:s T', $gap['start']),
+        '@end' => date('Y-m-d H:i:s T', $gap['end']),
+      ]);
+    }
+    foreach ($preview['coverage']['reused_change_sets'] ?? [] as $changeSetId => $releases) {
+      $warnings[] = $this->t('Change set @id reuses evidence from: @releases.', [
+        '@id' => $changeSetId,
+        '@releases' => implode(', ', $releases),
+      ]);
+    }
+    if ($warnings !== []) {
+      $form['coverage_warnings'] = [
+        '#theme' => 'item_list',
+        '#title' => $this->t('Release coverage warnings'),
+        '#items' => $warnings,
+        '#attributes' => ['class' => ['messages', 'messages--warning']],
+      ];
+    }
     $form['options'] = [
       '#type' => 'details',
       '#title' => $this->t('Release options'),
@@ -256,6 +294,13 @@ class GenerateReleaseForm extends FormBase {
       '#title' => $this->t('Create an empty draft release'),
       '#description' => $this->t('Required when no change sets are selected.'),
     ];
+    if (!empty($preview['coverage']['reused_change_sets'])) {
+      $form['confirm_reuse'] = [
+        '#type' => 'checkbox',
+        '#title' => $this->t('Intentionally reuse evidence from another release'),
+        '#description' => $this->t('Required when an included change set already supports another release.'),
+      ];
+    }
     $form['actions'] = ['#type' => 'actions'];
     $form['actions']['commit'] = [
       '#type' => 'submit',
@@ -335,6 +380,7 @@ class GenerateReleaseForm extends FormBase {
         $selection,
         $options,
         (bool) $form_state->getValue('confirm_empty'),
+        (bool) $form_state->getValue('confirm_reuse'),
       );
 
       $this->messenger()->addStatus($this->t('Draft release "@title" has been created.', [

@@ -12,6 +12,9 @@ services:
   Drupal\changelogify\EventReleaseUsage:
     class: Drupal\changelogify\EventReleaseUsage
 
+  Drupal\changelogify\ReleaseCoverageAnalyzer:
+    class: Drupal\changelogify\ReleaseCoverageAnalyzer
+
   Drupal\changelogify\ReleaseItemNormalizer:
     arguments: ['@uuid']
 

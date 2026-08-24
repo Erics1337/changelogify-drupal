@@ -20,11 +20,14 @@ final class ReleasePreview {
    *   Inclusive release-window end timestamp.
    * @param \Drupal\changelogify\ChangeSet\ChangeSet[] $changeSets
    *   Candidate change sets in deterministic order.
+   * @param array $coverage
+   *   Coverage, overlap, and reused-evidence analysis.
    */
   public function __construct(
     public readonly int $startTimestamp,
     public readonly int $endTimestamp,
     public readonly array $changeSets,
+    public readonly array $coverage = [],
   ) {
   }
 
@@ -48,6 +51,7 @@ final class ReleasePreview {
         ],
         $this->changeSets,
       ),
+      'coverage' => $this->coverage,
     ];
   }
 

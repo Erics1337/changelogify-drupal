@@ -33,6 +33,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
     protected AccountProxyInterface $currentUser,
     protected TimeInterface $time,
     protected ChangeSetAggregatorInterface $changeSetAggregator,
+    protected ReleaseCoverageAnalyzer $coverageAnalyzer,
   ) {
   }
 
@@ -56,10 +57,12 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
       throw new \InvalidArgumentException('The release start date must not be after its end date.');
     }
     $events = $this->loadEventsForRelease($start, $end);
+    $changeSets = $this->changeSetAggregator->aggregate($events)->changeSets;
     return new ReleasePreview(
       $start->getTimestamp(),
       $end->getTimestamp(),
-      $this->changeSetAggregator->aggregate($events)->changeSets,
+      $changeSets,
+      $this->coverageAnalyzer->analyze($start->getTimestamp(), $end->getTimestamp(), $changeSets),
     );
   }
 
@@ -81,6 +84,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
     array $selection,
     array $options = [],
     bool $allowEmpty = FALSE,
+    bool $allowEvidenceReuse = FALSE,
   ): ChangelogifyReleaseInterface {
     $preview = $this->previewRange($start, $end);
     $available = [];
@@ -114,7 +118,27 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
     if ($selected === [] && !$allowEmpty) {
       throw new \UnexpectedValueException('Creating an empty release requires explicit confirmation.');
     }
-    return $this->createReleaseFromChangeSets($selected, $start, $end, $options);
+    $coverage = $this->coverageAnalyzer->analyze(
+      $start->getTimestamp(),
+      $end->getTimestamp(),
+      $selected,
+    );
+    if ($coverage['reused_change_sets'] !== [] && !$allowEvidenceReuse) {
+      throw new \UnexpectedValueException('Reusing evidence from another release requires explicit confirmation.');
+    }
+    $release = $this->createReleaseFromChangeSets($selected, $start, $end, $options);
+    if ($coverage['reused_change_sets'] !== []) {
+      $provenance = $release->getProvenance();
+      foreach ($coverage['reused_change_sets'] as $changeSetId => $releases) {
+        $provenance['items'][$changeSetId]['evidence_reuse'] = [
+          'release_ids' => array_map('intval', array_keys($releases)),
+          'confirmed_by' => (int) $this->currentUser->id(),
+          'confirmed_at' => (int) $this->time->getRequestTime(),
+        ];
+      }
+      $release->setProvenance($provenance)->save();
+    }
+    return $release;
   }
 
   /**

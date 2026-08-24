@@ -470,6 +470,81 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
   }
 
   /**
+   * Tests overlap, gap, reused-evidence, and timestamp-boundary warnings.
+   */
+  public function testReleaseCoverageWarnings(): void {
+    $this->config('system.date')->set('timezone.default', 'UTC')->save();
+    $user = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+    /** @var \Drupal\changelogify\EventManagerInterface $eventManager */
+    $eventManager = \Drupal::service(EventManagerInterface::class);
+    $boundary = strtotime('2025-04-01 23:59:59 UTC');
+    $event = $eventManager->logEvent([
+      'timestamp' => $boundary,
+      'event_type' => 'content_updated',
+      'source' => 'test',
+      'message' => 'Boundary evidence',
+      'section_hint' => 'changed',
+    ]);
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    $existing = $storage->create([
+      'title' => 'Backdated published release',
+      'release_date' => $boundary,
+      'date_start' => strtotime('2025-04-01 00:00:00 UTC'),
+      'date_end' => $boundary,
+      'status' => TRUE,
+    ]);
+    $existing->setSections([
+      'changed' => [
+        [
+          'id' => 'boundary-item',
+          'text' => 'Already released evidence',
+          'event_ids' => [(int) $event->id()],
+        ],
+      ],
+    ])->save();
+
+    $this->drupalGet('/admin/config/development/changelogify/generate');
+    $this->submitForm(['mode' => 'since_last'], 'Preview changes');
+    $this->assertSession()->pageTextContains('Boundary evidence');
+    $this->assertSession()->pageTextContains('overlaps published release');
+    $this->assertSession()->pageTextContains('reuses evidence from');
+    $changeSetId = 'changeset-' . substr(hash('sha256', 'event:' . $event->id()), 0, 24);
+    $this->submitForm([
+      'change_sets[' . $changeSetId . '][include]' => TRUE,
+      'change_sets[' . $changeSetId . '][section]' => 'changed',
+    ], 'Create draft release');
+    $this->assertSession()->pageTextContains('Confirm the intentional reuse of evidence');
+    $this->submitForm([
+      'change_sets[' . $changeSetId . '][include]' => TRUE,
+      'change_sets[' . $changeSetId . '][section]' => 'changed',
+      'confirm_reuse' => TRUE,
+    ], 'Create draft release');
+    $this->assertSession()->pageTextContains('has been created');
+    $createdIds = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->sort('id', 'DESC')
+      ->range(0, 1)
+      ->execute();
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $created */
+    $created = $storage->load(reset($createdIds));
+    $reuse = $created->getProvenance()['items'][$changeSetId]['evidence_reuse'];
+    self::assertSame([(int) $existing->id()], $reuse['release_ids']);
+    self::assertSame((int) $user->id(), $reuse['confirmed_by']);
+
+    $this->drupalGet('/admin/config/development/changelogify/generate');
+    $this->submitForm([
+      'mode' => 'custom',
+      'start_date[date]' => '2025-04-03',
+      'end_date[date]' => '2025-04-03',
+    ], 'Preview changes');
+    $this->assertSession()->pageTextContains('A coverage gap exists');
+  }
+
+  /**
    * Tests content tracking and unpublished-content privacy settings.
    */
   public function testContentTrackingSettings(): void {
