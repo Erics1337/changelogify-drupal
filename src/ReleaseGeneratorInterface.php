@@ -29,7 +29,9 @@ interface ReleaseGeneratorInterface {
    * @param \DateTimeInterface $end
    *   Inclusive release-window end.
    * @param array<string, string> $selection
-   *   Selected stable change-set IDs keyed to their assigned sections.
+   *   Map of selected stable change-set IDs to assigned sections. Multiple
+   *   change-set ID keys may map to the same section without overwriting one
+   *   another.
    * @param array $options
    *   Release title, version, and label options.
    * @param bool $allowEmpty
