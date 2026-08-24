@@ -38,7 +38,7 @@ final class ReleaseSuggestionManager {
   /**
    * Requests an unpersisted rewrite for one evidence-backed release item.
    */
-  public function suggest(ChangelogifyReleaseInterface $release, string $itemId, string $profile): SummarizationResult {
+  public function suggest(ChangelogifyReleaseInterface $release, string $itemId, string $profile, int $attempt = 0): SummarizationResult {
     [$section, $item] = $this->findItem($release, $itemId);
     if (!$this->canSuggest($release, $itemId)) {
       throw new \UnexpectedValueException('AI drafting is unavailable or this item is not eligible for humanization.');
@@ -55,7 +55,14 @@ final class ReleaseSuggestionManager {
       ],
       PromptTemplateRegistry::VERSION,
       '1',
-      hash('sha256', implode(':', [$release->uuid(), $release->getRevisionId(), $itemId, $item['text'], $profile])),
+      hash('sha256', implode(':', [
+        $release->uuid(),
+        $release->getRevisionId(),
+        $itemId,
+        $item['text'],
+        $profile,
+        (string) max(0, $attempt),
+      ])),
     );
     return $this->operations->execute($request, [$itemId], (int) $release->id(), (int) $release->getRevisionId());
   }

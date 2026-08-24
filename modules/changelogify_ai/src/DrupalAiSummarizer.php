@@ -28,11 +28,14 @@ final class DrupalAiSummarizer implements SummarizerInterface {
       return FALSE;
     }
     try {
-      [$providerId, $modelId] = $this->selection();
-      if ($providerId === '' || $modelId === '' || !$this->providerManager->hasProvidersForOperationType('chat', TRUE)) {
+      [$providerId, $modelId, $providerConfiguration] = $this->selection();
+      if ($providerId === '' || $modelId === '') {
         return FALSE;
       }
       $provider = $this->providerManager->createInstance($providerId);
+      if ($providerConfiguration !== []) {
+        $provider->setConfiguration($providerConfiguration);
+      }
       return $provider->isUsable('chat') && isset($provider->getConfiguredModels('chat')[$modelId]);
     }
     catch (\Throwable) {

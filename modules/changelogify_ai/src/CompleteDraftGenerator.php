@@ -82,6 +82,9 @@ final class CompleteDraftGenerator {
     if ($result->status !== 'completed') {
       throw new \UnexpectedValueException('The provider did not complete the draft.');
     }
+    if ($result->items === [] && !$allowEmpty) {
+      throw new \UnexpectedValueException('The provider did not return any release items.');
+    }
 
     // This revalidates current source evidence immediately before persistence.
     $release = $this->releaseGenerator->generateReleaseFromSelection(
@@ -176,6 +179,9 @@ final class CompleteDraftGenerator {
    *   Whether explicitly confirmed source reuse is allowed.
    */
   public function finalizeQueued(SummarizationResult $result, \DateTimeInterface $start, \DateTimeInterface $end, array $selection, array $options, bool $allowEmpty, bool $allowEvidenceReuse): ChangelogifyReleaseInterface {
+    if ($result->items === [] && !$allowEmpty) {
+      throw new \UnexpectedValueException('The provider did not return any release items.');
+    }
     $preview = $this->releaseGenerator->previewRange($start, $end);
     $release = $this->releaseGenerator->generateReleaseFromSelection(
       $start,

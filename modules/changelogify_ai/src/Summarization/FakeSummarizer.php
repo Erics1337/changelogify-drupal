@@ -43,6 +43,9 @@ final class FakeSummarizer implements SummarizerInterface {
         new SummarizationItem('invalid', 'other', '<script>unsafe</script>', ['unknown']),
       ]);
     }
+    if ($this->mode === 'empty') {
+      return new SummarizationResult('completed', [], [], [], 'fake', 'deterministic');
+    }
     $items = [];
     foreach ($request->evidence as $id => $evidence) {
       $items[] = new SummarizationItem($id, (string) ($evidence['section'] ?? 'other'), (string) ($evidence['summary'] ?? ''), [$id]);

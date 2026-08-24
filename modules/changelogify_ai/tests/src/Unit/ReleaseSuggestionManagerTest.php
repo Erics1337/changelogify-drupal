@@ -69,6 +69,18 @@ final class ReleaseSuggestionManagerTest extends TestCase {
   }
 
   /**
+   * Deliberate regeneration uses a distinct idempotency key.
+   */
+  public function testRegenerationUsesExplicitAttempt(): void {
+    $release = $this->release();
+    $manager = $this->manager();
+    $first = $manager->suggest($release, 'item-1', 'concise', 0);
+    $second = $manager->suggest($release, 'item-1', 'concise', 1);
+    self::assertNotSame($first->operationId, $second->operationId);
+    self::assertSame('completed', $second->status);
+  }
+
+  /**
    * Manual items require an explicit opt-in even with an available provider.
    */
   public function testManualItemRequiresExplicitOptIn(): void {

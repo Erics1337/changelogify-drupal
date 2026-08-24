@@ -150,10 +150,12 @@ final class HumanizeItemForm extends FormBase {
    * Requests a proposal without changing the release.
    */
   public function generateSubmit(array &$form, FormStateInterface $form_state): void {
-    $release = $this->loadUnchangedRelease($form_state);
     try {
+      $release = $this->loadUnchangedRelease($form_state);
       $previous = $form_state->get('suggestion');
-      $result = $this->suggestions->suggest($release, (string) $form_state->get('item_id'), (string) $form_state->getValue('profile'));
+      $attempt = max(0, (int) $form_state->get('generation_attempt'));
+      $result = $this->suggestions->suggest($release, (string) $form_state->get('item_id'), (string) $form_state->getValue('profile'), $attempt);
+      $form_state->set('generation_attempt', $attempt + 1);
       if ($result->status !== 'completed' || count($result->items) !== 1) {
         $this->messenger()->addError($this->t('The provider did not return one usable suggestion.'));
         return;
@@ -191,7 +193,13 @@ final class HumanizeItemForm extends FormBase {
       $form_state->setErrorByName('suggestion', $this->t('The release changed while this suggestion was being reviewed. Generate a new suggestion before accepting it.'));
       return;
     }
-    $this->suggestions->accept($release, (string) $form_state->get('item_id'), (string) $suggestion['text'], (string) $suggestion['operation_id']);
+    try {
+      $this->suggestions->accept($release, (string) $form_state->get('item_id'), (string) $suggestion['text'], (string) $suggestion['operation_id']);
+    }
+    catch (\UnexpectedValueException) {
+      $form_state->setErrorByName('suggestion', $this->t('This suggestion is no longer eligible for acceptance. Generate a new suggestion and try again.'));
+      return;
+    }
     $this->messenger()->addStatus($this->t('The suggestion was accepted in a new release revision.'));
     $form_state->setRedirectUrl(Url::fromRoute('entity.changelogify_release.edit_form', ['changelogify_release' => $release->id()]));
   }

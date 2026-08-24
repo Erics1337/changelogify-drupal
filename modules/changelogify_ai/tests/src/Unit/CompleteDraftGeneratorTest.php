@@ -63,6 +63,19 @@ final class CompleteDraftGeneratorTest extends TestCase {
   }
 
   /**
+   * A completed provider response cannot silently create an empty draft.
+   */
+  public function testEmptyCompletedResultRequiresExplicitConfirmation(): void {
+    $releaseGenerator = $this->createMock(ReleaseGeneratorInterface::class);
+    $releaseGenerator->expects(self::never())->method('generateReleaseFromSelection');
+    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('empty'), $releaseGenerator);
+    $this->expectException(\UnexpectedValueException::class);
+    $generator->generate([
+      new ChangeSet('change-1', 'content', 1, 1, [1], 'changed', ['message' => 'Evidence.'], []),
+    ], new \DateTimeImmutable('@1'), new \DateTimeImmutable('@2'), ['change-1' => 'changed'], [], 'concise', FALSE, FALSE);
+  }
+
+  /**
    * Empty queued drafts require the same explicit confirmation as sync drafts.
    */
   public function testQueueRejectsUnconfirmedEmptySelection(): void {

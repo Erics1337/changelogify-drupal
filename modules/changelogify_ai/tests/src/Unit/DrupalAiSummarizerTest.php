@@ -35,7 +35,7 @@ final class DrupalAiSummarizerTest extends TestCase {
       public bool $structuredOutput = TRUE;
 
       public function isUsable(string $operation, array $capabilities = []): bool {
-        return $operation === 'chat' && $capabilities === [];
+        return $operation === 'chat' && $capabilities === [] && $this->configuration === ['temperature' => 0];
       }
 
       public function modelSupportsCapabilities(string $operation, string $model, array $capabilities): bool {

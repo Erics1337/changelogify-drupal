@@ -146,7 +146,7 @@ final class AiOperationManager {
   public function enqueue(SummarizationRequest $request, array $sourceIds, ?int $releaseId = NULL, ?int $revisionId = NULL, string $queueName = 'changelogify_ai_draft', array $context = []): void {
     $store = $this->keyValue->get('changelogify_ai.operations');
     $existing = $store->get($request->idempotencyKey);
-    if (is_array($existing) && in_array($existing['status'], ['queued', 'running', 'completed'], TRUE)) {
+    if (is_array($existing) && in_array($existing['status'] ?? NULL, ['queued', 'running', 'completed'], TRUE)) {
       throw new \RuntimeException('An equivalent AI operation is already in progress or complete.');
     }
     $store->set($request->idempotencyKey, [
@@ -178,7 +178,7 @@ final class AiOperationManager {
   public function cancel(string $operationId): void {
     $store = $this->keyValue->get('changelogify_ai.operations');
     $operation = $store->get($operationId);
-    if (!is_array($operation) || $operation['status'] !== 'queued') {
+    if (!is_array($operation) || ($operation['status'] ?? NULL) !== 'queued') {
       throw new \UnexpectedValueException('Only queued operations can be cancelled.');
     }
     $operation['status'] = 'cancelled';
