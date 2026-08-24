@@ -159,6 +159,12 @@ ddev phpunit
 custom date generation, hook compatibility, retention, query indexes, and
 tracking privacy behavior.
 
+Stable releases are governed by the [compatibility matrix and release
+checklist](docs/RELEASE_CHECKLIST.md). The Drupal.org pipeline tests the
+declared Drupal 10.3/PHP 8.1 floor, rolling Drupal 10 and 11 releases, and the
+maximum supported PHP version; PHPUnit, PHPStan, PHPCS, and applicable frontend
+lint jobs must all pass.
+
 ---
 
 ## 🛣️ Roadmap

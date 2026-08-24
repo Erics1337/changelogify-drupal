@@ -1,0 +1,68 @@
+# Changelogify 1.3 release gate
+
+This document is the compatibility contract for the 1.3 release line. A commit
+is releasable only when its Drupal.org GitLab pipeline completes successfully
+with every job below green. Manual or skipped required jobs do not satisfy the
+gate.
+
+## Supported versions
+
+Package metadata declares PHP 8.1 or newer and Drupal core `^10.3 || ^11` in
+both `composer.json` and `changelogify.info.yml`. Drupal core may impose a
+higher PHP minimum or a maximum for a particular core release; those core
+constraints are part of the effective support contract.
+
+| CI lane | Drupal core | PHP | Purpose |
+| --- | --- | --- | --- |
+| `phpunit (Drupal 10.3, PHP 8.1)` | Latest 10.3.x patch | 8.1 | Oldest declared Drupal/PHP support lines |
+| `phpunit (previous major)` | Latest supported Drupal 10 | Core's minimum | Current Drupal 10 compatibility |
+| `phpunit` | Latest stable Drupal 11 | Core's default | Current Drupal 11 compatibility |
+| `phpunit (max PHP version)` | Latest stable Drupal 11 | Core's maximum | Newest supported dependency combination |
+
+The rolling lanes intentionally take their core and PHP versions from the
+Drupal.org shared templates. This keeps the gate current when Drupal publishes
+supported minor or PHP releases, while the pinned lane protects the package's
+declared lower bound.
+
+The shared PHPUnit job discovers and runs every test class under `tests/`, so
+the same job includes the Unit, Kernel, and Functional suites. There is no
+FunctionalJavascript test suite at present.
+
+## Required pipeline jobs
+
+Before tagging a stable release, verify the pipeline contains and passes:
+
+- [ ] `composer` and `composer-lint`
+- [ ] `composer (previous major)`
+- [ ] `composer (max PHP version)`
+- [ ] `composer (Drupal 10.3, PHP 8.1)`
+- [ ] `phpunit`
+- [ ] `phpunit (previous major)`
+- [ ] `phpunit (max PHP version)`
+- [ ] `phpunit (Drupal 10.3, PHP 8.1)`
+- [ ] `phpstan` and all generated PHPStan matrix variants
+- [ ] `phpcs`
+- [ ] `stylelint` for the module's CSS
+- [ ] `eslint` whenever JavaScript is present
+
+PHPCS, PHPStan, ESLint, and Stylelint are explicitly configured as blocking
+jobs. ESLint remains part of the gate but may be omitted automatically by the
+shared template while the project contains no applicable JavaScript files.
+
+## Maintainer release checklist
+
+- [ ] Confirm `composer.json` and `changelogify.info.yml` still declare the same
+      Drupal and PHP ranges documented above.
+- [ ] Confirm `phpstan.neon` loads the committed baseline and analyzes `src`.
+- [ ] Confirm all required jobs ran automatically and passed for the release
+      commit; a warning, manual, canceled, or skipped required lane is not green.
+- [ ] Review the PHPUnit log to confirm Unit, Kernel, and Functional tests were
+      discovered. Treat a required suite with zero discovered tests as failure.
+- [ ] Confirm Composer resolved dependencies in every matrix `composer` job.
+- [ ] Confirm there are no allowed failures among validation jobs.
+- [ ] Update release notes and the project version, then tag only the exact
+      commit whose pipeline passed.
+
+When support metadata changes, update this document and `.gitlab-ci.yml` in the
+same commit. Dropping the pinned Drupal 10.3 lane requires dropping `^10.3` from
+both package metadata files.

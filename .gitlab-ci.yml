@@ -7,4 +7,39 @@ include:
       - "/includes/include.drupalci.workflows.yml"
 
 variables:
+  # Release gate: rolling Drupal 11, rolling Drupal 10, the maximum supported
+  # PHP version, and the explicitly declared Drupal 10.3/PHP 8.1 floor.
   OPT_IN_TEST_PREVIOUS_MAJOR: "1"
+  OPT_IN_TEST_MAX_PHP: "1"
+  _AUTORUN_PREVIOUS_MAJOR: "all"
+  _AUTORUN_MAX_PHP: "all"
+
+  # Drupal's templates allow validation jobs to fail by default. A stable
+  # release requires every applicable validation job to be green.
+  _ALL_VALIDATE_ALLOW_FAILURE: "0"
+  SKIP_PHPCS: "0"
+  SKIP_PHPSTAN: "0"
+  SKIP_ESLINT: "0"
+  SKIP_STYLELINT: "0"
+
+# The rolling "previous major" lane cannot prove the lower bound declared in
+# composer.json. Keep this lane pinned until Drupal 10.3 support is dropped.
+composer (Drupal 10.3, PHP 8.1):
+  extends: .composer-base
+  variables:
+    DRUPAL_CORE: "~10.3.0"
+    PHP_VERSION: "8.1"
+    PHP_IMAGE_VARIANT: "apache"
+    IGNORE_PROJECT_DRUPAL_CORE_VERSION: "1"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+phpunit (Drupal 10.3, PHP 8.1):
+  extends: phpunit
+  needs:
+    - "composer (Drupal 10.3, PHP 8.1)"
+  rules:
+    - !reference [ .skip-phpunit-rule ]
+    - !reference [ .phpunit-tests-exist-rule ]
