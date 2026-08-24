@@ -69,6 +69,13 @@ class ChangelogifyEvent extends ContentEntityBase implements ChangelogifyEventIn
   /**
    * {@inheritdoc}
    */
+  public function getSchemaVersion(): int {
+    return (int) $this->get('schema_version')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public static function baseFieldDefinitions(EntityTypeInterface $entity_type): array {
     $fields = parent::baseFieldDefinitions($entity_type);
 
@@ -76,6 +83,12 @@ class ChangelogifyEvent extends ContentEntityBase implements ChangelogifyEventIn
       ->setLabel(t('Timestamp'))
       ->setDescription(t('The time the event occurred.'))
       ->setRequired(TRUE);
+
+    $fields['schema_version'] = BaseFieldDefinition::create('integer')
+      ->setLabel(t('Schema version'))
+      ->setDescription(t('The normalized event contract version.'))
+      ->setRequired(TRUE)
+      ->setDefaultValue(1);
 
     $fields['event_type'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Event Type'))
@@ -123,6 +136,11 @@ class ChangelogifyEvent extends ContentEntityBase implements ChangelogifyEventIn
       ->setLabel(t('Section Hint'))
       ->setDescription(t('Suggested release section: added, changed, fixed, removed, security, other.'))
       ->setSetting('max_length', 32);
+
+    $fields['correlation_id'] = BaseFieldDefinition::create('string')
+      ->setLabel(t('Correlation ID'))
+      ->setDescription(t('An optional identifier shared by related events.'))
+      ->setSetting('max_length', 128);
 
     return $fields;
   }
@@ -182,6 +200,13 @@ class ChangelogifyEvent extends ContentEntityBase implements ChangelogifyEventIn
    */
   public function getSectionHint(): ?string {
     return $this->get('section_hint')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getCorrelationId(): ?string {
+    return $this->get('correlation_id')->value;
   }
 
   /**

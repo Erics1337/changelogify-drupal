@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\changelogify\Kernel;
 
+use Drupal\changelogify\EventInput;
+use Drupal\changelogify\EventManagerInterface;
 use Drupal\Core\Database\Database;
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests the current clean-install contract.
@@ -13,6 +16,7 @@ use PHPUnit\Framework\Attributes\Group;
  * @group changelogify
  */
 #[Group('changelogify')]
+#[RunTestsInSeparateProcesses]
 final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
 
   /**
@@ -41,6 +45,7 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
     self::assertEqualsCanonicalizing([
       'id', 'uuid', 'timestamp', 'event_type', 'source', 'entity_type_id',
       'entity_id', 'bundle', 'user_id', 'message', 'metadata', 'section_hint',
+      'schema_version', 'correlation_id',
     ], array_keys($fieldManager->getBaseFieldDefinitions('changelogify_event')));
     self::assertEqualsCanonicalizing([
       'id', 'uuid', 'title', 'label_type', 'version', 'release_date',
@@ -53,7 +58,44 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
     self::assertTrue($schema->indexExists('changelogify_event', 'changelogify_event__event_type_timestamp'));
     self::assertTrue($schema->indexExists('changelogify_event', 'changelogify_event__source_timestamp'));
     self::assertTrue($schema->indexExists('changelogify_event', 'changelogify_event__section_timestamp'));
+    self::assertTrue($schema->indexExists('changelogify_event', 'changelogify_event__correlation_timestamp'));
+    self::assertTrue($schema->indexExists('changelogify_event', 'changelogify_event__schema_timestamp'));
     self::assertTrue($schema->indexExists('changelogify_release', 'changelogify_release__status_date'));
+  }
+
+  /**
+   * Tests typed input persists contract provenance and correlation.
+   */
+  public function testTypedEventContractPersistence(): void {
+    /** @var \Drupal\changelogify\EventManagerInterface $manager */
+    $manager = $this->container->get(EventManagerInterface::class);
+    $event = $manager->logEventInput(new EventInput(
+      eventType: 'config_imported',
+      source: 'config',
+      message: 'Imported configuration.',
+      timestamp: 1_700_000_000,
+      actorId: 0,
+      sectionHint: 'changed',
+      metadata: ['collection' => 'default'],
+      correlationId: 'config-import:123',
+    ));
+
+    self::assertSame(EventInput::SCHEMA_VERSION, $event->getSchemaVersion());
+    self::assertSame('config-import:123', $event->getCorrelationId());
+    self::assertSame(['collection' => 'default'], $event->getMetadata());
+
+    $events = $manager->getEventsByRange(
+      new \DateTimeImmutable('@1699999999'),
+      new \DateTimeImmutable('@1700000001'),
+      [
+        'correlation_id' => 'config-import:123',
+        'schema_version' => EventInput::SCHEMA_VERSION,
+      ],
+    );
+    self::assertSame([(int) $event->id()], array_map(
+      static fn ($matchedEvent): int => (int) $matchedEvent->id(),
+      $events,
+    ));
   }
 
 }

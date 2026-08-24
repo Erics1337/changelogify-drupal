@@ -77,3 +77,43 @@ function changelogify_post_update_ensure_query_indexes(): void {
 
   \Drupal::logger('changelogify')->notice('Verified all Changelogify event and release query indexes.');
 }
+
+/**
+ * Adds normalized contract provenance fields and correlation indexes.
+ */
+function changelogify_post_update_add_event_contract_fields(): void {
+  $updateManager = \Drupal::entityDefinitionUpdateManager();
+  $fieldManager = \Drupal::service('entity_field.manager');
+  $definitions = $fieldManager->getBaseFieldDefinitions('changelogify_event');
+
+  foreach (['schema_version', 'correlation_id'] as $fieldName) {
+    if ($updateManager->getFieldStorageDefinition($fieldName, 'changelogify_event') === NULL) {
+      $updateManager->installFieldStorageDefinition(
+        $fieldName,
+        'changelogify',
+        'changelogify_event',
+        $definitions[$fieldName],
+      );
+    }
+  }
+
+  $schema = Database::getConnection()->schema();
+  $tableSpec = [
+    'fields' => [
+      'timestamp' => ['type' => 'int', 'not null' => TRUE],
+      'schema_version' => ['type' => 'int', 'not null' => TRUE, 'default' => 1],
+      'correlation_id' => ['type' => 'varchar', 'length' => 128],
+    ],
+  ];
+  $indexes = [
+    'changelogify_event__correlation_timestamp' => ['correlation_id', 'timestamp'],
+    'changelogify_event__schema_timestamp' => ['schema_version', 'timestamp'],
+  ];
+  foreach ($indexes as $name => $fields) {
+    if (!$schema->indexExists('changelogify_event', $name)) {
+      $schema->addIndex('changelogify_event', $name, $fields, $tableSpec);
+    }
+  }
+
+  \Drupal::logger('changelogify')->notice('Added the versioned event contract fields and indexes without changing existing events.');
+}

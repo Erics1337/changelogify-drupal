@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Drupal\changelogify\Hook;
 
 use Drupal\changelogify\EventManagerInterface;
+use Drupal\changelogify\EventInput;
+use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\Core\Entity\EntityTypeBundleInfoInterface;
 use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
+use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\user\UserInterface;
 
 /**
@@ -24,6 +27,8 @@ class ChangelogifyHooks {
     protected EventManagerInterface $eventManager,
     protected ConfigFactoryInterface $configFactory,
     protected EntityTypeBundleInfoInterface $entityTypeBundleInfo,
+    protected TimeInterface $time,
+    protected AccountProxyInterface $currentUser,
   ) {
   }
 
@@ -88,15 +93,17 @@ class ChangelogifyHooks {
         continue;
       }
 
-      $this->eventManager->logEvent([
-        'event_type' => 'module_installed',
-        'source' => 'system',
-        'message' => $this->t('Installed module: @module', ['@module' => $module])->__toString(),
-        'section_hint' => 'added',
-        'metadata' => [
+      $this->eventManager->logEventInput(new EventInput(
+        eventType: 'module_installed',
+        source: 'system',
+        message: $this->t('Installed module: @module', ['@module' => $module])->__toString(),
+        timestamp: $this->time->getRequestTime(),
+        actorId: (int) $this->currentUser->id(),
+        sectionHint: 'added',
+        metadata: [
           'module' => $module,
         ],
-      ]);
+      ));
     }
   }
 
@@ -110,15 +117,17 @@ class ChangelogifyHooks {
     }
 
     foreach ($modules as $module) {
-      $this->eventManager->logEvent([
-        'event_type' => 'module_uninstalled',
-        'source' => 'system',
-        'message' => $this->t('Uninstalled module: @module', ['@module' => $module])->__toString(),
-        'section_hint' => 'removed',
-        'metadata' => [
+      $this->eventManager->logEventInput(new EventInput(
+        eventType: 'module_uninstalled',
+        source: 'system',
+        message: $this->t('Uninstalled module: @module', ['@module' => $module])->__toString(),
+        timestamp: $this->time->getRequestTime(),
+        actorId: (int) $this->currentUser->id(),
+        sectionHint: 'removed',
+        metadata: [
           'module' => $module,
         ],
-      ]);
+      ));
     }
   }
 
@@ -131,17 +140,19 @@ class ChangelogifyHooks {
       return;
     }
 
-    $this->eventManager->logEvent([
-      'event_type' => 'user_created',
-      'source' => 'user',
-      'entity_type_id' => 'user',
-      'entity_id' => (int) $account->id(),
-      'message' => $this->t('Created user: @name', ['@name' => $account->getAccountName()])->__toString(),
-      'section_hint' => 'added',
-      'metadata' => [
+    $this->eventManager->logEventInput(new EventInput(
+      eventType: 'user_created',
+      source: 'user',
+      message: $this->t('Created user: @name', ['@name' => $account->getAccountName()])->__toString(),
+      timestamp: $this->time->getRequestTime(),
+      actorId: (int) $this->currentUser->id(),
+      entityTypeId: 'user',
+      entityId: (int) $account->id(),
+      sectionHint: 'added',
+      metadata: [
         'username' => $account->getAccountName(),
       ],
-    ]);
+    ));
   }
 
   /**
@@ -163,19 +174,21 @@ class ChangelogifyHooks {
     $new_roles = $account->getRoles();
 
     if ($old_roles !== $new_roles) {
-      $this->eventManager->logEvent([
-        'event_type' => 'user_role_changed',
-        'source' => 'user',
-        'entity_type_id' => 'user',
-        'entity_id' => (int) $account->id(),
-        'message' => $this->t('Changed roles for user: @name', ['@name' => $account->getAccountName()])->__toString(),
-        'section_hint' => 'changed',
-        'metadata' => [
+      $this->eventManager->logEventInput(new EventInput(
+        eventType: 'user_role_changed',
+        source: 'user',
+        message: $this->t('Changed roles for user: @name', ['@name' => $account->getAccountName()])->__toString(),
+        timestamp: $this->time->getRequestTime(),
+        actorId: (int) $this->currentUser->id(),
+        entityTypeId: 'user',
+        entityId: (int) $account->id(),
+        sectionHint: 'changed',
+        metadata: [
           'username' => $account->getAccountName(),
           'old_roles' => $old_roles,
           'new_roles' => $new_roles,
         ],
-      ]);
+      ));
     }
   }
 
@@ -255,23 +268,18 @@ class ChangelogifyHooks {
    * Logs a supported content entity event.
    */
   private function logContentEvent(EntityInterface $entity, string $action, string $sectionHint): void {
-    $eventData = [
-      'event_type' => $entity->getEntityTypeId() . '_' . $action,
-      'source' => 'content_entity',
-      'entity_type_id' => $entity->getEntityTypeId(),
-      'message' => $this->buildContentMessage($entity, $action),
-      'section_hint' => $sectionHint,
-      'metadata' => $this->buildContentMetadata($entity, $action),
-    ];
-
-    if ($entity->id() !== NULL) {
-      $eventData['entity_id'] = (int) $entity->id();
-    }
-    if ($entity->bundle() !== NULL) {
-      $eventData['bundle'] = $entity->bundle();
-    }
-
-    $this->eventManager->logEvent($eventData);
+    $this->eventManager->logEventInput(new EventInput(
+      eventType: $entity->getEntityTypeId() . '_' . $action,
+      source: 'content_entity',
+      message: $this->buildContentMessage($entity, $action),
+      timestamp: $this->time->getRequestTime(),
+      actorId: (int) $this->currentUser->id(),
+      entityTypeId: $entity->getEntityTypeId(),
+      entityId: $entity->id() === NULL ? NULL : (int) $entity->id(),
+      bundle: $entity->bundle() ?: NULL,
+      sectionHint: $sectionHint,
+      metadata: $this->buildContentMetadata($entity, $action),
+    ));
   }
 
   /**

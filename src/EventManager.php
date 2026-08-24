@@ -28,54 +28,43 @@ class EventManager implements EventManagerInterface {
    * {@inheritdoc}
    */
   public function logEvent(array $data): ChangelogifyEventInterface {
-    foreach (['event_type', 'source', 'message'] as $requiredKey) {
-      if (!isset($data[$requiredKey])
-            || !is_string($data[$requiredKey])
-            || trim($data[$requiredKey]) === '') {
-        throw new \InvalidArgumentException(sprintf(
-              'Event data key "%s" must be a non-empty string.',
-              $requiredKey,
-          ));
-      }
-    }
+    return $this->logEventInput(EventInput::fromArray(
+      $data,
+      (int) $this->time->getRequestTime(),
+      (int) $this->currentUser->id(),
+    ));
+  }
 
-    if (isset($data['metadata']) && !is_array($data['metadata'])) {
-      throw new \InvalidArgumentException('Event metadata must be an array.');
-    }
-
-    $allowedSections = ['added', 'changed', 'fixed', 'removed', 'security', 'other'];
-    if (isset($data['section_hint'])
-          && !in_array($data['section_hint'], $allowedSections, TRUE)) {
-      throw new \InvalidArgumentException('Event section_hint is invalid.');
-    }
-
+  /**
+   * {@inheritdoc}
+   */
+  public function logEventInput(EventInput $input): ChangelogifyEventInterface {
     $storage = $this->entityTypeManager->getStorage('changelogify_event');
 
     $event_data = [
-      'timestamp' => $data['timestamp'] ?? $this->time->getRequestTime(),
-      'event_type' => trim($data['event_type']),
-      'source' => trim($data['source']),
-      'message' => trim($data['message']),
-      'user_id' => $data['user_id'] ?? $this->currentUser->id(),
+      'schema_version' => $input->schemaVersion,
+      'timestamp' => $input->timestamp,
+      'event_type' => $input->eventType,
+      'source' => $input->source,
+      'message' => $input->message,
+      'user_id' => $input->actorId,
+      'metadata' => json_encode($input->metadata, JSON_THROW_ON_ERROR),
     ];
 
-    if (isset($data['entity_type_id'])) {
-      $event_data['entity_type_id'] = $data['entity_type_id'];
-    }
-    if (isset($data['entity_id'])) {
-      $event_data['entity_id'] = $data['entity_id'];
-    }
-    if (isset($data['bundle'])) {
-      $event_data['bundle'] = $data['bundle'];
-    }
-    if (isset($data['section_hint'])) {
-      $event_data['section_hint'] = $data['section_hint'];
+    $optionalFields = [
+      'entityTypeId' => 'entity_type_id',
+      'entityId' => 'entity_id',
+      'bundle' => 'bundle',
+      'sectionHint' => 'section_hint',
+      'correlationId' => 'correlation_id',
+    ];
+    foreach ($optionalFields as $property => $field) {
+      if ($input->{$property} !== NULL) {
+        $event_data[$field] = $input->{$property};
+      }
     }
     /** @var \Drupal\changelogify\Entity\ChangelogifyEventInterface $event */
     $event = $storage->create($event_data);
-    if (isset($data['metadata'])) {
-      $event->setMetadata($data['metadata']);
-    }
     $event->save();
 
     return $event;
@@ -102,6 +91,12 @@ class EventManager implements EventManagerInterface {
     }
     if (!empty($filters['section_hint'])) {
       $query->condition('section_hint', $filters['section_hint']);
+    }
+    if (!empty($filters['correlation_id'])) {
+      $query->condition('correlation_id', $filters['correlation_id']);
+    }
+    if (isset($filters['schema_version'])) {
+      $query->condition('schema_version', $filters['schema_version']);
     }
     if (isset($filters['limit'])) {
       $limit = filter_var($filters['limit'], FILTER_VALIDATE_INT, [
