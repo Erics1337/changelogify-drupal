@@ -182,6 +182,11 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ->setDefaultValue('{}')
       ->setDisplayConfigurable('form', TRUE);
 
+    $fields['provenance'] = BaseFieldDefinition::create('string_long')
+      ->setLabel(t('Provenance'))
+      ->setDescription(t('JSON-encoded privacy-bounded release evidence.'))
+      ->setDefaultValue('{"version":1,"items":{}}');
+
     $fields['status'] = BaseFieldDefinition::create('boolean')
       ->setLabel(t('Published'))
       ->setDescription(t('Whether the release is published.'))
@@ -302,6 +307,113 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
 
     $this->set('sections', json_encode($normalized, JSON_THROW_ON_ERROR));
     return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getProvenance(): array {
+    $value = $this->get('provenance')->value;
+    if (empty($value)) {
+      return ['version' => 1, 'items' => []];
+    }
+    $decoded = json_decode($value, TRUE, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($decoded) || !is_array($decoded['items'] ?? NULL)) {
+      throw new \UnexpectedValueException('Release provenance must contain versioned items.');
+    }
+    return ['version' => (int) ($decoded['version'] ?? 1), 'items' => $decoded['items']];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setProvenance(array $provenance): ChangelogifyReleaseInterface {
+    if (!is_array($provenance['items'] ?? NULL)) {
+      throw new \InvalidArgumentException('Release provenance must contain an items array.');
+    }
+    if (array_diff(array_keys($provenance), ['version', 'items']) !== []) {
+      throw new \InvalidArgumentException('Release provenance contains unsupported top-level data.');
+    }
+    $items = [];
+    foreach ($provenance['items'] as $itemId => $item) {
+      if (!is_string($itemId) || $itemId === '' || !is_array($item)) {
+        throw new \InvalidArgumentException('Release provenance contains an invalid item.');
+      }
+      $items[$itemId] = $this->normalizeProvenanceItem($item);
+    }
+    $this->set('provenance', json_encode([
+      'version' => (int) ($provenance['version'] ?? 1),
+      'items' => $items,
+    ], JSON_THROW_ON_ERROR));
+    return $this;
+  }
+
+  /**
+   * Validates one privacy-bounded provenance item.
+   */
+  private function normalizeProvenanceItem(array $item): array {
+    $allowed = [
+      'change_set_id',
+      'kind',
+      'section',
+      'event_ids',
+      'event_count',
+      'evidence_status',
+      'events',
+    ];
+    if (array_diff(array_keys($item), $allowed) !== []) {
+      throw new \InvalidArgumentException('Release provenance item contains unsupported data.');
+    }
+    if (!is_array($item['event_ids'] ?? NULL) || !is_array($item['events'] ?? NULL)) {
+      throw new \InvalidArgumentException('Release provenance event references must be arrays.');
+    }
+    foreach ($item['events'] as $event) {
+      if (!is_array($event)) {
+        throw new \InvalidArgumentException('Release provenance contains invalid event evidence.');
+      }
+      $this->validateProvenanceEvent($event);
+    }
+    $this->validateEvidenceStatus($item['evidence_status'] ?? NULL);
+    return $item;
+  }
+
+  /**
+   * Rejects event evidence outside the explicitly redacted schema.
+   */
+  private function validateProvenanceEvent(array $event): void {
+    $allowed = [
+      'event_id',
+      'event_uuid',
+      'event_type',
+      'source',
+      'timestamp',
+      'schema_version',
+      'correlation_id',
+      'entity_type_id',
+      'entity_id',
+      'bundle',
+      'evidence_status',
+    ];
+    if (array_diff(array_keys($event), $allowed) !== []) {
+      throw new \InvalidArgumentException('Release provenance event contains unsupported data.');
+    }
+    $this->validateEvidenceStatus($event['evidence_status'] ?? NULL);
+  }
+
+  /**
+   * Validates an evidence lifecycle status.
+   */
+  private function validateEvidenceStatus(mixed $status): void {
+    if (!is_string($status) || !in_array($status, [
+      'available',
+      'expired',
+      'missing',
+      'invalid',
+      'partial',
+      'removed',
+    ], TRUE)) {
+      throw new \InvalidArgumentException('Release provenance contains an invalid evidence status.');
+    }
   }
 
   /**

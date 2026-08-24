@@ -8,6 +8,7 @@ use Drupal\changelogify\EventManager;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountProxyInterface;
+use Drupal\changelogify\Provenance\ReleaseProvenanceManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
@@ -34,6 +35,7 @@ final class EventManagerValidationTest extends TestCase {
           $entityTypeManager,
           $this->createMock(AccountProxyInterface::class),
           $this->createMock(TimeInterface::class),
+          $this->createMock(ReleaseProvenanceManagerInterface::class),
       );
 
     $this->expectException(\InvalidArgumentException::class);

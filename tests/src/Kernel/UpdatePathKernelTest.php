@@ -57,6 +57,7 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     $this->expectException(UpdateException::class);
     $this->expectExceptionMessage('Restore the module database tables from backup, then rerun database updates.');
     changelogify_post_update_ensure_query_indexes();
+    changelogify_post_update_add_event_contract_fields();
   }
 
   /**
@@ -148,6 +149,8 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     self::assertNotNull($event);
     self::assertNotNull($release);
     self::assertSame($fixture['metadata'], $event->get('metadata')->value);
+    self::assertSame(1, (int) $event->get('schema_version')->value);
+    self::assertNull($event->get('correlation_id')->value);
     self::assertSame($fixture['sections'], $release->get('sections')->value);
   }
 
@@ -158,7 +161,12 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     $this->includeUpdateFiles();
     changelogify_update_12001();
     changelogify_update_13001();
+    changelogify_update_14001();
+    changelogify_update_14002();
+    changelogify_update_14003();
     changelogify_post_update_ensure_query_indexes();
+    changelogify_post_update_add_event_contract_fields();
+    changelogify_post_update_add_release_provenance();
   }
 
   /**
@@ -206,6 +214,8 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
         'changelogify_event__event_type_timestamp',
         'changelogify_event__source_timestamp',
         'changelogify_event__section_timestamp',
+        'changelogify_event__correlation_timestamp',
+        'changelogify_event__schema_timestamp',
       ],
       'changelogify_release' => [
         'changelogify_release__status_date',
@@ -222,8 +232,22 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
       'track_modules' => FALSE,
       'track_users' => FALSE,
       'event_retention_days' => 0,
+      'provenance_retention_days' => 0,
       'track_unpublished_content' => FALSE,
       'changelog_path' => '/changelog',
+      'content_capture' => [
+        'entity_types' => [
+          'node' => [
+            'enabled' => TRUE,
+            'default_bundle_enabled' => TRUE,
+            'bundles' => [],
+          ],
+        ],
+      ],
+      'config_import' => [
+        'include_sensitive' => FALSE,
+        'excluded_patterns' => [],
+      ],
     ];
     self::assertEquals($expected, $this->config('changelogify.settings')->getRawData());
   }

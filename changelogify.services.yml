@@ -15,6 +15,79 @@ services:
   Drupal\changelogify\EventManagerInterface:
     alias: Drupal\changelogify\EventManager
 
+  Drupal\changelogify\EventSource\EventSourceRecorder:
+    class: Drupal\changelogify\EventSource\EventSourceRecorder
+
+  Drupal\changelogify\EventSource\EventSourceRecorderInterface:
+    alias: Drupal\changelogify\EventSource\EventSourceRecorder
+
+  Drupal\changelogify\EventSource\ContentCapturePolicy:
+    class: Drupal\changelogify\EventSource\ContentCapturePolicy
+
+  Drupal\changelogify\EventSource\ContentCapturePolicyInterface:
+    alias: Drupal\changelogify\EventSource\ContentCapturePolicy
+
+  Drupal\changelogify\EntityDifference\EntityDifferenceService:
+    class: Drupal\changelogify\EntityDifference\EntityDifferenceService
+
+  Drupal\changelogify\EntityDifference\EntityDifferenceServiceInterface:
+    alias: Drupal\changelogify\EntityDifference\EntityDifferenceService
+
+  Drupal\changelogify\ConfigClassifier\ConfigClassifier:
+    class: Drupal\changelogify\ConfigClassifier\ConfigClassifier
+    arguments:
+      - !tagged_iterator changelogify.config_classifier
+
+  Drupal\changelogify\ConfigClassifier\ConfigClassifierInterface:
+    alias: Drupal\changelogify\ConfigClassifier\ConfigClassifier
+
+  Drupal\changelogify\ChangeSet\ChangeSetAggregator:
+    class: Drupal\changelogify\ChangeSet\ChangeSetAggregator
+    arguments:
+      - !tagged_iterator changelogify.change_set_grouping_strategy
+
+  Drupal\changelogify\ChangeSet\ChangeSetAggregatorInterface:
+    alias: Drupal\changelogify\ChangeSet\ChangeSetAggregator
+
+  Drupal\changelogify\Provenance\ReleaseProvenanceManager:
+    class: Drupal\changelogify\Provenance\ReleaseProvenanceManager
+
+  Drupal\changelogify\Provenance\ReleaseProvenanceManagerInterface:
+    alias: Drupal\changelogify\Provenance\ReleaseProvenanceManager
+
+  Drupal\changelogify\EventSource\EventSourceRegistry:
+    class: Drupal\changelogify\EventSource\EventSourceRegistry
+    arguments:
+      - !tagged_iterator changelogify.event_source
+
+  Drupal\changelogify\EventSource\EventSourceRegistryInterface:
+    alias: Drupal\changelogify\EventSource\EventSourceRegistry
+
+  Drupal\changelogify\EventSource\ContentEventSource:
+    class: Drupal\changelogify\EventSource\ContentEventSource
+    tags:
+      - { name: changelogify.event_source }
+
+  Drupal\changelogify\EventSource\ModuleEventSource:
+    class: Drupal\changelogify\EventSource\ModuleEventSource
+    tags:
+      - { name: changelogify.event_source }
+
+  Drupal\changelogify\EventSource\UserEventSource:
+    class: Drupal\changelogify\EventSource\UserEventSource
+    tags:
+      - { name: changelogify.event_source }
+
+  Drupal\changelogify\EventSource\ConfigImportEventSource:
+    class: Drupal\changelogify\EventSource\ConfigImportEventSource
+    tags:
+      - { name: changelogify.event_source }
+
+  Drupal\changelogify\EventSubscriber\ConfigImportSubscriber:
+    class: Drupal\changelogify\EventSubscriber\ConfigImportSubscriber
+    tags:
+      - { name: event_subscriber }
+
   Drupal\changelogify\ReleaseGeneratorInterface:
     alias: Drupal\changelogify\ReleaseGenerator
 

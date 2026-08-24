@@ -12,6 +12,11 @@ use Drupal\Core\Entity\ContentEntityInterface;
 interface ChangelogifyEventInterface extends ContentEntityInterface {
 
   /**
+   * Gets the normalized contract schema version.
+   */
+  public function getSchemaVersion(): int;
+
+  /**
    * Gets the event timestamp.
    */
   public function getTimestamp(): int;
@@ -50,6 +55,11 @@ interface ChangelogifyEventInterface extends ContentEntityInterface {
    * Gets the section hint.
    */
   public function getSectionHint(): ?string;
+
+  /**
+   * Gets the correlation ID, if any.
+   */
+  public function getCorrelationId(): ?string;
 
   /**
    * Gets the metadata array.

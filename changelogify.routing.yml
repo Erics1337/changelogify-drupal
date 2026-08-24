@@ -23,6 +23,18 @@ changelogify.generate_release:
   requirements:
     _permission: 'manage changelogify releases'
 
+changelogify.release_provenance:
+  path: '/admin/content/changelogify/releases/{changelogify_release}/provenance'
+  defaults:
+    _controller: '\Drupal\changelogify\Controller\ReleaseProvenanceController::view'
+    _title: 'Release provenance'
+  requirements:
+    _permission: 'manage changelogify releases'
+  options:
+    parameters:
+      changelogify_release:
+        type: entity:changelogify_release
+
 # Public routes
 changelogify.changelog:
   path: '/changelog'

@@ -7,7 +7,11 @@ namespace Drupal\Tests\changelogify\Kernel;
 use Drupal\Core\Entity\ContentEntityType;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Url;
+use Drupal\changelogify\EventSource\ContentEventSource;
+use Drupal\block_content\Entity\BlockContentType;
+use Drupal\media\Entity\MediaType;
 use Drupal\node\Entity\Node;
+use Drupal\taxonomy\Entity\Vocabulary;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -25,11 +29,20 @@ final class ContentTrackingKernelTest extends ChangelogifyKernelTestBase {
    * Tests media, custom block, and taxonomy term event descriptions.
    */
   public function testGenericContentEntitiesAreTracked(): void {
-    $hooks = $this->container->get('Drupal\changelogify\Hook\ChangelogifyHooks');
+    MediaType::create(['id' => 'image', 'label' => 'Image', 'source' => 'image'])->save();
+    BlockContentType::create(['id' => 'basic', 'label' => 'Basic'])->save();
+    Vocabulary::create(['vid' => 'tags', 'name' => 'Tags'])->save();
+    foreach (['media', 'block_content', 'taxonomy_term'] as $entityTypeId) {
+      $this->config('changelogify.settings')
+        ->set("content_capture.entity_types.$entityTypeId.enabled", TRUE)
+        ->set("content_capture.entity_types.$entityTypeId.default_bundle_enabled", TRUE)
+        ->save();
+    }
+    $hooks = $this->container->get(ContentEventSource::class);
 
     $hooks->entityInsert($this->createEntityDouble('media', 'image', 'Homepage Hero', '/media/hero', 10));
     $hooks->entityUpdate($this->createEntityDouble('block_content', 'basic', 'Promo Banner', '/block/1', 11));
-    $hooks->entityDelete($this->createEntityDouble('taxonomy_term', 'tags', 'Drupal', '/taxonomy/term/1', 12));
+    $hooks->entityDelete($this->createEntityDouble('taxonomy_term', 'tags', 'Drupal', '/terms/drupal', 12));
 
     $events = $this->loadEvents();
     self::assertCount(3, $events);
@@ -68,6 +81,28 @@ final class ContentTrackingKernelTest extends ChangelogifyKernelTestBase {
       static fn ($event): string => $event->getEventType(),
       $this->loadEvents(),
     ));
+    $events = $this->loadEvents();
+    self::assertSame(['title'], $events[1]->getMetadata()['changed_fields']);
+    self::assertSame('published', $events[2]->getMetadata()['publication_transition']);
+    self::assertArrayNotHasKey('changed_fields', $events[2]->getMetadata());
+    self::assertSame('unpublished', $events[3]->getMetadata()['publication_transition']);
+  }
+
+  /**
+   * Tests no-op saves do not create generic update events.
+   */
+  public function testNoOpSaveIsSuppressed(): void {
+    $node = Node::create([
+      'type' => 'page',
+      'title' => 'No-op page',
+      'status' => TRUE,
+    ]);
+    $node->save();
+    self::assertCount(1, $this->loadEvents());
+
+    $node->save();
+    $events = $this->loadEvents();
+    self::assertCount(1, $events);
   }
 
   /**

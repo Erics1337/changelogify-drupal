@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify;
 
+use Drupal\changelogify\ChangeSet\ChangeSetAggregatorInterface;
 use Drupal\Component\Datetime\TimeInterface;
-use Drupal\changelogify\Entity\ChangelogifyEventInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
@@ -31,6 +31,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
     protected EventManagerInterface $eventManager,
     protected AccountProxyInterface $currentUser,
     protected TimeInterface $time,
+    protected ChangeSetAggregatorInterface $changeSetAggregator,
   ) {
   }
 
@@ -65,7 +66,8 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
       throw new \InvalidArgumentException('The release start date must not be after its end date.');
     }
 
-    $sections = $this->groupEventsBySection($this->normalizeEvents($events));
+    $aggregation = $this->changeSetAggregator->aggregate($events);
+    [$sections, $provenance] = $this->buildReleaseData($aggregation->changeSets);
 
     $storage = $this->entityTypeManager->getStorage('changelogify_release');
 
@@ -84,6 +86,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
     ]);
 
     $release->setSections($sections);
+    $release->setProvenance($provenance);
     $release->save();
 
     return $release;
@@ -107,96 +110,38 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
   }
 
   /**
-   * Groups events by their section hint.
+   * Groups coherent change sets into backwards-compatible release items.
    */
-  protected function groupEventsBySection(array $events): array {
-    $sections = [
-      'added' => [],
-      'changed' => [],
-      'fixed' => [],
-      'removed' => [],
-      'security' => [],
-      'other' => [],
-    ];
-
-    $itemIndexes = [];
-    foreach ($events as $event) {
-      $hint = $event->getSectionHint() ?? 'other';
-      if (!isset($sections[$hint])) {
-        $hint = 'other';
-      }
-
-      $message = trim($event->getMessage());
-      $itemKey = $hint . "\0" . $message;
-      if (isset($itemIndexes[$itemKey])) {
-        $sections[$hint][$itemIndexes[$itemKey]]['event_ids'][] = (int) $event->id();
-      }
-      else {
-        $itemIndexes[$itemKey] = count($sections[$hint]);
-        $sections[$hint][] = [
-          'id' => $event->uuid(),
-          'text' => $message,
-          'event_ids' => [(int) $event->id()],
-        ];
-      }
+  protected function buildReleaseData(array $changeSets): array {
+    $sections = array_fill_keys([
+      'added',
+      'changed',
+      'fixed',
+      'removed',
+      'security',
+      'other',
+    ], []);
+    $provenance = ['version' => 1, 'items' => []];
+    foreach ($changeSets as $changeSet) {
+      $hint = isset($sections[$changeSet->suggestedSection])
+        ? $changeSet->suggestedSection
+        : 'other';
+      $sections[$hint][] = [
+        'id' => $changeSet->id,
+        'text' => trim((string) ($changeSet->summaryContext['message'] ?? '')),
+        'event_ids' => $changeSet->sourceEventIds,
+      ];
+      $provenance['items'][$changeSet->id] = [
+        'change_set_id' => $changeSet->id,
+        'kind' => $changeSet->kind,
+        'section' => $hint,
+        'event_ids' => $changeSet->sourceEventIds,
+        'event_count' => $changeSet->provenance['event_count'] ?? count($changeSet->sourceEventIds),
+        'evidence_status' => $changeSet->provenance['evidence_status'] ?? 'available',
+        'events' => $changeSet->provenance['events'] ?? [],
+      ];
     }
-
-    return $sections;
-  }
-
-  /**
-   * Removes empty and redundant update events before grouping.
-   *
-   * @param \Drupal\changelogify\Entity\ChangelogifyEventInterface[] $events
-   *   Events in chronological order.
-   *
-   * @return \Drupal\changelogify\Entity\ChangelogifyEventInterface[]
-   *   Normalized events.
-   */
-  private function normalizeEvents(array $events): array {
-    $publicationChanges = [];
-    foreach ($events as $event) {
-      if ($this->isPublicationEvent($event)) {
-        $publicationChanges[$this->buildEntityTimestampKey($event)] = TRUE;
-      }
-    }
-
-    return array_values(array_filter(
-      $events,
-      fn (ChangelogifyEventInterface $event): bool => trim($event->getMessage()) !== ''
-        && !$this->shouldSuppressUpdate($event, $publicationChanges),
-    ));
-  }
-
-  /**
-   * Determines whether an event is a publication state change.
-   */
-  private function isPublicationEvent(ChangelogifyEventInterface $event): bool {
-    return str_ends_with($event->getEventType(), '_published')
-      || str_ends_with($event->getEventType(), '_unpublished');
-  }
-
-  /**
-   * Suppresses a generic update emitted with a publication change.
-   */
-  private function shouldSuppressUpdate(ChangelogifyEventInterface $event, array $publicationChanges): bool {
-    if (!str_ends_with($event->getEventType(), '_updated')
-      && $event->getEventType() !== 'content_updated') {
-      return FALSE;
-    }
-
-    return isset($publicationChanges[$this->buildEntityTimestampKey($event)]);
-  }
-
-  /**
-   * Builds a key for matching related events at the same timestamp.
-   */
-  private function buildEntityTimestampKey(ChangelogifyEventInterface $event): string {
-    return implode(':', [
-      (string) $event->getRelatedEntityTypeId(),
-      (string) $event->getRelatedEntityId(),
-      (string) $event->getTimestamp(),
-    ]);
+    return [$sections, $provenance];
   }
 
   /**

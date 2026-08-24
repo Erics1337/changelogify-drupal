@@ -6,6 +6,7 @@ namespace Drupal\Tests\changelogify\Unit;
 
 use Drupal\changelogify\EventManagerInterface;
 use Drupal\changelogify\ReleaseGenerator;
+use Drupal\changelogify\ChangeSet\ChangeSetAggregatorInterface;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountProxyInterface;
@@ -41,6 +42,7 @@ final class ReleaseGeneratorTest extends TestCase {
       $eventManager,
       $this->createMock(AccountProxyInterface::class),
       $this->createMock(TimeInterface::class),
+      $this->createMock(ChangeSetAggregatorInterface::class),
     );
 
     $this->expectException(\LengthException::class);

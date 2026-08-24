@@ -45,6 +45,16 @@ interface ChangelogifyReleaseInterface extends ContentEntityInterface, EntityCha
   public function setSections(array $sections): self;
 
   /**
+   * Gets privacy-bounded release provenance.
+   */
+  public function getProvenance(): array;
+
+  /**
+   * Sets privacy-bounded release provenance.
+   */
+  public function setProvenance(array $provenance): self;
+
+  /**
    * Gets the release date timestamp.
    */
   public function getReleaseDate(): int;

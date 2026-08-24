@@ -52,3 +52,50 @@ function changelogify_update_13001(): string {
 
   return 'Added Changelogify privacy and public path defaults.';
 }
+
+/**
+ * Preserves the historical content capture policy for existing sites.
+ */
+function changelogify_update_14001(): string {
+  $config = \Drupal::configFactory()->getEditable('changelogify.settings');
+  if ($config->get('content_capture') === NULL) {
+    $entityTypes = [];
+    foreach (['node'] as $entityTypeId) {
+      $entityTypes[$entityTypeId] = [
+        'enabled' => TRUE,
+        'default_bundle_enabled' => TRUE,
+        'bundles' => [],
+      ];
+    }
+    $config->set('content_capture.entity_types', $entityTypes)->save();
+  }
+
+  \Drupal::logger('changelogify')->notice('Preserved the existing content capture policy; newly discovered entity types remain disabled.');
+  return 'Added privacy-first content entity type and bundle policies.';
+}
+
+/**
+ * Adds privacy defaults for configuration import capture.
+ */
+function changelogify_update_14002(): string {
+  $config = \Drupal::configFactory()->getEditable('changelogify.settings');
+  if ($config->get('config_import.include_sensitive') === NULL) {
+    $config->set('config_import.include_sensitive', FALSE);
+  }
+  if ($config->get('config_import.excluded_patterns') === NULL) {
+    $config->set('config_import.excluded_patterns', []);
+  }
+  $config->save();
+  return 'Added privacy defaults for correlated configuration import events.';
+}
+
+/**
+ * Adds an independent retention policy for minimal release provenance.
+ */
+function changelogify_update_14003(): string {
+  $config = \Drupal::configFactory()->getEditable('changelogify.settings');
+  if ($config->get('provenance_retention_days') === NULL) {
+    $config->set('provenance_retention_days', 0)->save();
+  }
+  return 'Added the minimal release provenance retention policy.';
+}

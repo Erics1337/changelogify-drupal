@@ -31,6 +31,11 @@ interface EventManagerInterface {
   public function logEvent(array $data): ChangelogifyEventInterface;
 
   /**
+   * Logs a validated, normalized event input.
+   */
+  public function logEventInput(EventInput $input): ChangelogifyEventInterface;
+
+  /**
    * Gets events within a date range.
    *
    * @param \DateTimeInterface $start
@@ -38,7 +43,8 @@ interface EventManagerInterface {
    * @param \DateTimeInterface $end
    *   End of the date range.
    * @param array $filters
-   *   Optional filters (event_type, source, section_hint, limit).
+   *   Optional filters (event_type, source, section_hint, correlation_id,
+   *   schema_version, limit).
    *
    * @return \Drupal\changelogify\Entity\ChangelogifyEventInterface[]
    *   Array of event entities.

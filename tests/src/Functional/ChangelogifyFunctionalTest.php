@@ -11,6 +11,7 @@ use Drupal\Tests\BrowserTestBase;
 use Drupal\user\Entity\Role;
 use Drupal\user\RoleInterface;
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests the Changelogify admin interface.
@@ -18,6 +19,7 @@ use PHPUnit\Framework\Attributes\Group;
  * @group changelogify
  */
 #[Group('changelogify')]
+#[RunTestsInSeparateProcesses]
 class ChangelogifyFunctionalTest extends BrowserTestBase {
 
   /**
@@ -143,6 +145,44 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->drupalGet('/changelog/' . $draft->id());
     $this->assertSession()->statusCodeEquals(403);
     $this->assertSession()->pageTextNotContains('Confidential draft change');
+  }
+
+  /**
+   * Tests release provenance requires the release-management permission.
+   */
+  public function testProvenanceAccess(): void {
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+    $release = $storage->create([
+      'title' => 'Evidence release',
+      'release_date' => 1_700_000_000,
+      'status' => TRUE,
+    ]);
+    $release->setProvenance([
+      'version' => 1,
+      'items' => [
+        'safe-item' => [
+          'event_ids' => [],
+          'evidence_status' => 'removed',
+          'events' => [],
+        ],
+      ],
+    ])->save();
+    $path = '/admin/content/changelogify/releases/' . $release->id() . '/provenance';
+
+    $this->drupalGet($path);
+    $this->assertSession()->statusCodeEquals(403);
+
+    $viewer = $this->drupalCreateUser(['view changelogify releases']);
+    $this->drupalLogin($viewer);
+    $this->drupalGet($path);
+    $this->assertSession()->statusCodeEquals(403);
+
+    $manager = $this->drupalCreateUser(['manage changelogify releases']);
+    $this->drupalLogin($manager);
+    $this->drupalGet($path);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('removed');
   }
 
   /**
@@ -279,6 +319,32 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'status' => FALSE,
     ])->save();
     self::assertSame(2, $this->eventCount('node_created'));
+  }
+
+  /**
+   * Tests administrators can exclude a content bundle from capture.
+   */
+  public function testContentBundleCapturePolicyForm(): void {
+    NodeType::create(['type' => 'page', 'name' => 'Page'])->save();
+    $user = $this->drupalCreateUser([
+      'administer changelogify',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    $this->drupalGet('/admin/config/development/changelogify/settings');
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Newly discovered entity types and bundles are disabled');
+    $this->submitForm([
+      'content_capture[node][bundles][page]' => FALSE,
+    ], 'Save configuration');
+
+    Node::create([
+      'type' => 'page',
+      'title' => 'Excluded through settings',
+      'status' => TRUE,
+    ])->save();
+    self::assertSame(0, $this->eventCount('node_created'));
   }
 
   /**

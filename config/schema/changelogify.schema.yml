@@ -17,6 +17,55 @@ changelogify.settings:
     track_users:
       type: boolean
       label: Track user changes
+    event_sources:
+      type: sequence
+      label: Event source settings
+      sequence:
+        type: mapping
+        label: Event source
+        mapping:
+          enabled:
+            type: boolean
+            label: Enabled
+    content_capture:
+      type: mapping
+      label: Content capture policy
+      mapping:
+        entity_types:
+          type: sequence
+          label: Entity type policies
+          sequence:
+            type: mapping
+            label: Entity type policy
+            mapping:
+              enabled:
+                type: boolean
+                label: Enabled
+              default_bundle_enabled:
+                type: boolean
+                label: Enable unconfigured bundles
+              bundles:
+                type: sequence
+                label: Bundle policies
+                sequence:
+                  type: boolean
+                  label: Enabled
     event_retention_days:
       type: integer
       label: Event retention period in days
+    provenance_retention_days:
+      type: integer
+      label: Minimal release provenance retention period in days
+    config_import:
+      type: mapping
+      label: Configuration import capture
+      mapping:
+        include_sensitive:
+          type: boolean
+          label: Include sensitive configuration names
+        excluded_patterns:
+          type: sequence
+          label: Excluded configuration name patterns
+          sequence:
+            type: string
+            label: Pattern

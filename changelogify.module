@@ -60,6 +60,22 @@ function changelogify_modules_uninstalled(array $modules, bool $is_syncing): voi
 }
 
 /**
+ * Implements hook_themes_installed() for Drupal versions before 11.1.
+ */
+#[LegacyHook]
+function changelogify_themes_installed(array $themes): void {
+  _changelogify_hooks()->themesInstalled($themes);
+}
+
+/**
+ * Implements hook_themes_uninstalled() for Drupal versions before 11.1.
+ */
+#[LegacyHook]
+function changelogify_themes_uninstalled(array $themes): void {
+  _changelogify_hooks()->themesUninstalled($themes);
+}
+
+/**
  * Implements hook_user_insert() for Drupal versions before 11.1.
  */
 #[LegacyHook]

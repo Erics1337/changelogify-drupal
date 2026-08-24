@@ -24,6 +24,8 @@ final class ChangelogifyEventStorageSchema extends SqlContentEntityStorageSchema
       'changelogify_event__event_type_timestamp' => ['event_type', 'timestamp'],
       'changelogify_event__source_timestamp' => ['source', 'timestamp'],
       'changelogify_event__section_timestamp' => ['section_hint', 'timestamp'],
+      'changelogify_event__correlation_timestamp' => ['correlation_id', 'timestamp'],
+      'changelogify_event__schema_timestamp' => ['schema_version', 'timestamp'],
     ];
 
     return $schema;
