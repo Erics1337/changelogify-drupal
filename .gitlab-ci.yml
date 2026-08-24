@@ -22,6 +22,11 @@ variables:
   SKIP_ESLINT: "0"
   SKIP_STYLELINT: "0"
 
+# The template treats the forward-looking maximum-PHP test as advisory. It is
+# part of Changelogify's declared release matrix, so a failure must block.
+phpunit (max PHP version):
+  allow_failure: false
+
 # The rolling "previous major" lane cannot prove the lower bound declared in
 # composer.json. Keep this lane pinned until Drupal 10.3 support is dropped.
 composer (Drupal 10.3, PHP 8.1):
