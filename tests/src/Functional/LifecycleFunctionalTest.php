@@ -7,6 +7,7 @@ namespace Drupal\Tests\changelogify\Functional;
 use Drupal\Core\Extension\ModuleUninstallValidatorException;
 use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests installation and deterministic uninstall cleanup.
@@ -14,6 +15,7 @@ use PHPUnit\Framework\Attributes\Group;
  * @group changelogify
  */
 #[Group('changelogify')]
+#[RunTestsInSeparateProcesses]
 final class LifecycleFunctionalTest extends BrowserTestBase {
 
   /**

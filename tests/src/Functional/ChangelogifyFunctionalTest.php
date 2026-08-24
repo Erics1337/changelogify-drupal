@@ -73,6 +73,124 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
   }
 
   /**
+   * Tests event explorer filters, details, redaction, and access control.
+   */
+  public function testEventExplorer(): void {
+    /** @var \Drupal\changelogify\EventManagerInterface $eventManager */
+    $eventManager = \Drupal::service(EventManagerInterface::class);
+    $first = $eventManager->logEvent([
+      'timestamp' => strtotime('2025-02-10 12:00:00 UTC'),
+      'event_type' => 'content_updated',
+      'source' => 'content_entity',
+      'message' => '<script>unsafe event</script>',
+      'entity_type_id' => 'node',
+      'entity_id' => 42,
+      'bundle' => 'article',
+      'section_hint' => 'changed',
+      'correlation_id' => 'deployment-123',
+      'metadata' => [
+        'label' => '<b>Escaped label</b>',
+        'api_token' => 'must-not-render',
+      ],
+    ]);
+    $eventManager->logEvent([
+      'timestamp' => strtotime('2025-02-10 12:01:00 UTC'),
+      'event_type' => 'config_imported',
+      'source' => 'config',
+      'message' => 'Correlated configuration change',
+      'section_hint' => 'changed',
+      'correlation_id' => 'deployment-123',
+    ]);
+    $eventManager->logEvent([
+      'timestamp' => strtotime('2025-02-11 12:00:00 UTC'),
+      'event_type' => 'user_created',
+      'source' => 'user',
+      'message' => 'Filtered out event',
+      'section_hint' => 'added',
+    ]);
+
+    $detailPath = '/admin/content/changelogify/events/' . $first->id();
+    $this->drupalGet($detailPath);
+    $this->assertSession()->statusCodeEquals(403);
+
+    $admin = $this->drupalCreateUser([
+      'administer changelogify',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($admin);
+    $this->drupalGet('/admin/content/changelogify/events', [
+      'query' => [
+        'date_from' => '2025-02-10',
+        'date_to' => '2025-02-10',
+        'source' => 'content_entity',
+        'event_type' => 'content_updated',
+        'entity_type' => 'node',
+        'bundle' => 'article',
+        'section_hint' => 'changed',
+        'correlation_id' => 'deployment-123',
+        'release_inclusion' => 'unused',
+      ],
+    ]);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('unsafe event');
+    $this->assertSession()->pageTextNotContains('Filtered out event');
+    $this->assertSession()->responseNotContains('<script>unsafe event</script>');
+
+    $releaseStorage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    $release = $releaseStorage->create([
+      'title' => 'Explorer evidence release',
+      'release_date' => strtotime('2025-02-12 12:00:00 UTC'),
+      'status' => FALSE,
+    ]);
+    $release->setSections([
+      'changed' => [
+        [
+          'id' => 'explorer-evidence-item',
+          'text' => 'Evidence-backed item',
+          'event_ids' => [(int) $first->id()],
+        ],
+      ],
+    ])->save();
+    $this->drupalGet('/admin/content/changelogify/events', [
+      'query' => ['release_inclusion' => 'included'],
+    ]);
+    $this->assertSession()->pageTextContains('unsafe event');
+    $this->assertSession()->pageTextNotContains('Filtered out event');
+
+    $this->drupalGet($detailPath);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Normalized metadata');
+    $this->assertSession()->pageTextContains('[redacted]');
+    $this->assertSession()->pageTextNotContains('must-not-render');
+    $this->assertSession()->pageTextContains('Correlated configuration change');
+    $this->assertSession()->responseNotContains('<b>Escaped label</b>');
+
+    $this->drupalGet('/admin/content/changelogify/events', [
+      'query' => [
+        'date_from' => '2025-02-12',
+        'date_to' => '2025-02-10',
+      ],
+    ]);
+    $this->assertSession()->pageTextContains('The end date must not be before the start date.');
+
+    for ($index = 0; $index < 51; $index++) {
+      $eventManager->logEvent([
+        'timestamp' => strtotime('2025-03-01 12:00:00 UTC') + $index,
+        'event_type' => 'pagination_test',
+        'source' => 'test',
+        'message' => 'Paginated event ' . $index,
+        'section_hint' => 'other',
+      ]);
+    }
+    $this->drupalGet('/admin/content/changelogify/events', [
+      'query' => ['event_type' => 'pagination_test'],
+    ]);
+    $this->assertSession()->elementExists('css', 'nav.pager');
+    $this->assertSession()->pageTextContains('Paginated event 50');
+    $this->assertSession()->pageTextNotContains('Paginated event 0');
+  }
+
+  /**
    * Tests attribute and legacy hook implementations do not both execute.
    */
   public function testHooksExecuteOnlyOnce(): void {
@@ -137,14 +255,169 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('Public release');
     $this->assertSession()->pageTextNotContains('Private draft release');
     $this->assertSession()->responseContains('changelogify.public.css');
+    $this->assertSession()->elementExists('css', '.changelogify-release-list[aria-live="polite"]');
+    $this->assertSession()->elementExists('css', 'article h2 a[rel="bookmark"]');
+    $this->assertSession()->elementExists('css', 'time[datetime]');
+    $this->assertSession()->elementAttributeContains('css', 'link[rel="canonical"]', 'href', '/changelog');
 
-    $this->drupalGet('/changelog/' . $published->id());
+    $this->drupalGet('/changelog/' . $published->getSlug());
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Visible public change');
+    $this->assertSession()->elementExists('css', '.release-section h2');
+    $this->assertSession()->elementExists('css', '.release-section ul li');
+    $this->assertSession()->elementAttributeContains('css', 'link[rel="canonical"]', 'href', '/changelog/' . $published->getSlug());
+    $this->assertSession()->responseNotContains('public-item');
 
-    $this->drupalGet('/changelog/' . $draft->id());
-    $this->assertSession()->statusCodeEquals(403);
+    // Prime page caches, then verify every lifecycle change invalidates them.
+    $published->setTitle('Updated public release');
+    $published->setSections([
+      'fixed' => [[
+        'id' => 'private-identity',
+        'text' => 'Freshly rendered public change',
+        'event_ids' => ['private-evidence'],
+      ],
+      ],
+    ])->save();
+    $this->drupalGet('/changelog');
+    $this->assertSession()->pageTextContains('Updated public release');
+    $this->drupalGet('/changelog/' . $published->getSlug());
+    $this->assertSession()->pageTextContains('Freshly rendered public change');
+    $this->assertSession()->responseNotContains('private-identity');
+    $this->assertSession()->responseNotContains('private-evidence');
+
+    $published->setEditorialState('draft')->save();
+    $this->drupalGet('/changelog');
+    $this->assertSession()->pageTextNotContains('Updated public release');
+    $this->drupalGet('/changelog/' . $published->getSlug());
+    $this->assertSession()->statusCodeEquals(404);
+
+    $published->setEditorialState('published')->save();
+    $this->drupalGet('/changelog');
+    $this->assertSession()->pageTextContains('Updated public release');
+    $this->drupalGet('/changelog/' . $published->getSlug());
+    $this->assertSession()->statusCodeEquals(200);
+
+    $published->delete();
+    $this->drupalGet('/changelog');
+    $this->assertSession()->pageTextNotContains('Updated public release');
+    $this->drupalGet('/changelog/' . $published->getSlug());
+    $this->assertSession()->statusCodeEquals(404);
+
+    $this->drupalGet('/changelog/' . $draft->getSlug());
+    $this->assertSession()->statusCodeEquals(404);
     $this->assertSession()->pageTextNotContains('Confidential draft change');
+    $response = $this->getHttpClient()->get($this->buildUrl('/changelog/' . $draft->id()), [
+      'allow_redirects' => FALSE,
+      'http_errors' => FALSE,
+    ]);
+    self::assertSame(404, $response->getStatusCode());
+  }
+
+  /**
+   * Tests permission-controlled states, revisions, archive, and restoration.
+   */
+  public function testReleaseEditorialWorkflow(): void {
+    $anonymousRole = Role::load(RoleInterface::ANONYMOUS_ID);
+    self::assertNotNull($anonymousRole);
+    $anonymousRole->grantPermission('view changelogify releases')->save();
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+    $release = $storage->create([
+      'title' => 'Workflow release',
+      'release_date' => 1_700_000_000,
+      'status' => FALSE,
+    ]);
+    $release->save();
+
+    $manager = $this->drupalCreateUser(['manage changelogify releases']);
+    $this->drupalLogin($manager);
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->submitForm(['editorial_state' => 'published'], 'Save');
+    $this->assertSession()->pageTextContains('do not have permission');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame('draft', $release->getEditorialState());
+
+    $editor = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'submit changelogify releases for review',
+      'publish changelogify releases',
+      'archive changelogify releases',
+      'view changelogify release revisions',
+      'revert changelogify release revisions',
+    ]);
+    $this->drupalLogin($editor);
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->submitForm([
+      'editorial_state' => 'review',
+      'revision_log_message[0][value]' => 'Ready for stakeholder review.',
+    ], 'Save');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame('review', $release->getEditorialState());
+    self::assertFalse($release->isPublished());
+    $this->drupalLogout();
+    $this->drupalGet('/changelog/' . $release->getSlug());
+    $this->assertSession()->statusCodeEquals(404);
+    $this->drupalLogin($editor);
+
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->submitForm([
+      'editorial_state' => 'published',
+      'revision_log_message[0][value]' => 'Approved for publication.',
+    ], 'Save');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame('published', $release->getEditorialState());
+    self::assertTrue($release->isPublished());
+    $publishedRevisionId = (int) $release->getRevisionId();
+    $revisionIds = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('id', $release->id())
+      ->allRevisions()
+      ->execute();
+    self::assertGreaterThanOrEqual(3, count($revisionIds));
+    $this->drupalLogout();
+    $this->drupalGet('/changelog/' . $release->getSlug());
+    $this->assertSession()->statusCodeEquals(200);
+    $this->drupalGet('/admin/content/changelogify/releases/' . $release->id() . '/view');
+    $this->assertSession()->statusCodeEquals(403);
+    $revisionViewer = $this->drupalCreateUser(['view changelogify release revisions']);
+    $this->drupalLogin($revisionViewer);
+    $this->drupalGet($release->toUrl('version-history'));
+    $this->assertSession()->statusCodeEquals(200);
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->assertSession()->statusCodeEquals(403);
+    $this->drupalLogin($editor);
+
+    $this->drupalGet($release->toUrl('version-history'));
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Approved for publication.');
+
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->submitForm(['editorial_state' => 'archived'], 'Save');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame('archived', $release->getEditorialState());
+    self::assertFalse($release->isPublished());
+    $this->drupalLogout();
+    $this->drupalGet('/changelog/' . $release->getSlug());
+    $this->assertSession()->statusCodeEquals(404);
+    $this->drupalLogin($editor);
+
+    $revertUrl = '/admin/content/changelogify/releases/' . $release->id()
+      . '/revisions/' . $publishedRevisionId . '/revert';
+    $this->drupalGet($revertUrl);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->submitForm([], 'Revert');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame('published', $release->getEditorialState());
+    self::assertTrue($release->isPublished());
+    self::assertGreaterThan($publishedRevisionId, (int) $release->getRevisionId());
+    $this->drupalLogout();
+    $this->drupalGet('/changelog/' . $release->getSlug());
+    $this->assertSession()->statusCodeEquals(200);
   }
 
   /**
@@ -157,6 +430,15 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'title' => 'Evidence release',
       'release_date' => 1_700_000_000,
       'status' => TRUE,
+    ]);
+    $release->setSections([
+      'other' => [
+        [
+          'id' => 'safe-item',
+          'text' => 'Evidence item',
+          'event_ids' => [],
+        ],
+      ],
     ]);
     $release->setProvenance([
       'version' => 1,
@@ -183,6 +465,13 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->drupalGet($path);
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('removed');
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Source evidence: removed');
+    $this->assertSession()->elementNotExists(
+      'css',
+      'a[href^="/admin/content/changelogify/events/"]',
+    );
   }
 
   /**
@@ -215,18 +504,26 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     $user = $this->drupalCreateUser([
       'manage changelogify releases',
+      'administer changelogify',
       'access administration pages',
     ]);
     $this->drupalLogin($user);
 
     /** @var \Drupal\changelogify\EventManagerInterface $eventManager */
     $eventManager = \Drupal::service(EventManagerInterface::class);
-    $eventManager->logEvent([
+    $firstIncluded = $eventManager->logEvent([
       'timestamp' => strtotime('2025-01-15 12:00:00 UTC'),
       'event_type' => 'content_created',
       'source' => 'test',
       'message' => 'Included change',
       'section_hint' => 'added',
+    ]);
+    $secondIncluded = $eventManager->logEvent([
+      'timestamp' => strtotime('2025-01-15 13:00:00 UTC'),
+      'event_type' => 'content_updated',
+      'source' => 'test',
+      'message' => 'Selected change',
+      'section_hint' => 'changed',
     ]);
     $eventManager->logEvent([
       'timestamp' => strtotime('2025-01-16 00:00:00 UTC'),
@@ -244,17 +541,42 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'end_date[date]' => '2025-01-15',
       'title' => 'January release',
       'version' => '1.2.0-beta.1',
-    ], 'Generate Release');
+    ], 'Preview changes');
+
+    $ids = \Drupal::entityQuery('changelogify_release')
+      ->accessCheck(FALSE)
+      ->condition('title', 'January release')
+      ->execute();
+    self::assertCount(0, $ids, 'Preview does not persist a release.');
+    $this->assertSession()->pageTextContains('Included change');
+    $this->assertSession()->pageTextContains('Selected change');
+    $this->assertSession()->pageTextNotContains('Excluded change');
+    $firstId = 'changeset-' . substr(hash('sha256', 'event:' . $firstIncluded->id()), 0, 24);
+    $secondId = 'changeset-' . substr(hash('sha256', 'event:' . $secondIncluded->id()), 0, 24);
+    $firstIncludeName = 'change_sets[' . $firstId . '][include]';
+    $secondIncludeName = 'change_sets[' . $secondId . '][include]';
+    $secondSectionName = 'change_sets[' . $secondId . '][section]';
+    $this->submitForm([
+      $firstIncludeName => FALSE,
+      $secondIncludeName => TRUE,
+      $secondSectionName => 'fixed',
+    ], 'Create draft release');
 
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Draft release "January release" has been created.');
+    $this->assertSession()->responseContains('changelogify.editor.js');
+    $this->assertSession()->pageTextContains('Source evidence: available');
     $this->assertSession()->elementExists(
       'css',
-      'textarea[name="sections_wrapper[section_added][items]"]',
+      'a[href*="/admin/content/changelogify/events/"]',
+    );
+    $this->assertSession()->elementExists(
+      'css',
+      'input[name="sections_wrapper[items][existing_0][text]"]',
     );
     $this->assertSession()->elementNotExists(
       'css',
-      'textarea[name="sections[0][value]"]',
+      'textarea[name^="sections_wrapper"]',
     );
 
     $ids = \Drupal::entityQuery('changelogify_release')
@@ -268,9 +590,158 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       ->getStorage('changelogify_release')
       ->load(reset($ids));
     $sections = $release->getSections();
-    self::assertCount(1, $sections['added']);
-    self::assertSame('Included change', $sections['added'][0]['text']);
+    self::assertCount(0, $sections['added']);
+    self::assertCount(1, $sections['fixed']);
+    self::assertSame('Selected change', $sections['fixed'][0]['text']);
     self::assertSame('1.2.0-beta.1', $release->getVersion());
+
+    $itemId = $sections['fixed'][0]['id'];
+    $itemEvidence = $sections['fixed'][0]['event_ids'];
+    $this->submitForm([
+      'sections_wrapper[items][existing_0][text]' => 'Edited selected change',
+      'sections_wrapper[items][existing_0][section]' => 'security',
+      'sections_wrapper[items][existing_0][order]' => 0,
+      'sections_wrapper[items][manual_0][text]' => 'Editorial context',
+      'sections_wrapper[items][manual_0][section]' => 'added',
+      'sections_wrapper[items][manual_0][order]' => 0,
+    ], 'Save');
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    $storage->resetCache([$release->id()]);
+    $release = $storage->load($release->id());
+    $sections = $release->getSections();
+    self::assertSame($itemId, $sections['security'][0]['id']);
+    self::assertSame($itemEvidence, $sections['security'][0]['event_ids']);
+    self::assertSame('Edited selected change', $sections['security'][0]['text']);
+    self::assertSame([], $sections['added'][0]['event_ids']);
+    self::assertSame('security', $release->getProvenance()['items'][$itemId]['section']);
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->assertSession()->pageTextContains('Editorial item — no automatic evidence.');
+  }
+
+  /**
+   * Tests stale evidence recovery and explicit empty-draft confirmation.
+   */
+  public function testReleasePreviewRevalidatesEvidence(): void {
+    $user = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+    /** @var \Drupal\changelogify\EventManagerInterface $eventManager */
+    $eventManager = \Drupal::service(EventManagerInterface::class);
+    $event = $eventManager->logEvent([
+      'event_type' => 'content_updated',
+      'source' => 'test',
+      'message' => 'Evidence removed after preview',
+      'section_hint' => 'changed',
+    ]);
+
+    $this->drupalGet('/admin/config/development/changelogify/generate');
+    $this->submitForm(['mode' => 'since_last'], 'Preview changes');
+    $this->assertSession()->pageTextContains('Evidence removed after preview');
+    $eventId = 'changeset-' . substr(hash('sha256', 'event:' . $event->id()), 0, 24);
+    \Drupal::entityTypeManager()->getStorage('changelogify_event')->delete([$event]);
+    $this->submitForm([
+      'change_sets[' . $eventId . '][include]' => TRUE,
+      'change_sets[' . $eventId . '][section]' => 'changed',
+    ], 'Create draft release');
+    $this->assertSession()->pageTextContains('Preview the release window again and retry.');
+    $releaseCount = \Drupal::entityQuery('changelogify_release')
+      ->accessCheck(FALSE)
+      ->count()
+      ->execute();
+    self::assertSame(0, (int) $releaseCount);
+
+    $this->submitForm([
+      'mode' => 'custom',
+      'start_date[date]' => '2030-01-01',
+      'end_date[date]' => '2030-01-01',
+    ], 'Preview changes');
+    $this->assertSession()->pageTextContains('No change sets were found');
+    $this->submitForm([], 'Create draft release');
+    $this->assertSession()->pageTextContains('Confirm that you want to create an empty draft.');
+    $this->submitForm(['confirm_empty' => TRUE], 'Create draft release');
+    $this->assertSession()->pageTextContains('has been created');
+    $releaseCount = \Drupal::entityQuery('changelogify_release')
+      ->accessCheck(FALSE)
+      ->count()
+      ->execute();
+    self::assertSame(1, (int) $releaseCount);
+  }
+
+  /**
+   * Tests overlap, gap, reused-evidence, and timestamp-boundary warnings.
+   */
+  public function testReleaseCoverageWarnings(): void {
+    $this->config('system.date')->set('timezone.default', 'UTC')->save();
+    $user = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+    /** @var \Drupal\changelogify\EventManagerInterface $eventManager */
+    $eventManager = \Drupal::service(EventManagerInterface::class);
+    $boundary = strtotime('2025-04-01 23:59:59 UTC');
+    $event = $eventManager->logEvent([
+      'timestamp' => $boundary,
+      'event_type' => 'content_updated',
+      'source' => 'test',
+      'message' => 'Boundary evidence',
+      'section_hint' => 'changed',
+    ]);
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    $existing = $storage->create([
+      'title' => 'Backdated published release',
+      'release_date' => $boundary,
+      'date_start' => strtotime('2025-04-01 00:00:00 UTC'),
+      'date_end' => $boundary,
+      'status' => TRUE,
+    ]);
+    $existing->setSections([
+      'changed' => [
+        [
+          'id' => 'boundary-item',
+          'text' => 'Already released evidence',
+          'event_ids' => [(int) $event->id()],
+        ],
+      ],
+    ])->save();
+
+    $this->drupalGet('/admin/config/development/changelogify/generate');
+    $this->submitForm(['mode' => 'since_last'], 'Preview changes');
+    $this->assertSession()->pageTextContains('Boundary evidence');
+    $this->assertSession()->pageTextContains('overlaps published release');
+    $this->assertSession()->pageTextContains('reuses evidence from');
+    $changeSetId = 'changeset-' . substr(hash('sha256', 'event:' . $event->id()), 0, 24);
+    $this->submitForm([
+      'change_sets[' . $changeSetId . '][include]' => TRUE,
+      'change_sets[' . $changeSetId . '][section]' => 'changed',
+    ], 'Create draft release');
+    $this->assertSession()->pageTextContains('Confirm the intentional reuse of evidence');
+    $this->submitForm([
+      'change_sets[' . $changeSetId . '][include]' => TRUE,
+      'change_sets[' . $changeSetId . '][section]' => 'changed',
+      'confirm_reuse' => TRUE,
+    ], 'Create draft release');
+    $this->assertSession()->pageTextContains('has been created');
+    $createdIds = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->sort('id', 'DESC')
+      ->range(0, 1)
+      ->execute();
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $created */
+    $created = $storage->load(reset($createdIds));
+    $reuse = $created->getProvenance()['items'][$changeSetId]['evidence_reuse'];
+    self::assertSame([(int) $existing->id()], $reuse['release_ids']);
+    self::assertSame((int) $user->id(), $reuse['confirmed_by']);
+
+    $this->drupalGet('/admin/config/development/changelogify/generate');
+    $this->submitForm([
+      'mode' => 'custom',
+      'start_date[date]' => '2025-04-03',
+      'end_date[date]' => '2025-04-03',
+    ], 'Preview changes');
+    $this->assertSession()->pageTextContains('A coverage gap exists');
   }
 
   /**
@@ -404,6 +875,67 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     $this->drupalGet('/changelog');
     $this->assertSession()->statusCodeEquals(404);
+  }
+
+  /**
+   * Tests slug generation, collisions, history, and canonical redirects.
+   */
+  public function testPublicReleaseSlugs(): void {
+    $anonymousRole = Role::load(RoleInterface::ANONYMOUS_ID);
+    self::assertNotNull($anonymousRole);
+    $anonymousRole->grantPermission('view changelogify releases')->save();
+    $user = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'view changelogify releases',
+    ]);
+    $this->drupalLogin($user);
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $first */
+    $first = $storage->create([
+      'title' => 'Summer Launch',
+      'release_date' => 1_700_000_000,
+      'status' => TRUE,
+    ]);
+    $first->save();
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $second */
+    $second = $storage->create([
+      'title' => 'Summer Launch',
+      'release_date' => 1_700_000_001,
+      'status' => TRUE,
+    ]);
+    $second->save();
+    self::assertSame('summer-launch', $first->getSlug());
+    self::assertSame('summer-launch-2', $second->getSlug());
+
+    $first->setTitle('Renamed release')->save();
+    self::assertSame('summer-launch', $first->getSlug(), 'Title edits do not change a stable slug.');
+    $first->set('slug', 'Custom Launch')->save();
+    self::assertSame('custom-launch', $first->getSlug());
+    self::assertContains('summer-launch', $first->getSlugHistory());
+
+    $this->drupalGet('/changelog/custom-launch');
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Renamed release');
+    $response = $this->getHttpClient()->get($this->buildUrl('/changelog/summer-launch'), [
+      'allow_redirects' => FALSE,
+    ]);
+    self::assertSame(301, $response->getStatusCode());
+    self::assertStringContainsString('/changelog/custom-launch', $response->getHeaderLine('Location'));
+    $response = $this->getHttpClient()->get($this->buildUrl('/changelog/' . $first->id()), [
+      'allow_redirects' => FALSE,
+    ]);
+    self::assertSame(301, $response->getStatusCode());
+    self::assertStringContainsString('/changelog/custom-launch', $response->getHeaderLine('Location'));
+
+    $this->config('changelogify.settings')->set('changelog_path', '/product-updates')->save();
+    \Drupal::service('router.builder')->rebuild();
+    $this->drupalGet('/product-updates/custom-launch');
+    $this->assertSession()->statusCodeEquals(200);
+    $response = $this->getHttpClient()->get($this->buildUrl('/product-updates/' . $first->id()), [
+      'allow_redirects' => FALSE,
+    ]);
+    self::assertSame(301, $response->getStatusCode());
+    self::assertStringContainsString('/product-updates/custom-launch', $response->getHeaderLine('Location'));
   }
 
   /**

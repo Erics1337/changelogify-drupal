@@ -4,23 +4,23 @@
  * Template for public changelog release listing.
  */
 #}
-<div class="changelogify-release-list">
+<div class="changelogify-release-list" aria-live="polite">
   {% if releases is empty %}
-    <p>{{ 'No releases published yet.'|t }}</p>
+    <p class="changelogify-release-list__empty">{{ 'No releases published yet.'|t }}</p>
   {% else %}
     {% for item in releases %}
       <article class="changelogify-release-teaser">
         <header>
           <h2>
-            <a href="{{ path('changelogify.changelog_release', {'changelogify_release': item.release.id.value}) }}" rel="bookmark">
-              {{ item.release.title.value }}
+            <a href="{{ item.url }}" rel="bookmark">
+              {{ item.title }}
             </a>
           </h2>
-          <time datetime="{{ item.release.release_date.value|date('c') }}">
+          <time datetime="{{ item.date_iso }}">
             {{ item.date }}
           </time>
-          {% if item.release.version.value %}
-            <span class="version">{{ item.release.version.value }}</span>
+          {% if item.version %}
+            <span class="version">{{ 'Version @version'|t({'@version': item.version}) }}</span>
           {% endif %}
         </header>
         {% if item.excerpt %}

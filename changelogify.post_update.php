@@ -164,3 +164,117 @@ function changelogify_post_update_add_release_provenance(): void {
     '@count' => $count,
   ]);
 }
+
+/**
+ * Makes releases revisionable and backfills their editorial workflow state.
+ */
+function changelogify_post_update_add_release_revisions(?array &$sandbox = NULL): void {
+  $sandbox ??= [];
+  $schema = Database::getConnection()->schema();
+  if (!$schema->tableExists('changelogify_release')) {
+    throw new UpdateException('Changelogify cannot add release revisions because the release table is missing. Restore the module database tables from backup, then rerun database updates.');
+  }
+
+  // A schema batch can create the revision table before all field migration
+  // work is complete. Continue that same sandbox until the update manager says
+  // it is finished instead of treating table existence as completion.
+  if (isset($sandbox['entity_schema']) || !$schema->tableExists('changelogify_release_revision')) {
+    $entityType = \Drupal::entityTypeManager()->getDefinition('changelogify_release');
+    $definitions = \Drupal::service('entity_field.manager')
+      ->getFieldStorageDefinitions('changelogify_release');
+    $sandbox['entity_schema'] ??= [];
+    \Drupal::entityDefinitionUpdateManager()->updateFieldableEntityType(
+      $entityType,
+      $definitions,
+      $sandbox['entity_schema'],
+    );
+    if (($sandbox['entity_schema']['#finished'] ?? 1) < 1) {
+      $sandbox['#finished'] = 0.5 * $sandbox['entity_schema']['#finished'];
+      return;
+    }
+    unset($sandbox['entity_schema']);
+  }
+
+  $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+  if (!isset($sandbox['release_ids'])) {
+    $sandbox['release_ids'] = array_values($storage->getQuery()
+      ->accessCheck(FALSE)
+      ->sort('id', 'ASC')
+      ->execute());
+    $sandbox['processed'] = 0;
+    $sandbox['total'] = count($sandbox['release_ids']);
+  }
+  $ids = array_splice($sandbox['release_ids'], 0, 50);
+  foreach ($storage->loadMultiple($ids) as $release) {
+    $alreadyBackfilled = (int) Database::getConnection()
+      ->select('changelogify_release_revision', 'revision')
+      ->condition('id', $release->id())
+      ->condition('revision_log_message', 'Initial Changelogify 1.5 revision.')
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+    if ($alreadyBackfilled > 0) {
+      $sandbox['processed']++;
+      continue;
+    }
+    $release->setEditorialState($release->isPublished() ? 'published' : 'draft');
+    $release->setNewRevision(TRUE);
+    $release->setRevisionCreationTime((int) ($release->get('created')->value ?? \Drupal::time()->getRequestTime()));
+    $release->setRevisionUserId((int) $release->getOwnerId());
+    $release->setRevisionLogMessage('Initial Changelogify 1.5 revision.');
+    $release->save();
+    $sandbox['processed']++;
+  }
+  $sandbox['#finished'] = $sandbox['total'] === 0
+    ? 1
+    : min(1, $sandbox['processed'] / $sandbox['total']);
+  if ($sandbox['#finished'] === 1) {
+    \Drupal::logger('changelogify')->notice('Enabled release revisions and backfilled editorial states for @count releases.', [
+      '@count' => $sandbox['processed'],
+    ]);
+  }
+}
+
+/**
+ * Adds stable public slugs and backfills them deterministically by release ID.
+ */
+function changelogify_post_update_add_release_slugs(?array &$sandbox = NULL): void {
+  $sandbox ??= [];
+  $updateManager = \Drupal::entityDefinitionUpdateManager();
+  $definitions = \Drupal::service('entity_field.manager')
+    ->getBaseFieldDefinitions('changelogify_release');
+  foreach (['slug', 'slug_history'] as $fieldName) {
+    if ($updateManager->getFieldStorageDefinition($fieldName, 'changelogify_release') === NULL) {
+      $updateManager->installFieldStorageDefinition(
+        $fieldName,
+        'changelogify',
+        'changelogify_release',
+        $definitions[$fieldName],
+      );
+    }
+  }
+  $schema = Database::getConnection()->schema();
+  if (!$schema->indexExists('changelogify_release', 'changelogify_release__slug')) {
+    $schema->addUniqueKey('changelogify_release', 'changelogify_release__slug', ['slug']);
+  }
+
+  $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+  if (!isset($sandbox['release_ids'])) {
+    $sandbox['release_ids'] = array_values($storage->getQuery()
+      ->accessCheck(FALSE)
+      ->sort('id', 'ASC')
+      ->execute());
+    $sandbox['processed'] = 0;
+    $sandbox['total'] = count($sandbox['release_ids']);
+  }
+  $ids = array_splice($sandbox['release_ids'], 0, 50);
+  foreach ($storage->loadMultiple($ids) as $release) {
+    if ($release->getSlug() === '') {
+      $release->setRevisionLogMessage('Generated stable public release slug.')->save();
+    }
+    $sandbox['processed']++;
+  }
+  $sandbox['#finished'] = $sandbox['total'] === 0
+    ? 1
+    : min(1, $sandbox['processed'] / $sandbox['total']);
+}

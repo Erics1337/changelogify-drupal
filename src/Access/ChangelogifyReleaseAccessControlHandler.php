@@ -22,6 +22,15 @@ final class ChangelogifyReleaseAccessControlHandler extends EntityAccessControlH
   protected function checkAccess(EntityInterface $entity, $operation, AccountInterface $account): AccessResultInterface {
     assert($entity instanceof ChangelogifyReleaseInterface);
 
+    if (in_array($operation, ['view all revisions', 'view revision'], TRUE)) {
+      return AccessResult::allowedIfHasPermission($account, 'view changelogify release revisions')
+        ->addCacheableDependency($entity);
+    }
+    if ($operation === 'revert') {
+      return AccessResult::allowedIfHasPermission($account, 'revert changelogify release revisions')
+        ->addCacheableDependency($entity);
+    }
+
     if ($account->hasPermission('manage changelogify releases')) {
       return AccessResult::allowed()->cachePerPermissions();
     }

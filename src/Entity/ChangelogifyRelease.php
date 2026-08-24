@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Entity;
 
+use Drupal\changelogify\ReleaseSlugManager;
 use Drupal\Core\Entity\Attribute\ContentEntityType;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityChangedTrait;
+use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeInterface;
+use Drupal\Core\Entity\RevisionLogEntityTrait;
 use Drupal\Core\Field\BaseFieldDefinition;
 use Drupal\user\EntityOwnerTrait;
 
@@ -29,26 +32,40 @@ use Drupal\user\EntityOwnerTrait;
  *     "storage_schema" = "Drupal\changelogify\Entity\ChangelogifyReleaseStorageSchema",
  *     "form" = {
  *       "default" = "Drupal\changelogify\Form\ReleaseForm",
- *       "delete" = "Drupal\Core\Entity\ContentEntityDeleteForm"
+ *       "delete" = "Drupal\Core\Entity\ContentEntityDeleteForm",
+ *       "revision-revert" = "Drupal\Core\Entity\Form\RevisionRevertForm"
  *     },
  *     "route_provider" = {
- *       "html" = "Drupal\Core\Entity\Routing\AdminHtmlRouteProvider"
+ *       "html" = "Drupal\Core\Entity\Routing\AdminHtmlRouteProvider",
+ *       "revision" = "Drupal\Core\Entity\Routing\RevisionHtmlRouteProvider"
  *     }
  *   },
  *   base_table = "changelogify_release",
+ *   revision_table = "changelogify_release_revision",
+ *   show_revision_ui = TRUE,
  *   admin_permission = "manage changelogify releases",
  *   entity_keys = {
  *     "id" = "id",
+ *     "revision" = "revision_id",
  *     "uuid" = "uuid",
  *     "label" = "title",
  *     "owner" = "uid",
  *     "published" = "status"
  *   },
  *   links = {
+ *     "canonical" = "/admin/content/changelogify/releases/{changelogify_release}/view",
  *     "add-form" = "/admin/content/changelogify/releases/add",
  *     "edit-form" = "/admin/content/changelogify/releases/{changelogify_release}/edit",
  *     "delete-form" = "/admin/content/changelogify/releases/{changelogify_release}/delete",
- *     "collection" = "/admin/content/changelogify/releases"
+ *     "collection" = "/admin/content/changelogify/releases",
+ *     "revision" = "/admin/content/changelogify/releases/{changelogify_release}/revisions/{changelogify_release_revision}/view",
+ *     "revision-revert-form" = "/admin/content/changelogify/releases/{changelogify_release}/revisions/{changelogify_release_revision}/revert",
+ *     "version-history" = "/admin/content/changelogify/releases/{changelogify_release}/revisions"
+ *   },
+ *   revision_metadata_keys = {
+ *     "revision_user" = "revision_user",
+ *     "revision_created" = "revision_created",
+ *     "revision_log_message" = "revision_log_message"
  *   }
  * )
  */
@@ -66,31 +83,46 @@ use Drupal\user\EntityOwnerTrait;
     "form" => [
       "default" => "Drupal\changelogify\Form\ReleaseForm",
       "delete" => "Drupal\Core\Entity\ContentEntityDeleteForm",
+      "revision-revert" => "Drupal\Core\Entity\Form\RevisionRevertForm",
     ],
     "route_provider" => [
       "html" => "Drupal\Core\Entity\Routing\AdminHtmlRouteProvider",
+      "revision" => "Drupal\Core\Entity\Routing\RevisionHtmlRouteProvider",
     ],
   ],
   base_table: "changelogify_release",
+  revision_table: "changelogify_release_revision",
+  show_revision_ui: TRUE,
   admin_permission: "manage changelogify releases",
   entity_keys: [
     "id" => "id",
+    "revision" => "revision_id",
     "uuid" => "uuid",
     "label" => "title",
     "owner" => "uid",
     "published" => "status",
   ],
   links: [
+    "canonical" => "/admin/content/changelogify/releases/{changelogify_release}/view",
     "add-form" => "/admin/content/changelogify/releases/add",
     "edit-form" => "/admin/content/changelogify/releases/{changelogify_release}/edit",
     "delete-form" => "/admin/content/changelogify/releases/{changelogify_release}/delete",
     "collection" => "/admin/content/changelogify/releases",
+    "revision" => "/admin/content/changelogify/releases/{changelogify_release}/revisions/{changelogify_release_revision}/view",
+    "revision-revert-form" => "/admin/content/changelogify/releases/{changelogify_release}/revisions/{changelogify_release_revision}/revert",
+    "version-history" => "/admin/content/changelogify/releases/{changelogify_release}/revisions",
+  ],
+  revision_metadata_keys: [
+    "revision_user" => "revision_user",
+    "revision_created" => "revision_created",
+    "revision_log_message" => "revision_log_message",
   ],
 )]
 class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyReleaseInterface {
 
   use EntityChangedTrait;
   use EntityOwnerTrait;
+  use RevisionLogEntityTrait;
 
   /**
    * {@inheritdoc}
@@ -98,11 +130,14 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   public static function baseFieldDefinitions(EntityTypeInterface $entity_type): array {
     $fields = parent::baseFieldDefinitions($entity_type);
     $fields += static::ownerBaseFieldDefinitions($entity_type);
+    $fields += static::revisionLogBaseFieldDefinitions($entity_type);
+    $fields['uid']->setRevisionable(TRUE);
 
     $fields['title'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Title'))
       ->setDescription(t('The title of the release, e.g. "October 2025 Release" or "v1.2.0".'))
       ->setRequired(TRUE)
+      ->setRevisionable(TRUE)
       ->setSetting('max_length', 255)
       ->setDisplayOptions('form', [
         'type' => 'string_textfield',
@@ -125,6 +160,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
         'semantic_version' => 'Semantic Version',
       ])
       ->setDefaultValue('custom')
+      ->setRevisionable(TRUE)
       ->setDisplayOptions('form', [
         'type' => 'options_select',
         'weight' => -9,
@@ -135,6 +171,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ->setLabel(t('Version'))
       ->setDescription(t('Semantic version number, e.g. "1.2.0".'))
       ->setSetting('max_length', 50)
+      ->setRevisionable(TRUE)
       ->setDisplayOptions('form', [
         'type' => 'string_textfield',
         'weight' => -8,
@@ -142,10 +179,27 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ->setDisplayConfigurable('form', TRUE)
       ->setDisplayConfigurable('view', TRUE);
 
+    $fields['slug'] = BaseFieldDefinition::create('string')
+      ->setLabel(t('Public slug'))
+      ->setDescription(t('Stable public URL segment. Leave empty to generate it from the title.'))
+      ->setSetting('max_length', 128)
+      ->setRevisionable(TRUE)
+      ->setDisplayOptions('form', [
+        'type' => 'string_textfield',
+        'weight' => -7,
+      ]);
+
+    $fields['slug_history'] = BaseFieldDefinition::create('string')
+      ->setLabel(t('Historical public slugs'))
+      ->setSetting('max_length', 128)
+      ->setCardinality(BaseFieldDefinition::CARDINALITY_UNLIMITED)
+      ->setRevisionable(TRUE);
+
     $fields['release_date'] = BaseFieldDefinition::create('timestamp')
       ->setLabel(t('Release Date'))
       ->setDescription(t('The date of the release.'))
       ->setDefaultValueCallback(static::class . '::getDefaultTimestamp')
+      ->setRevisionable(TRUE)
       ->setDisplayOptions('form', [
         'type' => 'datetime_timestamp',
         'weight' => -7,
@@ -161,6 +215,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
     $fields['date_start'] = BaseFieldDefinition::create('timestamp')
       ->setLabel(t('Date Start'))
       ->setDescription(t('Start of the change window this release covers.'))
+      ->setRevisionable(TRUE)
       ->setDisplayOptions('form', [
         'type' => 'datetime_timestamp',
         'weight' => -6,
@@ -170,6 +225,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
     $fields['date_end'] = BaseFieldDefinition::create('timestamp')
       ->setLabel(t('Date End'))
       ->setDescription(t('End of the change window this release covers.'))
+      ->setRevisionable(TRUE)
       ->setDisplayOptions('form', [
         'type' => 'datetime_timestamp',
         'weight' => -5,
@@ -180,17 +236,20 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ->setLabel(t('Sections'))
       ->setDescription(t('JSON-encoded sections with release items.'))
       ->setDefaultValue('{}')
+      ->setRevisionable(TRUE)
       ->setDisplayConfigurable('form', TRUE);
 
     $fields['provenance'] = BaseFieldDefinition::create('string_long')
       ->setLabel(t('Provenance'))
       ->setDescription(t('JSON-encoded privacy-bounded release evidence.'))
       ->setDefaultValue('{"version":1,"items":{}}');
+    $fields['provenance']->setRevisionable(TRUE);
 
     $fields['status'] = BaseFieldDefinition::create('boolean')
       ->setLabel(t('Published'))
       ->setDescription(t('Whether the release is published.'))
       ->setDefaultValue(FALSE)
+      ->setRevisionable(TRUE)
       ->setDisplayOptions('form', [
         'type' => 'boolean_checkbox',
         'weight' => 10,
@@ -200,13 +259,31 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ])
       ->setDisplayConfigurable('form', TRUE);
 
+    $fields['editorial_state'] = BaseFieldDefinition::create('list_string')
+      ->setLabel(t('Editorial state'))
+      ->setDescription(t('The private review and publication workflow state.'))
+      ->setSetting('allowed_values', [
+        'draft' => 'Draft',
+        'review' => 'Ready for review',
+        'published' => 'Published',
+        'archived' => 'Archived',
+      ])
+      ->setDefaultValue('draft')
+      ->setRequired(TRUE)
+      ->setRevisionable(TRUE)
+      ->setDisplayOptions('form', [
+        'type' => 'options_select',
+        'weight' => 9,
+      ]);
+
     $fields['created'] = BaseFieldDefinition::create('created')
       ->setLabel(t('Created'))
       ->setDescription(t('The time the release was created.'));
 
     $fields['changed'] = BaseFieldDefinition::create('changed')
       ->setLabel(t('Changed'))
-      ->setDescription(t('The time the release was last edited.'));
+      ->setDescription(t('The time the release was last edited.'))
+      ->setRevisionable(TRUE);
 
     return $fields;
   }
@@ -245,6 +322,9 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
    */
   public function setPublished(bool $published = TRUE): ChangelogifyReleaseInterface {
     $this->set('status', $published);
+    if ($this->hasField('editorial_state')) {
+      $this->set('editorial_state', $published ? 'published' : 'draft');
+    }
     return $this;
   }
 
@@ -253,6 +333,91 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
    */
   public function setUnpublished(): ChangelogifyReleaseInterface {
     return $this->setPublished(FALSE);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getEditorialState(): string {
+    return $this->get('editorial_state')->value ?? ($this->isPublished() ? 'published' : 'draft');
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setEditorialState(string $state): ChangelogifyReleaseInterface {
+    if (!in_array($state, ['draft', 'review', 'published', 'archived'], TRUE)) {
+      throw new \InvalidArgumentException('Unknown release editorial state.');
+    }
+    $this->set('editorial_state', $state);
+    $this->set('status', $state === 'published');
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSlug(): string {
+    return (string) $this->get('slug')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSlugHistory(): array {
+    return array_values(array_map(
+      static fn (array $item): string => (string) $item['value'],
+      $this->get('slug_history')->getValue(),
+    ));
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setSlugHistory(array $history): ChangelogifyReleaseInterface {
+    foreach ($history as $slug) {
+      if (!is_string($slug) || !preg_match('/^[a-z][a-z0-9-]{0,127}$/', $slug)) {
+        throw new \InvalidArgumentException('Release slug history contains an invalid slug.');
+      }
+    }
+    $this->set('slug_history', array_values(array_unique($history)));
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function preSave(EntityStorageInterface $storage): void {
+    parent::preSave($storage);
+    \Drupal::service(ReleaseSlugManager::class)->prepare($this);
+    if ($this->isNew() && $this->isPublished() && $this->getEditorialState() === 'draft') {
+      $this->set('editorial_state', 'published');
+    }
+    $this->set('status', $this->getEditorialState() === 'published');
+    if (!$this->isNew() && !$this->isNewRevision()) {
+      $this->setNewRevision(TRUE);
+    }
+    if ($this->isNewRevision()) {
+      $this->setRevisionCreationTime(\Drupal::time()->getRequestTime());
+      $this->setRevisionUserId((int) \Drupal::currentUser()->id());
+      $original = NULL;
+      if (method_exists($this, 'getOriginal')) {
+        $original = $this->getOriginal();
+      }
+      elseif (isset($this->original) && $this->original instanceof ChangelogifyReleaseInterface) {
+        $original = $this->original;
+      }
+      $log = trim((string) $this->getRevisionLogMessage());
+      $originalLog = $original === NULL ? '' : trim((string) $original->getRevisionLogMessage());
+      if ($log === '' || ($original !== NULL && $log === $originalLog)) {
+        $originalState = $original?->getEditorialState();
+        $this->setRevisionLogMessage(
+          $originalState !== NULL && $originalState !== $this->getEditorialState()
+            ? sprintf('Editorial state changed from %s to %s.', $originalState, $this->getEditorialState())
+            : 'Release updated.',
+        );
+      }
+    }
   }
 
   /**
@@ -360,6 +525,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       'event_count',
       'evidence_status',
       'events',
+      'evidence_reuse',
     ];
     if (array_diff(array_keys($item), $allowed) !== []) {
       throw new \InvalidArgumentException('Release provenance item contains unsupported data.');
@@ -372,6 +538,24 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
         throw new \InvalidArgumentException('Release provenance contains invalid event evidence.');
       }
       $this->validateProvenanceEvent($event);
+    }
+    if (isset($item['evidence_reuse'])) {
+      $reuse = $item['evidence_reuse'];
+      if (!is_array($reuse)
+        || array_diff(array_keys($reuse), ['release_ids', 'confirmed_by', 'confirmed_at']) !== []
+        || !is_array($reuse['release_ids'] ?? NULL)) {
+        throw new \InvalidArgumentException('Release provenance contains invalid evidence reuse attribution.');
+      }
+      foreach ($reuse['release_ids'] as $releaseId) {
+        if (!is_int($releaseId) || $releaseId < 1) {
+          throw new \InvalidArgumentException('Release provenance contains an invalid reused release ID.');
+        }
+      }
+      foreach (['confirmed_by', 'confirmed_at'] as $key) {
+        if (!is_int($reuse[$key] ?? NULL) || $reuse[$key] < 0) {
+          throw new \InvalidArgumentException('Release provenance contains invalid evidence reuse attribution.');
+        }
+      }
     }
     $this->validateEvidenceStatus($item['evidence_status'] ?? NULL);
     return $item;

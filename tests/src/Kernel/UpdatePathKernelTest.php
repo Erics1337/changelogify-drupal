@@ -61,6 +61,22 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
   }
 
   /**
+   * Tests an interrupted entity schema batch continues after table creation.
+   */
+  public function testRevisionSchemaBatchResumesWithRevisionTablePresent(): void {
+    $this->includeUpdateFiles();
+    $sandbox = [
+      'entity_schema' => ['#finished' => 0],
+      '#finished' => 0,
+    ];
+
+    changelogify_post_update_add_release_revisions($sandbox);
+
+    self::assertArrayNotHasKey('entity_schema', $sandbox);
+    self::assertSame(1, $sandbox['#finished']);
+  }
+
+  /**
    * Provides real configuration shapes from supported releases.
    */
   public static function historicalStateProvider(): array {
@@ -132,6 +148,9 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
       'event_id' => $event->id(),
       'metadata' => $event->get('metadata')->value,
       'release_id' => $release->id(),
+      'release_uuid' => $release->uuid(),
+      'release_uid' => (int) $release->getOwnerId(),
+      'release_status' => $release->isPublished(),
       'sections' => $release->get('sections')->value,
     ];
   }
@@ -152,6 +171,12 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     self::assertSame(1, (int) $event->get('schema_version')->value);
     self::assertNull($event->get('correlation_id')->value);
     self::assertSame($fixture['sections'], $release->get('sections')->value);
+    self::assertSame($fixture['release_uuid'], $release->uuid());
+    self::assertSame($fixture['release_uid'], (int) $release->getOwnerId());
+    self::assertSame($fixture['release_status'], $release->isPublished());
+    self::assertSame($release->isPublished() ? 'published' : 'draft', $release->getEditorialState());
+    self::assertNotNull($release->getRevisionId());
+    self::assertNotSame('', $release->getSlug());
   }
 
   /**
@@ -167,6 +192,14 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     changelogify_post_update_ensure_query_indexes();
     changelogify_post_update_add_event_contract_fields();
     changelogify_post_update_add_release_provenance();
+    $sandbox = [];
+    do {
+      changelogify_post_update_add_release_revisions($sandbox);
+    } while (($sandbox['#finished'] ?? 1) < 1);
+    $sandbox = [];
+    do {
+      changelogify_post_update_add_release_slugs($sandbox);
+    } while (($sandbox['#finished'] ?? 1) < 1);
   }
 
   /**

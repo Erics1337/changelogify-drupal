@@ -22,6 +22,9 @@ final class ChangelogifyReleaseStorageSchema extends SqlContentEntityStorageSche
     $schema[$table]['indexes'] += [
       'changelogify_release__status_date' => ['status', 'release_date'],
     ];
+    $schema[$table]['unique keys'] += [
+      'changelogify_release__slug' => ['slug'],
+    ];
 
     return $schema;
   }

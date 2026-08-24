@@ -165,7 +165,10 @@ class EventManager implements EventManagerInterface {
     }
 
     $boundary = (int) ($release->get('date_end')->value ?? $release->getReleaseDate());
-    return $boundary + 1;
+    // Include the exact boundary so events sharing its timestamp are visible
+    // in preview. Release coverage analysis identifies already-used evidence
+    // and requires editors to confirm intentional reuse.
+    return $boundary;
   }
 
   /**

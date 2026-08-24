@@ -7,11 +7,11 @@
 <article class="changelogify-release">
   <header>
     <div class="release-meta">
-      <time datetime="{{ release.release_date.value|date('c') }}">
-        {{ release.release_date.value|date('F j, Y') }}
+      <time datetime="{{ date_iso }}">
+        {{ date }}
       </time>
-      {% if release.version.value %}
-        <span class="version">Version {{ release.version.value }}</span>
+      {% if version %}
+        <span class="version">{{ 'Version @version'|t({'@version': version}) }}</span>
       {% endif %}
     </div>
   </header>

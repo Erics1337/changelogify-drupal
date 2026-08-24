@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\changelogify;
 
 use Drupal\changelogify\ChangeSet\ChangeSetAggregatorInterface;
+use Drupal\changelogify\ChangeSet\ChangeSet;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountProxyInterface;
@@ -32,6 +33,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
     protected AccountProxyInterface $currentUser,
     protected TimeInterface $time,
     protected ChangeSetAggregatorInterface $changeSetAggregator,
+    protected ReleaseCoverageAnalyzer $coverageAnalyzer,
   ) {
   }
 
@@ -45,6 +47,100 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
 
     $events = $this->loadEventsForRelease($start, $end);
     return $this->createReleaseFromEvents($events, $start, $end, $options);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function previewRange(\DateTimeInterface $start, \DateTimeInterface $end): ReleasePreview {
+    if ($start > $end) {
+      throw new \InvalidArgumentException('The release start date must not be after its end date.');
+    }
+    $events = $this->loadEventsForRelease($start, $end);
+    $changeSets = $this->changeSetAggregator->aggregate($events)->changeSets;
+    return new ReleasePreview(
+      $start->getTimestamp(),
+      $end->getTimestamp(),
+      $changeSets,
+      $this->coverageAnalyzer->analyze($start->getTimestamp(), $end->getTimestamp(), $changeSets),
+    );
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function previewSinceLast(): ReleasePreview {
+    $start = new \DateTimeImmutable('@' . $this->eventManager->getNextReleaseStartTimestamp());
+    $end = new \DateTimeImmutable('@' . $this->time->getRequestTime());
+    return $this->previewRange($start, $end);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function generateReleaseFromSelection(
+    \DateTimeInterface $start,
+    \DateTimeInterface $end,
+    array $selection,
+    array $options = [],
+    bool $allowEmpty = FALSE,
+    bool $allowEvidenceReuse = FALSE,
+  ): ChangelogifyReleaseInterface {
+    $preview = $this->previewRange($start, $end);
+    $available = [];
+    foreach ($preview->changeSets as $changeSet) {
+      $available[$changeSet->id] = $changeSet;
+    }
+    $selected = [];
+    $validSections = ['added', 'changed', 'fixed', 'removed', 'security', 'other'];
+    foreach ($selection as $changeSetId => $section) {
+      if (!isset($available[$changeSetId])) {
+        throw new \UnexpectedValueException(sprintf(
+          'Selected change set %s is stale or its evidence is no longer available.',
+          $changeSetId,
+        ));
+      }
+      if (!in_array($section, $validSections, TRUE)) {
+        throw new \InvalidArgumentException('A selected release section is invalid.');
+      }
+      $candidate = $available[$changeSetId];
+      $selected[] = new ChangeSet(
+        id: $candidate->id,
+        kind: $candidate->kind,
+        startTimestamp: $candidate->startTimestamp,
+        endTimestamp: $candidate->endTimestamp,
+        sourceEventIds: $candidate->sourceEventIds,
+        suggestedSection: $section,
+        summaryContext: $candidate->summaryContext,
+        provenance: $candidate->provenance,
+      );
+    }
+    if ($selected === [] && !$allowEmpty) {
+      throw new \UnexpectedValueException('Creating an empty release requires explicit confirmation.');
+    }
+    $coverage = $this->coverageAnalyzer->analyze(
+      $start->getTimestamp(),
+      $end->getTimestamp(),
+      $selected,
+    );
+    if ($coverage['reused_change_sets'] !== [] && !$allowEvidenceReuse) {
+      throw new \UnexpectedValueException('Reusing evidence from another release requires explicit confirmation.');
+    }
+    $release = $this->createReleaseFromChangeSets($selected, $start, $end, $options);
+    if ($coverage['reused_change_sets'] !== []) {
+      $provenance = $release->getProvenance();
+      foreach ($coverage['reused_change_sets'] as $changeSetId => $releases) {
+        $provenance['items'][$changeSetId]['evidence_reuse'] = [
+          'release_ids' => array_map('intval', array_keys($releases)),
+          'confirmed_by' => (int) $this->currentUser->id(),
+          'confirmed_at' => (int) $this->time->getRequestTime(),
+        ];
+      }
+      $release->setProvenance($provenance)
+        ->setRevisionLogMessage('Intentional evidence reuse confirmed.')
+        ->save();
+    }
+    return $release;
   }
 
   /**
@@ -67,7 +163,14 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
     }
 
     $aggregation = $this->changeSetAggregator->aggregate($events);
-    [$sections, $provenance] = $this->buildReleaseData($aggregation->changeSets);
+    return $this->createReleaseFromChangeSets($aggregation->changeSets, $start, $end, $options);
+  }
+
+  /**
+   * Creates and saves a release from already validated change sets.
+   */
+  private function createReleaseFromChangeSets(array $changeSets, \DateTimeInterface $start, \DateTimeInterface $end, array $options): ChangelogifyReleaseInterface {
+    [$sections, $provenance] = $this->buildReleaseData($changeSets);
 
     $storage = $this->entityTypeManager->getStorage('changelogify_release');
 
@@ -87,6 +190,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
 
     $release->setSections($sections);
     $release->setProvenance($provenance);
+    $release->setRevisionLogMessage('Draft generated from selected change sets.');
     $release->save();
 
     return $release;

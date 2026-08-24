@@ -15,3 +15,13 @@ reported as `partial`.
 Provenance is not part of public release rendering. It is available only at the
 administrative release provenance route to users with the `manage changelogify
 releases` permission.
+
+The same bounded snapshot is available in collapsed panels on the release edit
+form. Links to an available raw event require the additional `administer
+changelogify` permission. Evidence panels are administrative, uncacheable form
+content and are never added to public release render arrays or cache entries.
+
+When an editor explicitly confirms reuse of evidence from another release, the
+affected item records only the referenced release IDs, confirming user ID, and
+confirmation timestamp. This makes reuse attributable without copying release
+titles, event messages, usernames, or raw metadata.

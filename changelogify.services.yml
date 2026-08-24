@@ -9,6 +9,16 @@ services:
   Drupal\changelogify\ReleaseGenerator:
     class: Drupal\changelogify\ReleaseGenerator
 
+  Drupal\changelogify\EventReleaseUsage:
+    class: Drupal\changelogify\EventReleaseUsage
+
+  Drupal\changelogify\ReleaseCoverageAnalyzer:
+    class: Drupal\changelogify\ReleaseCoverageAnalyzer
+
+  Drupal\changelogify\ReleaseSlugManager:
+    class: Drupal\changelogify\ReleaseSlugManager
+    arguments: ['@entity_type.manager', '@transliteration']
+
   Drupal\changelogify\ReleaseItemNormalizer:
     arguments: ['@uuid']
 

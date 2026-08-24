@@ -79,8 +79,12 @@ Here you'll see:
 
 1. Click **"Generate New Release"**
 2. Choose: "Since last release" or "Custom date range"
-3. Optionally set a title and version
-4. Submit to create a draft release
+3. Preview the bounded candidate change sets without creating a release
+4. Include, exclude, or reassign candidates and optionally set a title/version
+5. Confirm the selection to create a draft release
+
+The commit step revalidates the selected evidence; see the
+[release preview guide](docs/RELEASE_PREVIEW.md).
 
 ### 3. Edit Release
 
@@ -93,8 +97,16 @@ The release edit form shows all sections:
 - **Security** — Security patches
 - **Other** — Miscellaneous changes
 
-Edit the bullet points, select **Published**, and save the release. Unpublished
-drafts are never available on the public list or detail routes.
+Edit the items, choose an authorized editorial state, and save the release.
+Unpublished drafts are never available on the public list or detail routes.
+
+Releases support revision history and permission-controlled Draft, Ready for
+review, Published, and Archived states. See the
+[editorial workflow guide](docs/EDITORIAL_WORKFLOW.md).
+
+The [structured item editor](docs/RELEASE_ITEM_EDITOR.md) preserves stable item
+identity and evidence while supporting edits, movement, ordering, deletion, and
+manual editorial context.
 
 ### 4. Public Changelog
 
@@ -104,7 +116,14 @@ Published releases appear at:
 /changelog
 ```
 
-Individual releases are viewable at `/changelog/{release-id}`.
+Individual releases use stable readable URLs such as `/changelog/august-2026`.
+Legacy numeric URLs permanently redirect when the release is publicly
+accessible.
+
+See [public release slugs](docs/PUBLIC_RELEASE_SLUGS.md) for normalization,
+collision, history, redirect, and draft-privacy behavior.
+See [public changelog theming](docs/PUBLIC_CHANGELOG_THEMING.md) for stable
+template variables, accessibility markup, and cache behavior.
 
 ---
 
@@ -130,7 +149,9 @@ Unpublished tracking stores labels and paths for content that may be private;
 user tracking stores usernames and old/new role assignments.
 
 Captured events can be reviewed at `/admin/content/changelogify/events` by
-users with the `administer changelogify` permission.
+users with the `administer changelogify` permission. The administrative event
+explorer supports combinable evidence filters and escaped, defensively redacted
+event detail views; see the [event explorer guide](docs/EVENT_EXPLORER.md).
 
 ---
 
