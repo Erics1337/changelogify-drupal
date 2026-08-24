@@ -12,6 +12,38 @@ use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 interface ReleaseGeneratorInterface {
 
   /**
+   * Previews candidate change sets without creating a release.
+   */
+  public function previewRange(\DateTimeInterface $start, \DateTimeInterface $end): ReleasePreview;
+
+  /**
+   * Previews change sets since the latest published release.
+   */
+  public function previewSinceLast(): ReleasePreview;
+
+  /**
+   * Revalidates a preview selection and creates a draft release.
+   *
+   * @param \DateTimeInterface $start
+   *   Inclusive release-window start.
+   * @param \DateTimeInterface $end
+   *   Inclusive release-window end.
+   * @param array<string, string> $selection
+   *   Selected stable change-set IDs keyed to their assigned sections.
+   * @param array $options
+   *   Release title, version, and label options.
+   * @param bool $allowEmpty
+   *   Whether an explicitly confirmed empty draft may be created.
+   */
+  public function generateReleaseFromSelection(
+    \DateTimeInterface $start,
+    \DateTimeInterface $end,
+    array $selection,
+    array $options = [],
+    bool $allowEmpty = FALSE,
+  ): ChangelogifyReleaseInterface;
+
+  /**
    * Generates a draft release from events in a date range.
    *
    * @param \DateTimeInterface $start

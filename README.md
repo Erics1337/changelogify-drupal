@@ -79,8 +79,12 @@ Here you'll see:
 
 1. Click **"Generate New Release"**
 2. Choose: "Since last release" or "Custom date range"
-3. Optionally set a title and version
-4. Submit to create a draft release
+3. Preview the bounded candidate change sets without creating a release
+4. Include, exclude, or reassign candidates and optionally set a title/version
+5. Confirm the selection to create a draft release
+
+The commit step revalidates the selected evidence; see the
+[release preview guide](docs/RELEASE_PREVIEW.md).
 
 ### 3. Edit Release
 

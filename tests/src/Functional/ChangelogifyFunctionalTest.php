@@ -339,12 +339,19 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     /** @var \Drupal\changelogify\EventManagerInterface $eventManager */
     $eventManager = \Drupal::service(EventManagerInterface::class);
-    $eventManager->logEvent([
+    $firstIncluded = $eventManager->logEvent([
       'timestamp' => strtotime('2025-01-15 12:00:00 UTC'),
       'event_type' => 'content_created',
       'source' => 'test',
       'message' => 'Included change',
       'section_hint' => 'added',
+    ]);
+    $secondIncluded = $eventManager->logEvent([
+      'timestamp' => strtotime('2025-01-15 13:00:00 UTC'),
+      'event_type' => 'content_updated',
+      'source' => 'test',
+      'message' => 'Selected change',
+      'section_hint' => 'changed',
     ]);
     $eventManager->logEvent([
       'timestamp' => strtotime('2025-01-16 00:00:00 UTC'),
@@ -362,7 +369,26 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'end_date[date]' => '2025-01-15',
       'title' => 'January release',
       'version' => '1.2.0-beta.1',
-    ], 'Generate Release');
+    ], 'Preview changes');
+
+    $ids = \Drupal::entityQuery('changelogify_release')
+      ->accessCheck(FALSE)
+      ->condition('title', 'January release')
+      ->execute();
+    self::assertCount(0, $ids, 'Preview does not persist a release.');
+    $this->assertSession()->pageTextContains('Included change');
+    $this->assertSession()->pageTextContains('Selected change');
+    $this->assertSession()->pageTextNotContains('Excluded change');
+    $firstId = 'changeset-' . substr(hash('sha256', 'event:' . $firstIncluded->id()), 0, 24);
+    $secondId = 'changeset-' . substr(hash('sha256', 'event:' . $secondIncluded->id()), 0, 24);
+    $firstIncludeName = 'change_sets[' . $firstId . '][include]';
+    $secondIncludeName = 'change_sets[' . $secondId . '][include]';
+    $secondSectionName = 'change_sets[' . $secondId . '][section]';
+    $this->submitForm([
+      $firstIncludeName => FALSE,
+      $secondIncludeName => TRUE,
+      $secondSectionName => 'fixed',
+    ], 'Create draft release');
 
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Draft release "January release" has been created.');
@@ -386,9 +412,61 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       ->getStorage('changelogify_release')
       ->load(reset($ids));
     $sections = $release->getSections();
-    self::assertCount(1, $sections['added']);
-    self::assertSame('Included change', $sections['added'][0]['text']);
+    self::assertCount(0, $sections['added']);
+    self::assertCount(1, $sections['fixed']);
+    self::assertSame('Selected change', $sections['fixed'][0]['text']);
     self::assertSame('1.2.0-beta.1', $release->getVersion());
+  }
+
+  /**
+   * Tests stale evidence recovery and explicit empty-draft confirmation.
+   */
+  public function testReleasePreviewRevalidatesEvidence(): void {
+    $user = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+    /** @var \Drupal\changelogify\EventManagerInterface $eventManager */
+    $eventManager = \Drupal::service(EventManagerInterface::class);
+    $event = $eventManager->logEvent([
+      'event_type' => 'content_updated',
+      'source' => 'test',
+      'message' => 'Evidence removed after preview',
+      'section_hint' => 'changed',
+    ]);
+
+    $this->drupalGet('/admin/config/development/changelogify/generate');
+    $this->submitForm(['mode' => 'since_last'], 'Preview changes');
+    $this->assertSession()->pageTextContains('Evidence removed after preview');
+    $eventId = 'changeset-' . substr(hash('sha256', 'event:' . $event->id()), 0, 24);
+    \Drupal::entityTypeManager()->getStorage('changelogify_event')->delete([$event]);
+    $this->submitForm([
+      'change_sets[' . $eventId . '][include]' => TRUE,
+      'change_sets[' . $eventId . '][section]' => 'changed',
+    ], 'Create draft release');
+    $this->assertSession()->pageTextContains('Preview the release window again and retry.');
+    $releaseCount = \Drupal::entityQuery('changelogify_release')
+      ->accessCheck(FALSE)
+      ->count()
+      ->execute();
+    self::assertSame(0, (int) $releaseCount);
+
+    $this->submitForm([
+      'mode' => 'custom',
+      'start_date[date]' => '2030-01-01',
+      'end_date[date]' => '2030-01-01',
+    ], 'Preview changes');
+    $this->assertSession()->pageTextContains('No change sets were found');
+    $this->submitForm([], 'Create draft release');
+    $this->assertSession()->pageTextContains('Confirm that you want to create an empty draft.');
+    $this->submitForm(['confirm_empty' => TRUE], 'Create draft release');
+    $this->assertSession()->pageTextContains('has been created');
+    $releaseCount = \Drupal::entityQuery('changelogify_release')
+      ->accessCheck(FALSE)
+      ->count()
+      ->execute();
+    self::assertSame(1, (int) $releaseCount);
   }
 
   /**
