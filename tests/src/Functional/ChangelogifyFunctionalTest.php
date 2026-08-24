@@ -605,9 +605,9 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'sections_wrapper[items][manual_0][section]' => 'added',
       'sections_wrapper[items][manual_0][order]' => 0,
     ], 'Save');
-    $release = \Drupal::entityTypeManager()
-      ->getStorage('changelogify_release')
-      ->load($release->id());
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    $storage->resetCache([$release->id()]);
+    $release = $storage->load($release->id());
     $sections = $release->getSections();
     self::assertSame($itemId, $sections['security'][0]['id']);
     self::assertSame($itemEvidence, $sections['security'][0]['event_ids']);
@@ -929,6 +929,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     $this->config('changelogify.settings')->set('changelog_path', '/product-updates')->save();
     \Drupal::service('router.builder')->rebuild();
+    $this->rebuildContainer();
     $this->drupalGet('/product-updates/custom-launch');
     $this->assertSession()->statusCodeEquals(200);
     $response = $this->getHttpClient()->get($this->buildUrl('/product-updates/' . $first->id()), [
