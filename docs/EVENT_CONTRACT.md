@@ -10,7 +10,8 @@ the typed method.
 
 `eventType`, `source`, related entity type, and bundle are lowercase machine
 identifiers (`a-z`, `0-9`, and `_`) of at most 64 characters. A correlation ID is at
-most 128 characters and may contain letters, numbers, `.`, `_`, `:`, and `-`.
+most 128 characters, must start with a letter or number, and may then contain
+letters, numbers, `.`, `_`, `:`, and `-`.
 Messages are limited to 512 characters. Timestamps are positive Unix timestamps,
 actor and related entity IDs are non-negative integers, and metadata must be
 JSON-serializable.

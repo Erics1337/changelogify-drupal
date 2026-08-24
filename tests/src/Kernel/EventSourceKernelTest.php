@@ -129,6 +129,7 @@ final class EventSourceKernelTest extends ChangelogifyKernelTestBase {
         'create' => $createNames,
         'update' => ['user.role.editor'],
         'delete' => ['system.site'],
+        'rename' => ['views.view.old::views.view.new'],
       ],
       'language.fr' => [
         'create' => [],
@@ -149,12 +150,29 @@ final class EventSourceKernelTest extends ChangelogifyKernelTestBase {
     self::assertSame('config_import_succeeded', $events[0]->getEventType());
     self::assertNotNull($events[0]->getCorrelationId());
     $metadata = $events[0]->getMetadata();
-    self::assertSame(['create' => 205, 'update' => 2, 'delete' => 1], $metadata['totals']);
+    self::assertSame(['create' => 205, 'update' => 2, 'delete' => 1, 'rename' => 1], $metadata['totals']);
     self::assertSame(200, $metadata['member_count']);
     self::assertSame(2, $metadata['excluded_count']);
-    self::assertSame(6, $metadata['truncated_count']);
     self::assertSame('view', $metadata['members'][0]['category']);
     self::assertSame('default', $metadata['members'][0]['collection']);
+    self::assertSame(7, $metadata['truncated_count']);
+  }
+
+  /**
+   * Tests rename-only imports retain both safe technical names.
+   */
+  public function testConfigRenameOperation(): void {
+    $event = $this->configImporterEvent([
+      StorageInterface::DEFAULT_COLLECTION => [
+        'rename' => ['views.view.old::views.view.new'],
+      ],
+    ]);
+    $this->container->get(ConfigImportSubscriber::class)->onImport($event);
+
+    $metadata = $this->loadEvents()[0]->getMetadata();
+    self::assertSame(1, $metadata['totals']['rename']);
+    self::assertSame('views.view.old', $metadata['members'][0]['name']);
+    self::assertSame('views.view.new', $metadata['members'][0]['new_name']);
   }
 
   /**
@@ -257,6 +275,12 @@ final class EventSourceKernelTest extends ChangelogifyKernelTestBase {
     );
     $comparer->method('getChangelist')->willReturnCallback(
       static fn (?string $operation, string $collection): array => $changes[$collection][$operation] ?? [],
+    );
+    $comparer->method('extractRenameNames')->willReturnCallback(
+      static function (string $name): array {
+        [$oldName, $newName] = explode('::', $name, 2);
+        return ['old_name' => $oldName, 'new_name' => $newName];
+      },
     );
     $importer = $this->createMock(ConfigImporter::class);
     $importer->method('getStorageComparer')->willReturn($comparer);

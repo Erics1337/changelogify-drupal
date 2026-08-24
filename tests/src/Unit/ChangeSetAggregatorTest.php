@@ -102,6 +102,39 @@ final class ChangeSetAggregatorTest extends TestCase {
   }
 
   /**
+   * Tests unrelated publication-shaped events cannot suppress updates.
+   */
+  public function testSuppressionRequiresRelatedEntity(): void {
+    $result = (new ChangeSetAggregator([]))->aggregate([
+      $this->event(1, 100, 'content_updated'),
+      $this->event(2, 100, 'content_published'),
+    ]);
+
+    self::assertSame([], $result->suppressedEvents);
+    self::assertSame([1, 2], array_merge(...array_map(
+      static fn ($changeSet): array => $changeSet->sourceEventIds,
+      $result->changeSets,
+    )));
+  }
+
+  /**
+   * Tests provenance snapshots remain bounded for large correlated groups.
+   */
+  public function testProvenanceSnapshotBound(): void {
+    $events = [];
+    foreach (range(1, 201) as $id) {
+      $events[] = $this->event($id, $id, 'config_changed', correlationId: 'import:large');
+    }
+    $provenance = (new ChangeSetAggregator([]))
+      ->aggregate($events)
+      ->changeSets[0]
+      ->provenance;
+
+    self::assertSame(201, $provenance['event_count']);
+    self::assertCount(200, $provenance['events']);
+  }
+
+  /**
    * Tests the aggregation bound matches release loading limits.
    */
   public function testAggregationBound(): void {

@@ -64,7 +64,7 @@ final class ConfigImportSubscriber implements EventSubscriberInterface {
     $this->recordedImporters[$importer] = TRUE;
 
     $members = [];
-    $totals = ['create' => 0, 'update' => 0, 'delete' => 0];
+    $totals = ['create' => 0, 'update' => 0, 'delete' => 0, 'rename' => 0];
     $excluded = 0;
     $truncated = 0;
     $comparer = $importer->getStorageComparer();
@@ -74,13 +74,17 @@ final class ConfigImportSubscriber implements EventSubscriberInterface {
       $displayCollection = $collection === StorageInterface::DEFAULT_COLLECTION
         ? 'default'
         : $collection;
-      foreach (['create', 'update', 'delete'] as $operation) {
+      foreach (['create', 'update', 'delete', 'rename'] as $operation) {
         $names = $event->getChangelist($operation, $collection);
         sort($names);
         $totals[$operation] += count($names);
         foreach ($names as $name) {
-          $classification = $this->classifier->classify($name, $displayCollection);
-          if ($this->isExcluded($name, $classification->sensitive)) {
+          $renameNames = $operation === 'rename'
+            ? $comparer->extractRenameNames($name)
+            : NULL;
+          $classifiedName = $renameNames['new_name'] ?? $name;
+          $classification = $this->classifier->classify($classifiedName, $displayCollection);
+          if ($this->isExcluded($classifiedName, $classification->sensitive)) {
             $excluded++;
             continue;
           }
@@ -88,14 +92,18 @@ final class ConfigImportSubscriber implements EventSubscriberInterface {
             $truncated++;
             continue;
           }
-          $members[] = [
+          $member = [
             'operation' => $operation,
-            'name' => $name,
+            'name' => $renameNames['old_name'] ?? $name,
             'collection' => $displayCollection,
             'category' => $classification->category,
             'owning_extension' => $classification->owningExtension,
             'sensitive' => $classification->sensitive,
           ];
+          if ($renameNames !== NULL) {
+            $member['new_name'] = $renameNames['new_name'];
+          }
+          $members[] = $member;
         }
       }
     }

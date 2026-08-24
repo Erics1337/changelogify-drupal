@@ -72,7 +72,7 @@ final class ConfigClassifier implements ConfigClassifierInterface {
       'user.role.' => ['role', 'Role and permissions', 'user', TRUE],
       'filter.format.' => ['text_format', 'Text format', 'filter', TRUE],
       'image.style.' => ['image_style', 'Image style', 'image', FALSE],
-      'core.extension' => ['extensions', 'Extensions', 'system', TRUE],
+      'core.extension' => ['extensions', 'Extensions', 'system', FALSE],
       'system.theme' => ['theme_settings', 'Theme settings', 'system', FALSE],
     ];
     foreach ($rules as $prefix => [$category, $label, $owner, $sensitive]) {

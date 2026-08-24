@@ -144,7 +144,8 @@ final class EventInput {
     if (!is_string($value)) {
       throw new \InvalidArgumentException(sprintf('Event %s must be a string.', $label));
     }
-    return trim($value);
+    $value = trim($value);
+    return $value === '' ? NULL : $value;
   }
 
 }

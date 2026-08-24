@@ -236,14 +236,13 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
       'track_unpublished_content' => FALSE,
       'changelog_path' => '/changelog',
       'content_capture' => [
-        'entity_types' => array_fill_keys(
-          ['node', 'media', 'block_content', 'taxonomy_term'],
-          [
+        'entity_types' => [
+          'node' => [
             'enabled' => TRUE,
             'default_bundle_enabled' => TRUE,
             'bundles' => [],
           ],
-        ),
+        ],
       ],
       'config_import' => [
         'include_sensitive' => FALSE,

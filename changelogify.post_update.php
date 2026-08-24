@@ -83,11 +83,23 @@ function changelogify_post_update_ensure_query_indexes(): void {
  * Adds normalized contract provenance fields and correlation indexes.
  */
 function changelogify_post_update_add_event_contract_fields(): void {
+  $database = Database::getConnection();
+  $schema = $database->schema();
+  if (!$schema->tableExists('changelogify_event')) {
+    $message = 'Changelogify cannot add event contract fields because the changelogify_event table is missing. Restore the module database table from backup, then rerun database updates.';
+    \Drupal::logger('changelogify')->error($message);
+    throw new UpdateException($message);
+  }
   $updateManager = \Drupal::entityDefinitionUpdateManager();
   $fieldManager = \Drupal::service('entity_field.manager');
   $definitions = $fieldManager->getBaseFieldDefinitions('changelogify_event');
 
   foreach (['schema_version', 'correlation_id'] as $fieldName) {
+    if (!isset($definitions[$fieldName])) {
+      $message = sprintf('Changelogify cannot add the %s event field because its definition is unavailable. Restore the module code and rerun database updates.', $fieldName);
+      \Drupal::logger('changelogify')->error($message);
+      throw new UpdateException($message);
+    }
     if ($updateManager->getFieldStorageDefinition($fieldName, 'changelogify_event') === NULL) {
       $updateManager->installFieldStorageDefinition(
         $fieldName,
@@ -98,7 +110,11 @@ function changelogify_post_update_add_event_contract_fields(): void {
     }
   }
 
-  $schema = Database::getConnection()->schema();
+  $database->update('changelogify_event')
+    ->fields(['schema_version' => 1])
+    ->isNull('schema_version')
+    ->execute();
+
   $tableSpec = [
     'fields' => [
       'timestamp' => ['type' => 'int', 'not null' => TRUE],
@@ -112,7 +128,14 @@ function changelogify_post_update_add_event_contract_fields(): void {
   ];
   foreach ($indexes as $name => $fields) {
     if (!$schema->indexExists('changelogify_event', $name)) {
-      $schema->addIndex('changelogify_event', $name, $fields, $tableSpec);
+      try {
+        $schema->addIndex('changelogify_event', $name, $fields, $tableSpec);
+      }
+      catch (\Throwable $exception) {
+        $message = sprintf('Changelogify could not create the %s index. Correct the database schema problem and rerun database updates. Database error: %s', $name, $exception->getMessage());
+        \Drupal::logger('changelogify')->error($message);
+        throw new UpdateException($message, 0, $exception);
+      }
     }
   }
 

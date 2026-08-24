@@ -60,7 +60,7 @@ function changelogify_update_14001(): string {
   $config = \Drupal::configFactory()->getEditable('changelogify.settings');
   if ($config->get('content_capture') === NULL) {
     $entityTypes = [];
-    foreach (['node', 'media', 'block_content', 'taxonomy_term'] as $entityTypeId) {
+    foreach (['node'] as $entityTypeId) {
       $entityTypes[$entityTypeId] = [
         'enabled' => TRUE,
         'default_bundle_enabled' => TRUE,

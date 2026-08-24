@@ -12,6 +12,7 @@ use Drupal\changelogify\Entity\ChangelogifyEventInterface;
 final class ChangeSetAggregator implements ChangeSetAggregatorInterface {
 
   private const MAX_EVENTS = 5000;
+  private const MAX_PROVENANCE_EVENTS = 200;
   private const ENTITY_UPDATE_WINDOW = 300;
 
   /**
@@ -68,6 +69,9 @@ final class ChangeSetAggregator implements ChangeSetAggregatorInterface {
     foreach ($events as $event) {
       if (str_ends_with($event->getEventType(), '_published')
         || str_ends_with($event->getEventType(), '_unpublished')) {
+        if ($event->getRelatedEntityTypeId() === NULL || $event->getRelatedEntityId() === NULL) {
+          continue;
+        }
         $publicationKeys[$this->entityTimestampKey($event)] = TRUE;
       }
     }
@@ -81,6 +85,8 @@ final class ChangeSetAggregator implements ChangeSetAggregatorInterface {
       }
       elseif ((str_ends_with($event->getEventType(), '_updated')
           || $event->getEventType() === 'content_updated')
+        && $event->getRelatedEntityTypeId() !== NULL
+        && $event->getRelatedEntityId() !== NULL
         && isset($publicationKeys[$this->entityTimestampKey($event)])) {
         $suppressed[$id] = 'duplicate_publication_update';
       }
@@ -167,6 +173,7 @@ final class ChangeSetAggregator implements ChangeSetAggregatorInterface {
           static fn (ChangelogifyEventInterface $event): int => $event->getSchemaVersion(),
           $events,
         ))),
+        'event_count' => count($events),
         'events' => array_map(
           static fn (ChangelogifyEventInterface $event): array => [
             'event_id' => (int) $event->id(),
@@ -181,7 +188,7 @@ final class ChangeSetAggregator implements ChangeSetAggregatorInterface {
             'bundle' => $event->getRelatedBundle(),
             'evidence_status' => 'available',
           ],
-          $events,
+          array_slice($events, 0, self::MAX_PROVENANCE_EVENTS),
         ),
       ],
     );

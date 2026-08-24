@@ -14,6 +14,8 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  */
 final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterface {
 
+  private const BATCH_SIZE = 100;
+
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly TimeInterface $time,
@@ -56,23 +58,25 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
    */
   public function markEventsExpired(array $eventIds): void {
     $eventIds = array_fill_keys(array_map('intval', $eventIds), TRUE);
-    foreach ($this->loadReleases() as $release) {
-      $provenance = $release->getProvenance();
-      $changed = FALSE;
-      foreach ($provenance['items'] as &$item) {
-        $item['events'] ??= [];
-        foreach ($item['events'] as &$event) {
-          if (isset($eventIds[(int) ($event['event_id'] ?? 0)])) {
-            $event['evidence_status'] = 'expired';
-            $changed = TRUE;
+    foreach ($this->releaseBatches() as $releases) {
+      foreach ($releases as $release) {
+        $provenance = $release->getProvenance();
+        $changed = FALSE;
+        foreach ($provenance['items'] as &$item) {
+          $item['events'] ??= [];
+          foreach ($item['events'] as &$event) {
+            if (isset($eventIds[(int) ($event['event_id'] ?? 0)])) {
+              $event['evidence_status'] = 'expired';
+              $changed = TRUE;
+            }
           }
+          unset($event);
+          $item['evidence_status'] = $this->itemStatus($item['events'] ?? []);
         }
-        unset($event);
-        $item['evidence_status'] = $this->itemStatus($item['events'] ?? []);
-      }
-      unset($item);
-      if ($changed) {
-        $release->setProvenance($provenance)->save();
+        unset($item);
+        if ($changed) {
+          $release->setProvenance($provenance)->save();
+        }
       }
     }
   }
@@ -86,19 +90,18 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
     }
     $cutoff = $this->time->getCurrentTime() - ($retentionDays * 86400);
     $count = 0;
-    foreach ($this->loadReleases() as $release) {
-      if ($release->getReleaseDate() >= $cutoff) {
-        continue;
+    foreach ($this->releaseBatches($cutoff) as $releases) {
+      foreach ($releases as $release) {
+        $provenance = $release->getProvenance();
+        foreach ($provenance['items'] as &$item) {
+          $item['event_ids'] = [];
+          $item['events'] = [];
+          $item['evidence_status'] = 'removed';
+        }
+        unset($item);
+        $release->setProvenance($provenance)->save();
+        $count++;
       }
-      $provenance = $release->getProvenance();
-      foreach ($provenance['items'] as &$item) {
-        $item['event_ids'] = [];
-        $item['events'] = [];
-        $item['evidence_status'] = 'removed';
-      }
-      unset($item);
-      $release->setProvenance($provenance)->save();
-      $count++;
     }
     return $count;
   }
@@ -108,41 +111,59 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
    */
   public function backfillExistingReleases(): int {
     $count = 0;
-    foreach ($this->loadReleases() as $release) {
-      if ($release->getProvenance()['items'] !== []) {
-        continue;
-      }
-      $items = [];
-      foreach ($release->getSections() as $section => $sectionItems) {
-        foreach ($sectionItems as $item) {
-          $events = $this->loadEventSnapshots($item['event_ids'] ?? []);
-          $itemId = (string) $item['id'];
-          $items[$itemId] = [
-            'change_set_id' => $itemId,
-            'kind' => 'legacy_release_item',
-            'section' => $section,
-            'event_ids' => array_values(array_map('intval', $item['event_ids'] ?? [])),
-            'evidence_status' => $this->itemStatus($events),
-            'events' => $events,
-          ];
+    foreach ($this->releaseBatches() as $releases) {
+      foreach ($releases as $release) {
+        if ($release->getProvenance()['items'] !== []) {
+          continue;
         }
+        $items = [];
+        foreach ($release->getSections() as $section => $sectionItems) {
+          foreach ($sectionItems as $item) {
+            $events = $this->loadEventSnapshots($item['event_ids'] ?? []);
+            $itemId = (string) $item['id'];
+            $items[$itemId] = [
+              'change_set_id' => $itemId,
+              'kind' => 'legacy_release_item',
+              'section' => $section,
+              'event_ids' => array_values(array_map('intval', $item['event_ids'] ?? [])),
+              'event_count' => count($item['event_ids'] ?? []),
+              'evidence_status' => $this->itemStatus($events),
+              'events' => $events,
+            ];
+          }
+        }
+        $release->setProvenance(['version' => 1, 'items' => $items])->save();
+        $count++;
       }
-      $release->setProvenance(['version' => 1, 'items' => $items])->save();
-      $count++;
     }
     return $count;
   }
 
   /**
-   * Loads all releases for bounded maintenance operations.
+   * Loads releases in bounded ID pages for maintenance operations.
    *
-   * @return \Drupal\changelogify\Entity\ChangelogifyReleaseInterface[]
-   *   Release entities.
+   * @return \Generator<int, \Drupal\changelogify\Entity\ChangelogifyReleaseInterface[]>
+   *   Batches of release entities.
    */
-  private function loadReleases(): array {
+  private function releaseBatches(?int $releaseDateCutoff = NULL): \Generator {
     $storage = $this->entityTypeManager->getStorage('changelogify_release');
-    $ids = $storage->getQuery()->accessCheck(FALSE)->execute();
-    return $ids === [] ? [] : $storage->loadMultiple($ids);
+    $lastId = 0;
+    do {
+      $query = $storage->getQuery()
+        ->accessCheck(FALSE)
+        ->condition('id', $lastId, '>')
+        ->sort('id', 'ASC')
+        ->range(0, self::BATCH_SIZE);
+      if ($releaseDateCutoff !== NULL) {
+        $query->condition('release_date', $releaseDateCutoff, '<');
+      }
+      $ids = array_values($query->execute());
+      if ($ids !== []) {
+        $lastId = (int) end($ids);
+        yield array_values($storage->loadMultiple($ids));
+        $storage->resetCache($ids);
+      }
+    } while (count($ids) === self::BATCH_SIZE);
   }
 
   /**

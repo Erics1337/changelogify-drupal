@@ -54,7 +54,7 @@ final class ConfigClassifierTest extends TestCase {
       'role is sensitive' => ['user.role.editor', 'role', 'user', TRUE],
       'text format is sensitive' => ['filter.format.full_html', 'text_format', 'filter', TRUE],
       'image style' => ['image.style.large', 'image_style', 'image'],
-      'extensions are sensitive' => ['core.extension', 'extensions', 'system', TRUE],
+      'extensions are non-sensitive technical evidence' => ['core.extension', 'extensions', 'system'],
       'theme settings' => ['system.theme.global', 'theme_settings', 'system'],
       'module settings' => ['changelogify.settings', 'general_settings', 'changelogify'],
     ];

@@ -12,6 +12,8 @@ use Drupal\Core\Field\FieldDefinitionInterface;
  */
 final class EntityDifferenceService implements EntityDifferenceServiceInterface {
 
+  private const MAX_REFERENCE_IDS = 50;
+
   private const IGNORED_FIELDS = [
     'changed',
     'created',
@@ -150,6 +152,9 @@ final class EntityDifferenceService implements EntityDifferenceServiceInterface 
   private function referenceIds(array $items): array {
     $ids = [];
     foreach ($items as $item) {
+      if (count($ids) >= self::MAX_REFERENCE_IDS) {
+        break;
+      }
       $id = $item['target_id'] ?? NULL;
       if (is_int($id) || (is_string($id) && strlen($id) <= 128)) {
         $ids[] = $id;

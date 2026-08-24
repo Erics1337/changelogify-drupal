@@ -88,7 +88,14 @@ final class UserEventSource implements EventSourceInterface {
    */
   public function userUpdate(UserInterface $account): void {
     $original = $this->getOriginal($account);
-    if (!$original instanceof UserInterface || $original->getRoles() === $account->getRoles()) {
+    if (!$original instanceof UserInterface) {
+      return;
+    }
+    $oldRoles = $original->getRoles();
+    $newRoles = $account->getRoles();
+    sort($oldRoles);
+    sort($newRoles);
+    if ($oldRoles === $newRoles) {
       return;
     }
     $this->recorder->record($this, new EventInput(
@@ -102,8 +109,8 @@ final class UserEventSource implements EventSourceInterface {
       sectionHint: 'changed',
       metadata: [
         'username' => $account->getAccountName(),
-        'old_roles' => $original->getRoles(),
-        'new_roles' => $account->getRoles(),
+        'old_roles' => $oldRoles,
+        'new_roles' => $newRoles,
       ],
     ));
   }

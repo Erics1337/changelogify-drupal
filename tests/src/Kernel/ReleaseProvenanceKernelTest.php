@@ -125,4 +125,32 @@ final class ReleaseProvenanceKernelTest extends ChangelogifyKernelTestBase {
     self::assertSame('invalid', $item['events'][1]['evidence_status']);
   }
 
+  /**
+   * Tests prohibited payload fields cannot enter provenance storage.
+   */
+  public function testProvenanceRejectsPayloadData(): void {
+    $storage = $this->container->get('entity_type.manager')
+      ->getStorage('changelogify_release');
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+    $release = $storage->create(['title' => 'Unsafe evidence']);
+
+    $this->expectException(\InvalidArgumentException::class);
+    $release->setProvenance([
+      'version' => 1,
+      'items' => [
+        'unsafe' => [
+          'event_ids' => [1],
+          'evidence_status' => 'available',
+          'events' => [
+            [
+              'event_id' => 1,
+              'evidence_status' => 'available',
+              'metadata' => ['secret' => 'must-not-persist'],
+            ],
+          ],
+        ],
+      ],
+    ]);
+  }
+
 }

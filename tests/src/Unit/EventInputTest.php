@@ -27,6 +27,8 @@ final class EventInputTest extends TestCase {
       'message' => ' Created a page. ',
       'entity_id' => '42',
       'correlation_id' => 'deploy:123',
+      'bundle' => ' ',
+      'section_hint' => '',
     ], 1_700_000_000, 7);
 
     self::assertSame(EventInput::SCHEMA_VERSION, $input->schemaVersion);
@@ -36,6 +38,8 @@ final class EventInputTest extends TestCase {
     self::assertSame(42, $input->entityId);
     self::assertSame(7, $input->actorId);
     self::assertSame('deploy:123', $input->correlationId);
+    self::assertNull($input->bundle);
+    self::assertNull($input->sectionHint);
   }
 
   /**

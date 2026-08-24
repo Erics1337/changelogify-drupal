@@ -136,6 +136,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
         'kind' => $changeSet->kind,
         'section' => $hint,
         'event_ids' => $changeSet->sourceEventIds,
+        'event_count' => $changeSet->provenance['event_count'] ?? count($changeSet->sourceEventIds),
         'evidence_status' => 'available',
         'events' => $changeSet->provenance['events'] ?? [],
       ];

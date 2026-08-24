@@ -82,7 +82,7 @@ final class ContentCapturePolicy implements ContentCapturePolicyInterface {
       asort($bundles);
       $eligible[$id] = [
         'label' => (string) $definition->getCollectionLabel(),
-        'privacy_sensitive' => in_array($id, ['user', 'profile', 'contact_message'], TRUE),
+        'privacy_sensitive' => in_array($id, ['profile', 'contact_message'], TRUE),
         'bundles' => $bundles,
       ];
     }
