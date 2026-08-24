@@ -114,7 +114,9 @@ final class ContentTrackingKernelTest extends ChangelogifyKernelTestBase {
     $entity->method('bundle')->willReturn($bundle);
     $entity->method('id')->willReturn($id);
     $entity->method('label')->willReturn($label);
-    $entity->method('toUrl')->willReturn(Url::fromUri('internal:' . $path));
+    // An external URL avoids invoking Drupal's route entity converter for
+    // mocked entity IDs whose storage schemas are intentionally not installed.
+    $entity->method('toUrl')->willReturn(Url::fromUri('https://example.test' . $path));
     $entity->method('getEntityType')->willReturn(new ContentEntityType([
       'id' => $entityTypeId,
       'label' => ucfirst(str_replace('_', ' ', $entityTypeId)),

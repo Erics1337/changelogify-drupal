@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\changelogify\Kernel;
 
+use Drupal\Core\Entity\RevisionableStorageInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -22,6 +23,7 @@ final class ReleaseWorkflowKernelTest extends ChangelogifyKernelTestBase {
   public function testReleaseRevisions(): void {
     $storage = $this->container->get('entity_type.manager')
       ->getStorage('changelogify_release');
+    self::assertInstanceOf(RevisionableStorageInterface::class, $storage);
     /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
     $release = $storage->create([
       'title' => 'Original title',
