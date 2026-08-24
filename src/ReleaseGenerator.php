@@ -67,7 +67,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
     }
 
     $aggregation = $this->changeSetAggregator->aggregate($events);
-    $sections = $this->groupChangeSetsBySection($aggregation->changeSets);
+    [$sections, $provenance] = $this->buildReleaseData($aggregation->changeSets);
 
     $storage = $this->entityTypeManager->getStorage('changelogify_release');
 
@@ -86,6 +86,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
     ]);
 
     $release->setSections($sections);
+    $release->setProvenance($provenance);
     $release->save();
 
     return $release;
@@ -111,7 +112,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
   /**
    * Groups coherent change sets into backwards-compatible release items.
    */
-  protected function groupChangeSetsBySection(array $changeSets): array {
+  protected function buildReleaseData(array $changeSets): array {
     $sections = array_fill_keys([
       'added',
       'changed',
@@ -120,6 +121,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
       'security',
       'other',
     ], []);
+    $provenance = ['version' => 1, 'items' => []];
     foreach ($changeSets as $changeSet) {
       $hint = isset($sections[$changeSet->suggestedSection])
         ? $changeSet->suggestedSection
@@ -129,8 +131,16 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
         'text' => trim((string) ($changeSet->summaryContext['message'] ?? '')),
         'event_ids' => $changeSet->sourceEventIds,
       ];
+      $provenance['items'][$changeSet->id] = [
+        'change_set_id' => $changeSet->id,
+        'kind' => $changeSet->kind,
+        'section' => $hint,
+        'event_ids' => $changeSet->sourceEventIds,
+        'evidence_status' => 'available',
+        'events' => $changeSet->provenance['events'] ?? [],
+      ];
     }
-    return $sections;
+    return [$sections, $provenance];
   }
 
   /**

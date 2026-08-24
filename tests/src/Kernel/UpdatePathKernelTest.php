@@ -163,8 +163,10 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     changelogify_update_13001();
     changelogify_update_14001();
     changelogify_update_14002();
+    changelogify_update_14003();
     changelogify_post_update_ensure_query_indexes();
     changelogify_post_update_add_event_contract_fields();
+    changelogify_post_update_add_release_provenance();
   }
 
   /**
@@ -230,6 +232,7 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
       'track_modules' => FALSE,
       'track_users' => FALSE,
       'event_retention_days' => 0,
+      'provenance_retention_days' => 0,
       'track_unpublished_content' => FALSE,
       'changelog_path' => '/changelog',
       'content_capture' => [

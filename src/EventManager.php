@@ -8,6 +8,7 @@ use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\changelogify\Entity\ChangelogifyEventInterface;
+use Drupal\changelogify\Provenance\ReleaseProvenanceManagerInterface;
 
 /**
  * Manages event logging and retrieval.
@@ -21,6 +22,7 @@ class EventManager implements EventManagerInterface {
     protected EntityTypeManagerInterface $entityTypeManager,
     protected AccountProxyInterface $currentUser,
     protected TimeInterface $time,
+    protected ReleaseProvenanceManagerInterface $provenanceManager,
   ) {
   }
 
@@ -194,6 +196,7 @@ class EventManager implements EventManagerInterface {
       return 0;
     }
 
+    $this->provenanceManager->markEventsExpired(array_map('intval', $ids));
     $events = $storage->loadMultiple($ids);
     $storage->delete($events);
     return count($events);

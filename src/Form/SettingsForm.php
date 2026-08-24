@@ -189,6 +189,15 @@ class SettingsForm extends ConfigFormBase {
       '#default_value' => $this->config('changelogify.settings')->get('event_retention_days') ?? 90,
     ];
 
+    $form['retention']['provenance_retention_days'] = [
+      '#type' => 'number',
+      '#title' => $this->t('Keep minimal release provenance for (days)'),
+      '#description' => $this->t('Technical evidence snapshots older than this will be removed during cron without changing release text. Set to 0 to keep forever.'),
+      '#config_target' => 'changelogify.settings:provenance_retention_days',
+      '#min' => 0,
+      '#default_value' => $this->config('changelogify.settings')->get('provenance_retention_days') ?? 0,
+    ];
+
     return parent::buildForm($form, $form_state);
   }
 

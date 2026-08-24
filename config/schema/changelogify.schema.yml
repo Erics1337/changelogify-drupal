@@ -53,6 +53,9 @@ changelogify.settings:
     event_retention_days:
       type: integer
       label: Event retention period in days
+    provenance_retention_days:
+      type: integer
+      label: Minimal release provenance retention period in days
     config_import:
       type: mapping
       label: Configuration import capture

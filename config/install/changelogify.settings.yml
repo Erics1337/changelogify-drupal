@@ -10,6 +10,7 @@ content_capture:
       default_bundle_enabled: true
       bundles: { }
 event_retention_days: 90
+provenance_retention_days: 0
 config_import:
   include_sensitive: false
   excluded_patterns: [ ]

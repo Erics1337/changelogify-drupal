@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 use Drupal\Core\Database\Database;
 use Drupal\Core\Utility\UpdateException;
+use Drupal\changelogify\Provenance\ReleaseProvenanceManagerInterface;
 
 /**
  * Adds indexes used by event range and published release queries.
@@ -116,4 +117,27 @@ function changelogify_post_update_add_event_contract_fields(): void {
   }
 
   \Drupal::logger('changelogify')->notice('Added the versioned event contract fields and indexes without changing existing events.');
+}
+
+/**
+ * Adds and safely backfills privacy-bounded release provenance.
+ */
+function changelogify_post_update_add_release_provenance(): void {
+  $updateManager = \Drupal::entityDefinitionUpdateManager();
+  if ($updateManager->getFieldStorageDefinition('provenance', 'changelogify_release') === NULL) {
+    $definitions = \Drupal::service('entity_field.manager')
+      ->getBaseFieldDefinitions('changelogify_release');
+    $updateManager->installFieldStorageDefinition(
+      'provenance',
+      'changelogify',
+      'changelogify_release',
+      $definitions['provenance'],
+    );
+  }
+
+  $count = \Drupal::service(ReleaseProvenanceManagerInterface::class)
+    ->backfillExistingReleases();
+  \Drupal::logger('changelogify')->notice('Backfilled minimal provenance for @count releases.', [
+    '@count' => $count,
+  ]);
 }

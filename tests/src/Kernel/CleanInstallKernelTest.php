@@ -37,6 +37,7 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
         ],
       ],
       'event_retention_days' => 90,
+      'provenance_retention_days' => 0,
       'config_import' => [
         'include_sensitive' => FALSE,
         'excluded_patterns' => [],
@@ -60,6 +61,7 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
       'id', 'uuid', 'title', 'label_type', 'version', 'release_date',
       'date_start', 'date_end', 'sections', 'status', 'uid', 'created',
       'changed',
+      'provenance',
     ], array_keys($fieldManager->getBaseFieldDefinitions('changelogify_release')));
 
     $schema = Database::getConnection()->schema();

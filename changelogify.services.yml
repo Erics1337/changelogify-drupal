@@ -49,6 +49,12 @@ services:
   Drupal\changelogify\ChangeSet\ChangeSetAggregatorInterface:
     alias: Drupal\changelogify\ChangeSet\ChangeSetAggregator
 
+  Drupal\changelogify\Provenance\ReleaseProvenanceManager:
+    class: Drupal\changelogify\Provenance\ReleaseProvenanceManager
+
+  Drupal\changelogify\Provenance\ReleaseProvenanceManagerInterface:
+    alias: Drupal\changelogify\Provenance\ReleaseProvenanceManager
+
   Drupal\changelogify\EventSource\EventSourceRegistry:
     class: Drupal\changelogify\EventSource\EventSourceRegistry
     arguments:

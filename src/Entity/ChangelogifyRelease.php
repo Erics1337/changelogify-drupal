@@ -182,6 +182,11 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ->setDefaultValue('{}')
       ->setDisplayConfigurable('form', TRUE);
 
+    $fields['provenance'] = BaseFieldDefinition::create('string_long')
+      ->setLabel(t('Provenance'))
+      ->setDescription(t('JSON-encoded privacy-bounded release evidence.'))
+      ->setDefaultValue('{"version":1,"items":{}}');
+
     $fields['status'] = BaseFieldDefinition::create('boolean')
       ->setLabel(t('Published'))
       ->setDescription(t('Whether the release is published.'))
@@ -301,6 +306,35 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
     }
 
     $this->set('sections', json_encode($normalized, JSON_THROW_ON_ERROR));
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getProvenance(): array {
+    $value = $this->get('provenance')->value;
+    if (empty($value)) {
+      return ['version' => 1, 'items' => []];
+    }
+    $decoded = json_decode($value, TRUE, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($decoded) || !is_array($decoded['items'] ?? NULL)) {
+      throw new \UnexpectedValueException('Release provenance must contain versioned items.');
+    }
+    return ['version' => (int) ($decoded['version'] ?? 1), 'items' => $decoded['items']];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setProvenance(array $provenance): ChangelogifyReleaseInterface {
+    if (!is_array($provenance['items'] ?? NULL)) {
+      throw new \InvalidArgumentException('Release provenance must contain an items array.');
+    }
+    $this->set('provenance', json_encode([
+      'version' => (int) ($provenance['version'] ?? 1),
+      'items' => $provenance['items'],
+    ], JSON_THROW_ON_ERROR));
     return $this;
   }
 

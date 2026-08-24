@@ -167,6 +167,22 @@ final class ChangeSetAggregator implements ChangeSetAggregatorInterface {
           static fn (ChangelogifyEventInterface $event): int => $event->getSchemaVersion(),
           $events,
         ))),
+        'events' => array_map(
+          static fn (ChangelogifyEventInterface $event): array => [
+            'event_id' => (int) $event->id(),
+            'event_uuid' => $event->uuid(),
+            'event_type' => $event->getEventType(),
+            'source' => $event->getSource(),
+            'timestamp' => $event->getTimestamp(),
+            'schema_version' => $event->getSchemaVersion(),
+            'correlation_id' => $event->getCorrelationId(),
+            'entity_type_id' => $event->getRelatedEntityTypeId(),
+            'entity_id' => $event->getRelatedEntityId(),
+            'bundle' => $event->getRelatedBundle(),
+            'evidence_status' => 'available',
+          ],
+          $events,
+        ),
       ],
     );
   }

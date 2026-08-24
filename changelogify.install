@@ -88,3 +88,14 @@ function changelogify_update_14002(): string {
   $config->save();
   return 'Added privacy defaults for correlated configuration import events.';
 }
+
+/**
+ * Adds an independent retention policy for minimal release provenance.
+ */
+function changelogify_update_14003(): string {
+  $config = \Drupal::configFactory()->getEditable('changelogify.settings');
+  if ($config->get('provenance_retention_days') === NULL) {
+    $config->set('provenance_retention_days', 0)->save();
+  }
+  return 'Added the minimal release provenance retention policy.';
+}
