@@ -41,6 +41,14 @@ services:
   Drupal\changelogify\ConfigClassifier\ConfigClassifierInterface:
     alias: Drupal\changelogify\ConfigClassifier\ConfigClassifier
 
+  Drupal\changelogify\ChangeSet\ChangeSetAggregator:
+    class: Drupal\changelogify\ChangeSet\ChangeSetAggregator
+    arguments:
+      - !tagged_iterator changelogify.change_set_grouping_strategy
+
+  Drupal\changelogify\ChangeSet\ChangeSetAggregatorInterface:
+    alias: Drupal\changelogify\ChangeSet\ChangeSetAggregator
+
   Drupal\changelogify\EventSource\EventSourceRegistry:
     class: Drupal\changelogify\EventSource\EventSourceRegistry
     arguments:

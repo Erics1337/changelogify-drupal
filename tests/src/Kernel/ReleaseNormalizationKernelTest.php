@@ -60,6 +60,31 @@ final class ReleaseNormalizationKernelTest extends ChangelogifyKernelTestBase {
       'message' => 'Updated Image media item: "Homepage Hero"',
       'section_hint' => 'changed',
     ]);
+    $unrelatedDuplicate = $eventManager->logEvent([
+      'timestamp' => 1602,
+      'event_type' => 'media_updated',
+      'source' => 'content_entity',
+      'entity_type_id' => 'media',
+      'entity_id' => 3,
+      'message' => 'Updated Image media item: "Homepage Hero"',
+      'section_hint' => 'changed',
+    ]);
+    $firstCorrelated = $eventManager->logEvent([
+      'timestamp' => 1700,
+      'event_type' => 'config_import_succeeded',
+      'source' => 'config',
+      'message' => 'Started correlated configuration evidence.',
+      'section_hint' => 'fixed',
+      'correlation_id' => 'import:release-test',
+    ]);
+    $secondCorrelated = $eventManager->logEvent([
+      'timestamp' => 1701,
+      'event_type' => 'config_component_changed',
+      'source' => 'config',
+      'message' => 'Applied correlated configuration import.',
+      'section_hint' => 'fixed',
+      'correlation_id' => 'import:release-test',
+    ]);
 
     $release = $releaseGenerator->generateReleaseFromRange(
       new \DateTimeImmutable('@1000'),
@@ -70,11 +95,18 @@ final class ReleaseNormalizationKernelTest extends ChangelogifyKernelTestBase {
 
     self::assertCount(1, $sections['added']);
     self::assertSame('Published Page: "About Us"', $sections['added'][0]['text']);
-    self::assertCount(1, $sections['changed']);
+    self::assertCount(2, $sections['changed']);
     self::assertSame([
       (int) $firstDuplicate->id(),
       (int) $secondDuplicate->id(),
     ], $sections['changed'][0]['event_ids']);
+    self::assertSame([(int) $unrelatedDuplicate->id()], $sections['changed'][1]['event_ids']);
+    self::assertCount(1, $sections['fixed']);
+    self::assertSame('Applied correlated configuration import.', $sections['fixed'][0]['text']);
+    self::assertSame([
+      (int) $firstCorrelated->id(),
+      (int) $secondCorrelated->id(),
+    ], $sections['fixed'][0]['event_ids']);
   }
 
 }
