@@ -58,8 +58,17 @@ and YAML files, so it remains required even while the module has no JavaScript.
       commit; a warning, manual, canceled, or skipped required lane is not green.
 - [ ] Review the PHPUnit log to confirm Unit, Kernel, and Functional tests were
       discovered. Treat a required suite with zero discovered tests as failure.
+- [ ] Confirm `CleanInstallKernelTest`, `UpdatePathKernelTest`, and
+      `LifecycleFunctionalTest` pass in every required PHPUnit lane. These are
+      the install, supported-upgrade, interrupted-update, and uninstall gate.
 - [ ] Confirm Composer resolved dependencies in every matrix `composer` job.
 - [ ] Confirm there are no allowed failures among validation jobs.
+- [ ] Review the [security and operations guide](SECURITY_AND_OPERATIONS.md)
+      against settings defaults, captured metadata, permissions, routes, cron
+      behavior, and uninstall behavior.
+- [ ] Confirm the [1.3 release notes](RELEASE_NOTES_1.3.md) contain current
+      upgrade and rollback steps and do not claim AI summarization or semantic
+      deduplication.
 - [ ] Update release notes and the project version, then tag only the exact
       commit whose pipeline passed.
 

@@ -88,7 +88,7 @@ class SettingsForm extends ConfigFormBase {
     $form['event_sources']['track_unpublished_content'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Track unpublished content'),
-      '#description' => $this->t('Include titles and paths for unpublished nodes in the internal event log.'),
+      '#description' => $this->t('Privacy warning: stores labels and paths for unpublished or access-controlled content in the internal event log, where they can be included in draft releases. Restrict administrative access before enabling.'),
       '#config_target' => 'changelogify.settings:track_unpublished_content',
       '#default_value' => $this->setting('track_unpublished_content', FALSE),
       '#states' => [
@@ -109,7 +109,7 @@ class SettingsForm extends ConfigFormBase {
     $form['event_sources']['track_users'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Track user changes'),
-      '#description' => $this->t('Log events when users are created or roles change.'),
+      '#description' => $this->t('Privacy warning: stores usernames and old/new role assignments when users are created or roles change. Restrict administrative access and confirm a lawful retention policy before enabling.'),
       '#config_target' => 'changelogify.settings:track_users',
       '#default_value' => $this->setting('track_users', FALSE),
     ];

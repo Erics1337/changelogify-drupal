@@ -124,6 +124,11 @@ Visit **Configuration → Development → Changelogify → Settings** to configu
 User tracking and unpublished-content tracking are disabled by default. Event
 retention runs in bounded batches during Drupal cron; the default is 90 days.
 
+Before enabling either privacy-sensitive source, review the
+[security, privacy, and operations guide](docs/SECURITY_AND_OPERATIONS.md).
+Unpublished tracking stores labels and paths for content that may be private;
+user tracking stores usernames and old/new role assignments.
+
 Captured events can be reviewed at `/admin/content/changelogify/events` by
 users with the `administer changelogify` permission.
 
@@ -142,6 +147,11 @@ Grant `view changelogify releases` to the anonymous role when the changelog shou
 Event metadata can contain node titles, paths, usernames, and role changes when
 the corresponding tracking settings are enabled. Treat access to the dashboard
 and event log as privileged administrative access.
+
+Anonymous `view changelogify releases` access exposes every published release's
+title, version, date, and edited section text to the public. It does not expose
+raw event metadata or draft releases. Review release text for private details
+before publishing.
 
 ---
 
@@ -165,6 +175,9 @@ declared Drupal 10.3/PHP 8.1 floor, rolling Drupal 10 and 11 releases, and the
 maximum supported PHP version; PHPUnit, PHPStan, PHPCS, and applicable frontend
 lint jobs must all pass.
 
+See the [Changelogify 1.3 release notes](docs/RELEASE_NOTES_1.3.md) for
+user-visible changes and upgrade instructions.
+
 ### Upgrades and uninstall
 
 Back up the database and exported configuration before running Drupal database
@@ -182,15 +195,6 @@ confirming module uninstall permanently deletes the entity tables and
 `changelogify.settings` active configuration. Export or back up records before
 confirming their removal. Reinstalling starts with empty entity storage and the
 defaults documented above.
-
----
-
-## 🛣️ Roadmap
-
-- [ ] **Latest Releases block** — Place in sidebars
-- [ ] **AI Submodule** (`changelogify_ai`) — Auto-generate summaries with LLMs
-- [ ] **Config entity export** — Deploy releases across environments
-- [ ] **RSS/Atom feed** — Subscribe to changelog updates
 
 ---
 

@@ -321,6 +321,8 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     $this->drupalGet('/admin/config/development/changelogify/settings');
     $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Privacy warning: stores labels and paths for unpublished or access-controlled content');
+    $this->assertSession()->pageTextContains('Privacy warning: stores usernames and old/new role assignments');
     $this->submitForm([
       'changelog_path' => '/product-updates',
     ], 'Save configuration');
