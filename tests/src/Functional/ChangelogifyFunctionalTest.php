@@ -266,6 +266,113 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
   }
 
   /**
+   * Tests permission-controlled states, revisions, archive, and restoration.
+   */
+  public function testReleaseEditorialWorkflow(): void {
+    $anonymousRole = Role::load(RoleInterface::ANONYMOUS_ID);
+    self::assertNotNull($anonymousRole);
+    $anonymousRole->grantPermission('view changelogify releases')->save();
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+    $release = $storage->create([
+      'title' => 'Workflow release',
+      'release_date' => 1_700_000_000,
+      'status' => FALSE,
+    ]);
+    $release->save();
+
+    $manager = $this->drupalCreateUser(['manage changelogify releases']);
+    $this->drupalLogin($manager);
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->submitForm(['editorial_state' => 'published'], 'Save');
+    $this->assertSession()->pageTextContains('do not have permission');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame('draft', $release->getEditorialState());
+
+    $editor = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'submit changelogify releases for review',
+      'publish changelogify releases',
+      'archive changelogify releases',
+      'view changelogify release revisions',
+      'revert changelogify release revisions',
+    ]);
+    $this->drupalLogin($editor);
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->submitForm([
+      'editorial_state' => 'review',
+      'revision_log_message[0][value]' => 'Ready for stakeholder review.',
+    ], 'Save');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame('review', $release->getEditorialState());
+    self::assertFalse($release->isPublished());
+    $this->drupalLogout();
+    $this->drupalGet('/changelog/' . $release->id());
+    $this->assertSession()->statusCodeEquals(403);
+    $this->drupalLogin($editor);
+
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->submitForm([
+      'editorial_state' => 'published',
+      'revision_log_message[0][value]' => 'Approved for publication.',
+    ], 'Save');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame('published', $release->getEditorialState());
+    self::assertTrue($release->isPublished());
+    $publishedRevisionId = (int) $release->getRevisionId();
+    $revisionIds = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('id', $release->id())
+      ->allRevisions()
+      ->execute();
+    self::assertGreaterThanOrEqual(3, count($revisionIds));
+    $this->drupalLogout();
+    $this->drupalGet('/changelog/' . $release->id());
+    $this->assertSession()->statusCodeEquals(200);
+    $this->drupalGet('/admin/content/changelogify/releases/' . $release->id() . '/view');
+    $this->assertSession()->statusCodeEquals(403);
+    $revisionViewer = $this->drupalCreateUser(['view changelogify release revisions']);
+    $this->drupalLogin($revisionViewer);
+    $this->drupalGet($release->toUrl('version-history'));
+    $this->assertSession()->statusCodeEquals(200);
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->assertSession()->statusCodeEquals(403);
+    $this->drupalLogin($editor);
+
+    $this->drupalGet($release->toUrl('version-history'));
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Approved for publication.');
+
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->submitForm(['editorial_state' => 'archived'], 'Save');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame('archived', $release->getEditorialState());
+    self::assertFalse($release->isPublished());
+    $this->drupalLogout();
+    $this->drupalGet('/changelog/' . $release->id());
+    $this->assertSession()->statusCodeEquals(403);
+    $this->drupalLogin($editor);
+
+    $revertUrl = '/admin/content/changelogify/releases/' . $release->id()
+      . '/revisions/' . $publishedRevisionId . '/revert';
+    $this->drupalGet($revertUrl);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->submitForm([], 'Revert');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame('published', $release->getEditorialState());
+    self::assertTrue($release->isPublished());
+    self::assertGreaterThan($publishedRevisionId, (int) $release->getRevisionId());
+    $this->drupalLogout();
+    $this->drupalGet('/changelog/' . $release->id());
+    $this->assertSession()->statusCodeEquals(200);
+  }
+
+  /**
    * Tests release provenance requires the release-management permission.
    */
   public function testProvenanceAccess(): void {

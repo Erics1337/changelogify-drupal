@@ -136,7 +136,9 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
           'confirmed_at' => (int) $this->time->getRequestTime(),
         ];
       }
-      $release->setProvenance($provenance)->save();
+      $release->setProvenance($provenance)
+        ->setRevisionLogMessage('Intentional evidence reuse confirmed.')
+        ->save();
     }
     return $release;
   }
@@ -188,6 +190,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
 
     $release->setSections($sections);
     $release->setProvenance($provenance);
+    $release->setRevisionLogMessage('Draft generated from selected change sets.');
     $release->save();
 
     return $release;

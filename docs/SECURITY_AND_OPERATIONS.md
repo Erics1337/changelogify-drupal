@@ -51,6 +51,12 @@ store them before enabling user or unpublished-content tracking.
 | `administer changelogify` | Restricted-access permission. Opens `/admin/config/development/changelogify`, settings, and `/admin/content/changelogify/events`. Users can see internal event messages and operational data and can change privacy/retention settings. Grant only to trusted administrators. |
 | `manage changelogify releases` | Opens release generation and release entity create/edit/delete operations. Users can view drafts, publish or unpublish releases, and expose edited release text. Grant only to trusted editors. |
 | `view changelogify releases` | Allows viewing published release list/detail pages. Does not grant access to drafts or raw events. Granting it to Anonymous user makes all published release titles, versions, dates, and section text public. |
+| `publish changelogify releases` | Allows release managers to publish and unpublish releases. Restricted access. |
+| `revert changelogify release revisions` | Allows restoring private historical release content and state as a new revision. Restricted access. |
+
+Ready-for-review and archived releases are unpublished and follow the same
+public access denial as drafts. Revision history and evidence remain private
+administrative data with separate permissions.
 
 The default public routes are `/changelog` and
 `/changelog/{changelogify_release}`. No role receives the public-view

@@ -29,6 +29,8 @@ final class RouteSubscriber extends RouteSubscriberBase {
 
     $collection->get('changelogify.changelog')?->setPath($base_path);
     $collection->get('changelogify.changelog_release')?->setPath($base_path . '/{changelogify_release}');
+    $collection->get('entity.changelogify_release.canonical')
+      ?->setRequirement('_permission', 'manage changelogify releases');
   }
 
 }

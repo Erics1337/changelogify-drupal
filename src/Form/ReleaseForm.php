@@ -62,10 +62,11 @@ class ReleaseForm extends ContentEntityForm {
 
     // Sections are edited through the structured textareas below. Never expose
     // the JSON storage field as a second, conflicting form widget.
-    unset($form['sections']);
+    unset($form['sections'], $form['status']);
 
     /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
     $release = $this->entity;
+    $form_state->set('original_editorial_state', $release->getEditorialState());
 
     // Add item-level editing without exposing provenance as client input.
     $form['sections_wrapper'] = [
@@ -257,6 +258,28 @@ class ReleaseForm extends ContentEntityForm {
     if ($form_state->hasAnyErrors()) {
       return;
     }
+    $originalState = (string) $form_state->get('original_editorial_state');
+    $targetState = (string) $form_state->getValue(['editorial_state', 0, 'value']);
+    $allowed = [
+      'draft' => ['draft', 'review', 'published', 'archived'],
+      'review' => ['draft', 'review', 'published', 'archived'],
+      'published' => ['draft', 'published', 'archived'],
+      'archived' => ['draft', 'archived'],
+    ];
+    if (!in_array($targetState, $allowed[$originalState] ?? [], TRUE)) {
+      $form_state->setErrorByName('editorial_state', $this->t('That editorial state transition is not allowed.'));
+      return;
+    }
+    $permission = match (TRUE) {
+      $targetState === 'published' || $originalState === 'published' => 'publish changelogify releases',
+      $targetState === 'archived' || $originalState === 'archived' => 'archive changelogify releases',
+      $targetState === 'review' || $originalState === 'review' => 'submit changelogify releases for review',
+      default => NULL,
+    };
+    if ($permission !== NULL && !$this->currentUser->hasPermission($permission)) {
+      $form_state->setErrorByName('editorial_state', $this->t('You do not have permission for that editorial state transition.'));
+      return;
+    }
     try {
       /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
       $release = $this->entity;
@@ -279,6 +302,17 @@ class ReleaseForm extends ContentEntityForm {
     $release = $this->entity;
 
     $sections = $form_state->get('normalized_release_sections');
+    $originalState = (string) $form_state->get('original_editorial_state');
+    $targetState = (string) $form_state->getValue(['editorial_state', 0, 'value']);
+    $release->setEditorialState($targetState);
+    $release->setNewRevision(TRUE);
+    $release->setRevisionUserId((int) $this->currentUser->id());
+    $release->setRevisionCreationTime($this->time->getRequestTime());
+    if (trim((string) $release->getRevisionLogMessage()) === '') {
+      $release->setRevisionLogMessage($originalState === $targetState
+        ? 'Release edited.'
+        : sprintf('Editorial state changed from %s to %s.', $originalState, $targetState));
+    }
     $release->setSections($sections);
     $provenance = $release->getProvenance();
     $retainedIds = [];

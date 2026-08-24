@@ -75,7 +75,12 @@ class ReleaseListBuilder extends EntityListBuilder {
       'title' => $entity->toLink($entity->getTitle(), 'edit-form'),
       'version' => $entity->getVersion() ?: '-',
       'date' => $this->dateFormatter->format($entity->getReleaseDate(), 'short'),
-      'status' => $entity->isPublished() ? $this->t('Published') : $this->t('Draft'),
+      'status' => match ($entity->getEditorialState()) {
+        'review' => $this->t('Ready for review'),
+        'published' => $this->t('Published'),
+        'archived' => $this->t('Archived'),
+        default => $this->t('Draft'),
+      },
     ];
     return $row + parent::buildRow($entity);
   }

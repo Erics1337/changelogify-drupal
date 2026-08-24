@@ -5,7 +5,27 @@ administer changelogify:
 
 manage changelogify releases:
   title: 'Manage Changelogify releases'
-  description: 'Create, edit, delete, publish and unpublish releases.'
+  description: 'Create, edit, and delete releases without granting workflow transitions.'
+
+submit changelogify releases for review:
+  title: 'Submit Changelogify releases for review'
+  description: 'Move draft releases into or out of ready-for-review state.'
+
+publish changelogify releases:
+  title: 'Publish Changelogify releases'
+  description: 'Publish releases and return published releases to draft.'
+  restrict access: true
+
+archive changelogify releases:
+  title: 'Archive Changelogify releases'
+  description: 'Archive releases and restore archived releases to draft.'
+
+view changelogify release revisions:
+  title: 'View Changelogify release revisions'
+
+revert changelogify release revisions:
+  title: 'Revert Changelogify release revisions'
+  restrict access: true
 
 view changelogify releases:
   title: 'View Changelogify releases'

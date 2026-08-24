@@ -7,12 +7,13 @@ namespace Drupal\changelogify\Entity;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityChangedInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
+use Drupal\Core\Entity\RevisionLogInterface;
 use Drupal\user\EntityOwnerInterface;
 
 /**
  * Interface for Changelogify Release entities.
  */
-interface ChangelogifyReleaseInterface extends ContentEntityInterface, EntityChangedInterface, EntityOwnerInterface, EntityPublishedInterface {
+interface ChangelogifyReleaseInterface extends ContentEntityInterface, EntityChangedInterface, EntityOwnerInterface, EntityPublishedInterface, RevisionLogInterface {
 
   /**
    * Gets the release title.
@@ -33,6 +34,16 @@ interface ChangelogifyReleaseInterface extends ContentEntityInterface, EntityCha
    * Sets the published status.
    */
   public function setPublished(bool $published = TRUE): self;
+
+  /**
+   * Gets the editorial workflow state.
+   */
+  public function getEditorialState(): string;
+
+  /**
+   * Sets the editorial workflow state and authoritative publication status.
+   */
+  public function setEditorialState(string $state): self;
 
   /**
    * Gets the sections array.

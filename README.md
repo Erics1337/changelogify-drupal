@@ -97,8 +97,12 @@ The release edit form shows all sections:
 - **Security** — Security patches
 - **Other** — Miscellaneous changes
 
-Edit the bullet points, select **Published**, and save the release. Unpublished
-drafts are never available on the public list or detail routes.
+Edit the items, choose an authorized editorial state, and save the release.
+Unpublished drafts are never available on the public list or detail routes.
+
+Releases support revision history and permission-controlled Draft, Ready for
+review, Published, and Archived states. See the
+[editorial workflow guide](docs/EDITORIAL_WORKFLOW.md).
 
 The [structured item editor](docs/RELEASE_ITEM_EDITOR.md) preserves stable item
 identity and evidence while supporting edits, movement, ordering, deletion, and
