@@ -28,6 +28,8 @@ function changelogify_update_12001(): string {
 
   $config->save();
 
+  \Drupal::logger('changelogify')->notice('Applied the Changelogify 1.2 configuration defaults. Existing values were preserved.');
+
   return 'Backfilled Changelogify 1.2 settings defaults.';
 }
 
@@ -45,6 +47,8 @@ function changelogify_update_13001(): string {
   }
 
   $config->save();
+
+  \Drupal::logger('changelogify')->notice('Applied the Changelogify 1.3 privacy and public path defaults. Existing values were preserved.');
 
   return 'Added Changelogify privacy and public path defaults.';
 }

@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use Drupal\Core\Database\Database;
+use Drupal\Core\Utility\UpdateException;
 
 /**
  * Adds indexes used by event range and published release queries.
@@ -40,15 +41,39 @@ function changelogify_post_update_ensure_query_indexes(): void {
     ],
   ];
 
+  $missingTables = array_filter(
+    array_keys($tables),
+    static fn (string $table): bool => !$schema->tableExists($table),
+  );
+  if ($missingTables) {
+    $message = sprintf(
+      'Changelogify cannot add query indexes because required tables are missing: %s. Restore the module database tables from backup, then rerun database updates.',
+      implode(', ', $missingTables),
+    );
+    \Drupal::logger('changelogify')->error($message);
+    throw new UpdateException($message);
+  }
+
   foreach ($tables as $table => $tableSpec) {
-    if (!$schema->tableExists($table)) {
-      continue;
-    }
 
     foreach ($tableSpec['indexes'] as $name => $fields) {
       if (!$schema->indexExists($table, $name)) {
-        $schema->addIndex($table, $name, $fields, $tableSpec);
+        try {
+          $schema->addIndex($table, $name, $fields, $tableSpec);
+        }
+        catch (\Throwable $exception) {
+          $message = sprintf(
+            'Changelogify could not create the %s index on %s. Correct the database schema problem and rerun database updates. Database error: %s',
+            $name,
+            $table,
+            $exception->getMessage(),
+          );
+          \Drupal::logger('changelogify')->error($message);
+          throw new UpdateException($message, 0, $exception);
+        }
       }
     }
   }
+
+  \Drupal::logger('changelogify')->notice('Verified all Changelogify event and release query indexes.');
 }

@@ -165,6 +165,24 @@ declared Drupal 10.3/PHP 8.1 floor, rolling Drupal 10 and 11 releases, and the
 maximum supported PHP version; PHPUnit, PHPStan, PHPCS, and applicable frontend
 lint jobs must all pass.
 
+### Upgrades and uninstall
+
+Back up the database and exported configuration before running Drupal database
+updates. Changelogify supports upgrades from the 1.1, 1.2, and 1.3 beta lines;
+updates preserve stored event metadata, release sections, and administrator
+configuration while adding missing defaults and query indexes. Failed schema
+updates log recovery guidance and may be safely rerun after the database issue
+is corrected.
+
+Drupal blocks uninstall while Changelogify event or release content exists and
+provides separate **Remove events** and **Remove releases** confirmation links
+on the module uninstall screen. A blocked attempt preserves the module, its
+configuration, and all records. After those records are explicitly removed,
+confirming module uninstall permanently deletes the entity tables and
+`changelogify.settings` active configuration. Export or back up records before
+confirming their removal. Reinstalling starts with empty entity storage and the
+defaults documented above.
+
 ---
 
 ## 🛣️ Roadmap
