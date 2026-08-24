@@ -276,6 +276,15 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'release_date' => 1_700_000_000,
       'status' => TRUE,
     ]);
+    $release->setSections([
+      'other' => [
+        [
+          'id' => 'safe-item',
+          'text' => 'Evidence item',
+          'event_ids' => [],
+        ],
+      ],
+    ]);
     $release->setProvenance([
       'version' => 1,
       'items' => [
@@ -301,6 +310,13 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->drupalGet($path);
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('removed');
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Source evidence: removed');
+    $this->assertSession()->elementNotExists(
+      'css',
+      'a[href^="/admin/content/changelogify/events/"]',
+    );
   }
 
   /**
@@ -333,6 +349,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     $user = $this->drupalCreateUser([
       'manage changelogify releases',
+      'administer changelogify',
       'access administration pages',
     ]);
     $this->drupalLogin($user);
@@ -393,6 +410,11 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Draft release "January release" has been created.');
     $this->assertSession()->responseContains('changelogify.editor.js');
+    $this->assertSession()->pageTextContains('Source evidence: available');
+    $this->assertSession()->elementExists(
+      'css',
+      'a[href^="/admin/content/changelogify/events/"]',
+    );
     $this->assertSession()->elementExists(
       'css',
       'input[name="sections_wrapper[items][existing_0][text]"]',
@@ -437,6 +459,8 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     self::assertSame('Edited selected change', $sections['security'][0]['text']);
     self::assertSame([], $sections['added'][0]['event_ids']);
     self::assertSame('security', $release->getProvenance()['items'][$itemId]['section']);
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->assertSession()->pageTextContains('Editorial item — no automatic evidence.');
   }
 
   /**

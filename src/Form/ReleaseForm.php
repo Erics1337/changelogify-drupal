@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace Drupal\changelogify\Form;
 
 use Drupal\changelogify\ReleaseItemNormalizer;
+use Drupal\changelogify\Provenance\ReleaseProvenanceManagerInterface;
 use Drupal\Component\Datetime\TimeInterface;
+use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\ContentEntityForm;
 use Drupal\Core\Entity\EntityRepositoryInterface;
 use Drupal\Core\Entity\EntityTypeBundleInfoInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Link;
+use Drupal\Core\Session\AccountProxyInterface;
+use Drupal\Core\Url;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -22,6 +27,9 @@ class ReleaseForm extends ContentEntityForm {
     EntityTypeBundleInfoInterface $entityTypeBundleInfo,
     TimeInterface $time,
     protected ReleaseItemNormalizer $itemNormalizer,
+    protected ReleaseProvenanceManagerInterface $provenanceManager,
+    protected DateFormatterInterface $dateFormatter,
+    protected AccountProxyInterface $currentUser,
   ) {
     parent::__construct($entityRepository, $entityTypeBundleInfo, $time);
   }
@@ -35,6 +43,9 @@ class ReleaseForm extends ContentEntityForm {
           $container->get('entity_type.bundle.info'),
           $container->get('datetime.time'),
           $container->get(ReleaseItemNormalizer::class),
+          $container->get(ReleaseProvenanceManagerInterface::class),
+          $container->get('date.formatter'),
+          $container->get('current_user'),
       );
   }
 
@@ -44,6 +55,10 @@ class ReleaseForm extends ContentEntityForm {
   public function form(array $form, FormStateInterface $form_state): array {
     $form = parent::form($form, $form_state);
     $form['#attached']['library'][] = 'changelogify/editor';
+    $form['#cache'] = [
+      'contexts' => ['user.permissions'],
+      'max-age' => 0,
+    ];
 
     // Sections are edited through the structured textareas below. Never expose
     // the JSON storage field as a second, conflicting form widget.
@@ -62,6 +77,7 @@ class ReleaseForm extends ContentEntityForm {
     ];
 
     $sections = $release->getSections();
+    $resolvedProvenance = $this->provenanceManager->getResolvedProvenance($release);
     $section_labels = [
       'added' => $this->t('Added'),
       'changed' => $this->t('Changed'),
@@ -91,6 +107,8 @@ class ReleaseForm extends ContentEntityForm {
           $position,
           $sectionOptions,
           $item['event_ids'] === [] ? $this->t('Manual item') : $this->t('Evidence-backed item'),
+          TRUE,
+          $resolvedProvenance['items'][$id] ?? NULL,
         );
         $position++;
       }
@@ -126,6 +144,7 @@ class ReleaseForm extends ContentEntityForm {
     array $sectionOptions,
     mixed $label,
     bool $existing = TRUE,
+    ?array $evidence = NULL,
   ): array {
     $element = [
       '#type' => 'fieldset',
@@ -156,8 +175,78 @@ class ReleaseForm extends ContentEntityForm {
         '#type' => 'checkbox',
         '#title' => $this->t('Remove this item'),
       ];
+      $element['evidence'] = $this->evidenceElement($evidence);
     }
     return $element;
+  }
+
+  /**
+   * Builds a privacy-bounded inline evidence panel.
+   */
+  private function evidenceElement(?array $evidence): array {
+    if ($evidence === NULL) {
+      return [
+        '#type' => 'item',
+        '#title' => $this->t('Source evidence'),
+        '#markup' => $this->t('Editorial item — no automatic evidence.'),
+      ];
+    }
+    $panel = [
+      '#type' => 'details',
+      '#title' => $this->t('Source evidence: @status', [
+        '@status' => $evidence['evidence_status'] ?? 'unknown',
+      ]),
+      '#open' => FALSE,
+    ];
+    $panel['summary'] = [
+      '#type' => 'item',
+      '#markup' => $this->t('@kind change set with @count evidence record(s).', [
+        '@kind' => $evidence['kind'] ?? 'unknown',
+        '@count' => $evidence['event_count'] ?? count($evidence['events'] ?? []),
+      ]),
+    ];
+    $rows = [];
+    foreach ($evidence['events'] ?? [] as $event) {
+      $eventId = (int) ($event['event_id'] ?? 0);
+      $descriptor = implode(':', array_filter([
+        $event['entity_type_id'] ?? NULL,
+        $event['entity_id'] ?? NULL,
+        $event['bundle'] ?? NULL,
+      ], static fn (mixed $value): bool => $value !== NULL && $value !== ''));
+      $eventLabel = $eventId > 0 ? '#' . $eventId : '-';
+      if ($eventId > 0
+        && ($event['evidence_status'] ?? NULL) === 'available'
+        && $this->currentUser->hasPermission('administer changelogify')) {
+        $eventLabel = Link::fromTextAndUrl(
+          $eventLabel,
+          Url::fromRoute('changelogify.event_detail', ['changelogify_event' => $eventId]),
+        )->toRenderable();
+      }
+      $rows[] = [
+        'event' => ['data' => $eventLabel],
+        'status' => $event['evidence_status'] ?? 'unknown',
+        'source' => $event['source'] ?? '-',
+        'type' => $event['event_type'] ?? '-',
+        'time' => isset($event['timestamp'])
+          ? $this->dateFormatter->format((int) $event['timestamp'], 'short')
+          : '-',
+        'descriptor' => $descriptor ?: '-',
+      ];
+    }
+    $panel['events'] = [
+      '#type' => 'table',
+      '#header' => [
+        $this->t('Event'),
+        $this->t('Availability'),
+        $this->t('Source'),
+        $this->t('Type'),
+        $this->t('Time'),
+        $this->t('Technical descriptor'),
+      ],
+      '#rows' => $rows,
+      '#empty' => $this->t('No retained evidence details are available.'),
+    ];
+    return $panel;
   }
 
   /**

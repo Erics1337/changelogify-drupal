@@ -21,3 +21,10 @@ The complete editor works without JavaScript through section selectors and
 numeric order controls. The optional JavaScript enhancement adds keyboard-
 operable **Move up** and **Move down** buttons that update those same order
 fields. It does not submit or persist any additional data.
+
+Each stored item also has a collapsed **Source evidence** panel. It shows only
+the privacy-bounded change-set kind, availability, evidence count, timestamp,
+source/type, and technical entity descriptor. Available event IDs link to the
+full administrative event explorer only when the editor separately has
+`administer changelogify`. Expired, missing, removed, and manual evidence remain
+clearly distinguished without exposing paths, messages, usernames, or metadata.
