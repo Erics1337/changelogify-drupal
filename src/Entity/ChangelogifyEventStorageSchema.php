@@ -19,7 +19,7 @@ final class ChangelogifyEventStorageSchema extends SqlContentEntityStorageSchema
     $schema = parent::getEntitySchema($entity_type, $reset);
     $table = $this->storage->getBaseTable();
 
-    $schema[$table]['indexes'] += [
+    $indexes = [
       'changelogify_event__timestamp' => ['timestamp'],
       'changelogify_event__event_type_timestamp' => ['event_type', 'timestamp'],
       'changelogify_event__source_timestamp' => ['source', 'timestamp'],
@@ -27,6 +27,11 @@ final class ChangelogifyEventStorageSchema extends SqlContentEntityStorageSchema
       'changelogify_event__correlation_timestamp' => ['correlation_id', 'timestamp'],
       'changelogify_event__schema_timestamp' => ['schema_version', 'timestamp'],
     ];
+    foreach ($indexes as $name => $fields) {
+      if (array_diff($fields, array_keys($schema[$table]['fields'])) === []) {
+        $schema[$table]['indexes'][$name] = $fields;
+      }
+    }
 
     return $schema;
   }
