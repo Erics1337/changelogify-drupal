@@ -85,7 +85,7 @@ final class DrupalAiSummarizerTest extends TestCase {
         return $this->provider;
       }
 
-      public function getDefaultProviderForOperationType(string $operation): null {
+      public function getDefaultProviderForOperationType(string $operation): mixed {
         return NULL;
       }
 
@@ -134,7 +134,7 @@ final class DrupalAiSummarizerTest extends TestCase {
         return FALSE;
       }
 
-      public function getDefaultProviderForOperationType(string $operation): null {
+      public function getDefaultProviderForOperationType(string $operation): mixed {
         return NULL;
       }
 
