@@ -26,7 +26,7 @@ use Drupal\user\EntityOwnerTrait;
  *   label_singular = @Translation("release"),
  *   label_plural = @Translation("releases"),
  *   handlers = {
- *     "view_builder" = "Drupal\Core\Entity\EntityViewBuilder",
+ *     "view_builder" = "Drupal\changelogify\ChangelogifyReleaseViewBuilder",
  *     "list_builder" = "Drupal\changelogify\ReleaseListBuilder",
  *     "access" = "Drupal\changelogify\Access\ChangelogifyReleaseAccessControlHandler",
  *     "storage_schema" = "Drupal\changelogify\Entity\ChangelogifyReleaseStorageSchema",
@@ -76,7 +76,7 @@ use Drupal\user\EntityOwnerTrait;
   label_singular: new TranslatableMarkup("release"),
   label_plural: new TranslatableMarkup("releases"),
   handlers: [
-    "view_builder" => "Drupal\Core\Entity\EntityViewBuilder",
+    "view_builder" => "Drupal\changelogify\ChangelogifyReleaseViewBuilder",
     "list_builder" => "Drupal\changelogify\ReleaseListBuilder",
     "access" => "Drupal\changelogify\Access\ChangelogifyReleaseAccessControlHandler",
     "storage_schema" => "Drupal\changelogify\Entity\ChangelogifyReleaseStorageSchema",

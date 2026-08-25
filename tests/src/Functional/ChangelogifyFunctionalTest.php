@@ -7,6 +7,7 @@ namespace Drupal\Tests\changelogify\Functional;
 use Drupal\changelogify\EventManagerInterface;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
+use Drupal\Core\Url;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\user\Entity\Role;
 use Drupal\user\RoleInterface;
@@ -782,6 +783,75 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('Beginning of recorded history');
     $this->assertSession()->pageTextNotContains('1969');
     $this->assertSession()->pageTextNotContains('1970');
+  }
+
+  /**
+   * Tests administrative release and revision pages render useful content.
+   */
+  public function testAdministrativeReleaseView(): void {
+    $user = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'view changelogify release revisions',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+    $release = $storage->create([
+      'title' => 'Administrative release',
+      'version' => '1.7.0',
+      'release_date' => strtotime('2025-05-02 12:00:00 UTC'),
+      'date_start' => strtotime('2025-05-01 00:00:00 UTC'),
+      'date_end' => strtotime('2025-05-02 12:00:00 UTC'),
+      'status' => TRUE,
+      'editorial_state' => 'published',
+      'slug' => 'administrative-release',
+    ]);
+    $release->setSections([
+      'added' => [[
+        'id' => 'admin-item',
+        'text' => 'Original administrative release content.',
+        'event_ids' => [],
+      ],
+      ],
+    ])->save();
+    $originalRevisionId = (int) $release->getRevisionId();
+
+    $this->drupalGet($release->toUrl('canonical'));
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Original administrative release content.');
+    $this->assertSession()->pageTextContains('Release details');
+    $this->assertSession()->pageTextContains('Version');
+    $this->assertSession()->pageTextContains('1.7.0');
+    $this->assertSession()->linkExists('Edit release');
+    $this->assertSession()->linkExists('Unpublish or archive');
+    $this->assertSession()->linkExists('View public release');
+    $this->assertSession()->linkExists('Revisions');
+    $this->assertSession()->linkExists('Source evidence');
+
+    $release->setNewRevision(TRUE);
+    $release->setSections([
+      'changed' => [[
+        'id' => 'admin-item',
+        'text' => 'Revised administrative release content.',
+        'event_ids' => [],
+      ],
+      ],
+    ])->save();
+    $revisionUrl = Url::fromRoute('entity.changelogify_release.revision', [
+      'changelogify_release' => $release->id(),
+      'changelogify_release_revision' => $originalRevisionId,
+    ]);
+    $this->drupalGet($revisionUrl);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Original administrative release content.');
+    $this->assertSession()->pageTextNotContains('Revised administrative release content.');
+
+    $empty = $storage->create(['title' => 'Empty administrative release']);
+    $empty->save();
+    $this->drupalGet($empty->toUrl('canonical'));
+    $this->assertSession()->pageTextContains('does not contain any release items yet');
   }
 
   /**
