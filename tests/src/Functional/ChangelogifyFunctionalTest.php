@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\changelogify\Functional;
 
+use Drupal\changelogify\EventSource\ContentCapturePolicyInterface;
 use Drupal\changelogify\EventManagerInterface;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
@@ -916,8 +917,19 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->drupalGet('/admin/config/development/changelogify/settings');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Newly discovered entity types and bundles are disabled');
+    $this->assertSession()->pageTextContains('new, review required');
+    $this->assertSession()->buttonExists('Select all recommended');
+    $this->assertSession()->buttonExists('Clear all capture selections');
+    $this->assertSession()->fieldExists('content_capture[node][default_bundle_enabled]');
+    $this->submitForm([], 'Clear Content bundles');
+    $this->assertSession()->checkboxNotChecked('content_capture[node][bundles][page]');
+    $this->submitForm([], 'Select all recommended');
+    $this->assertSession()->checkboxChecked('content_capture[node][enabled]');
+    $this->assertSession()->checkboxChecked('content_capture[node][default_bundle_enabled]');
+    $this->assertSession()->checkboxChecked('content_capture[node][bundles][page]');
     $this->submitForm([
       'content_capture[node][bundles][page]' => FALSE,
+      'content_capture[node][default_bundle_enabled]' => TRUE,
     ], 'Save configuration');
 
     Node::create([
@@ -926,6 +938,10 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'status' => TRUE,
     ])->save();
     self::assertSame(0, $this->eventCount('node_created'));
+
+    NodeType::create(['type' => 'news', 'name' => 'News'])->save();
+    self::assertTrue(\Drupal::service(ContentCapturePolicyInterface::class)
+      ->isBundleEnabled('node', 'news'));
   }
 
   /**
