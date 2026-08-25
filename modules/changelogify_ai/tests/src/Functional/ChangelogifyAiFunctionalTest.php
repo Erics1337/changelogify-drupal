@@ -91,4 +91,35 @@ final class ChangelogifyAiFunctionalTest extends BrowserTestBase {
       ->get('consent_external_processing'));
   }
 
+  /**
+   * Tests provider/model explanations, selection modes, and development labels.
+   */
+  public function testProviderModelGuidanceAndDevelopmentWarning(): void {
+    $user = $this->drupalCreateUser([
+      'administer changelogify ai',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    $this->drupalGet('/admin/config/development/changelogify/ai');
+    $this->assertSession()->pageTextContains('A provider is the service or local runtime that performs generation. The model is the specific chat model it runs.');
+    $this->assertSession()->pageTextContains('Use the site-wide default Drupal AI chat provider and model.');
+    $this->assertSession()->pageTextContains('Provider modules and credentials are managed by Drupal AI and Key, not Changelogify.');
+    $this->assertSession()->pageTextContains('Changing this selection does not rewrite historical operation records.');
+
+    $this->config('changelogify_ai.settings')
+      ->set('provider', [
+        'use_default' => FALSE,
+        'provider' => 'changelogify_ai_test_provider',
+        'model' => 'deterministic_json',
+        'config' => [],
+      ])
+      ->save();
+
+    $this->drupalGet('/admin/config/development/changelogify/ai');
+    $this->assertSession()->pageTextContains('Use the provider and model selected specifically for Changelogify.');
+    $this->assertSession()->pageTextContains('Development-only provider selected.');
+    $this->assertSession()->pageTextContains('do not produce production-quality humanized writing');
+  }
+
 }

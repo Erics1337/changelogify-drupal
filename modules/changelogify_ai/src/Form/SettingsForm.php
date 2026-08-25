@@ -80,6 +80,7 @@ final class SettingsForm extends ConfigFormBase {
     ];
     $ready = $this->operations->isAvailable();
     $selection = $this->operations->selectedProviderModel();
+    $providerConfig = $config->get('provider') ?: [];
     $form['provider_status'] = [
       '#type' => 'item',
       '#title' => $this->t('External processing status'),
@@ -99,15 +100,35 @@ final class SettingsForm extends ConfigFormBase {
         ]),
       '#weight' => -9,
     ];
+    $form['provider_mode'] = [
+      '#type' => 'item',
+      '#title' => $this->t('Selection mode'),
+      '#plain_text' => !empty($providerConfig['use_default'])
+        ? $this->t('Use the site-wide default Drupal AI chat provider and model.')
+        : $this->t('Use the provider and model selected specifically for Changelogify.'),
+      '#weight' => -8,
+    ];
+    if ($selection !== NULL && $this->isDevelopmentProvider($selection['provider'], $selection['model'])) {
+      $form['provider_development_warning'] = [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['messages', 'messages--warning']],
+        '#weight' => -8,
+        'message' => [
+          '#plain_text' => $this->t('Development-only provider selected. Deterministic, fake, or test providers verify integration behavior but do not produce production-quality humanized writing.'),
+        ],
+      ];
+    }
     $form['provider_link'] = [
       '#type' => 'item',
-      '#markup' => Link::fromTextAndUrl($this->t('Configure Drupal AI providers'), Url::fromRoute('ai.admin_providers'))->toString(),
+      '#title' => $this->t('Provider setup and credentials'),
+      '#markup' => Link::fromTextAndUrl($this->t('Configure installed Drupal AI providers'), Url::fromRoute('ai.admin_providers'))->toString(),
+      '#description' => $this->t('A provider is the service or local runtime that performs generation. The model is the specific chat model it runs. Provider modules and credentials are managed by Drupal AI and Key, not Changelogify.'),
       '#weight' => -8,
     ];
     $form['provider'] = [
       '#type' => 'ai_provider_configuration',
-      '#title' => $this->t('Drupal AI chat provider and model'),
-      '#description' => $this->t('Credentials stay in the provider and Key integration.'),
+      '#title' => $this->t('Provider and model for release drafting'),
+      '#description' => $this->t('Choose the service and chat model used for future Changelogify AI operations. Changing this selection does not rewrite historical operation records.'),
       '#operation_type' => 'chat',
       '#advanced_config' => TRUE,
       '#default_provider_allowed' => TRUE,
@@ -227,6 +248,13 @@ final class SettingsForm extends ConfigFormBase {
       'bundle_labels' => $this->t('Bundle labels'),
       'changed_field_names' => $this->t('Changed field names'),
     ];
+  }
+
+  /**
+   * Identifies provider selections that must not look production-ready.
+   */
+  private function isDevelopmentProvider(string $provider, string $model): bool {
+    return preg_match('/(?:test|fake|deterministic)/i', $provider . ' ' . $model) === 1;
   }
 
   /**
