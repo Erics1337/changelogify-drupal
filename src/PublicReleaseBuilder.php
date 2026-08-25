@@ -31,13 +31,28 @@ final class PublicReleaseBuilder {
    */
   public function load(int $limit): array {
     $limit = min(20, max(1, $limit));
+    return $this->loadPage($limit);
+  }
+
+  /**
+   * Loads one bounded page of accessible published releases.
+   *
+   * A maximum of 21 supports one-item lookahead for the public API while its
+   * documented page size remains capped at 20.
+   *
+   * @return \Drupal\changelogify\Entity\ChangelogifyReleaseInterface[]
+   *   Accessible published releases.
+   */
+  public function loadPage(int $limit, int $offset = 0): array {
+    $limit = min(21, max(1, $limit));
+    $offset = max(0, $offset);
     $storage = $this->entityTypeManager->getStorage('changelogify_release');
     $ids = $storage->getQuery()
       ->accessCheck(TRUE)
       ->condition('status', TRUE)
       ->sort('release_date', 'DESC')
       ->sort('id', 'DESC')
-      ->range(0, $limit)
+      ->range($offset, $limit)
       ->execute();
     return array_values(array_filter(
       $storage->loadMultiple($ids),

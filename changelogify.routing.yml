@@ -91,3 +91,18 @@ changelogify.feed_atom:
     _controller: '\Drupal\changelogify\Controller\FeedController::atom'
   requirements:
     _permission: 'view changelogify releases'
+
+changelogify.api_v1_releases:
+  path: '/changelog/api/v1/releases'
+  defaults:
+    _controller: '\Drupal\changelogify\Controller\ReleaseApiController::collection'
+  requirements:
+    _permission: 'view changelogify releases'
+
+changelogify.api_v1_release:
+  path: '/changelog/api/v1/releases/{release_slug}'
+  defaults:
+    _controller: '\Drupal\changelogify\Controller\ReleaseApiController::detail'
+  requirements:
+    _permission: 'view changelogify releases'
+    release_slug: '[a-z][a-z0-9-]{0,127}'
