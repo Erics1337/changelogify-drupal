@@ -122,9 +122,12 @@ final class ReleaseApiController implements ContainerInjectionInterface {
     if ($changed !== []) {
       $lastModified = max($changed);
       $response->setLastModified((new \DateTimeImmutable())->setTimestamp($lastModified));
-      // Drupal's response finalizer uses Last-Modified as its public ETag.
-      // Setting the same validator here enables controller-level 304 handling.
-      $response->setEtag((string) $lastModified);
+      $representation = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+      $etag = hash('sha256', $representation);
+      $response->setEtag($etag);
+      // FinishResponseSubscriber derives its own ETag from Last-Modified. A
+      // later subscriber restores this representation-specific validator.
+      $response->headers->set('X-Changelogify-Representation-Etag', $etag);
     }
     $metadata = (new CacheableMetadata())
       ->addCacheableDependency($this->configFactory->get('changelogify.settings'))

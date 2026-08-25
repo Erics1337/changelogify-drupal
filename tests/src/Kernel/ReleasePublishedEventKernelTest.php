@@ -40,7 +40,7 @@ final class ReleasePublishedEventKernelTest extends ChangelogifyKernelTestBase {
     self::assertSame('en', $event->language);
     self::assertGreaterThan(0, $event->publishedAt);
     self::assertSame(
-      sprintf('changelogify:publication:%s:%d', $release->uuid(), $release->getRevisionId()),
+      sprintf('changelogify:publication:%s:en:%d', $release->uuid(), $release->getRevisionId()),
       $event->idempotencyId,
     );
     self::assertSame($event->idempotencyId, $events[0]->idempotencyId);

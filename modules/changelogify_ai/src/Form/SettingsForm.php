@@ -402,7 +402,7 @@ final class SettingsForm extends ConfigFormBase {
    * Rebuilds the privacy controls and effective-policy summary.
    */
   public function refreshPolicy(array &$form, FormStateInterface $form_state): array {
-    return $form['policy'];
+    return $form['data_privacy']['policy'];
   }
 
   /**

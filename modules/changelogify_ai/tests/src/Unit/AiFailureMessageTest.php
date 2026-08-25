@@ -8,9 +8,9 @@ use Drupal\changelogify_ai\AiFailureMessage;
 use Drupal\changelogify_ai\Summarization\InvalidResponseException;
 use Drupal\changelogify_ai\Summarization\ProviderUnavailableException;
 use Drupal\changelogify_ai\Summarization\TransientSummarizationException;
+use Drupal\Tests\UnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\TestCase;
 
 /**
  * Tests safe AI failure categories and next actions.
@@ -18,19 +18,21 @@ use PHPUnit\Framework\TestCase;
  * @group changelogify_ai
  */
 #[Group('changelogify_ai')]
-final class AiFailureMessageTest extends TestCase {
+final class AiFailureMessageTest extends UnitTestCase {
 
   /**
    * Tests editor-facing mappings never expose provider exception messages.
    */
   #[DataProvider('failureProvider')]
   public function testFailureMapping(\Throwable $exception, string $code, bool $configure, bool $retry): void {
-    $result = (new AiFailureMessage())->describe($exception);
+    $messages = new AiFailureMessage();
+    $messages->setStringTranslation($this->getStringTranslationStub());
+    $result = $messages->describe($exception);
 
     self::assertSame($code, $result['code']);
     self::assertSame($configure, $result['configure']);
     self::assertSame($retry, $result['retry']);
-    self::assertStringNotContainsString('sensitive-provider-detail', $result['message']);
+    self::assertStringNotContainsString('sensitive-provider-detail', (string) $result['message']);
   }
 
   /**

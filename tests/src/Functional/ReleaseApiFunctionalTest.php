@@ -79,6 +79,9 @@ final class ReleaseApiFunctionalTest extends BrowserTestBase {
     self::assertStringNotContainsString('Private draft', $this->getSession()->getPage()->getContent());
 
     $this->drupalGet('/changelog/api/v1/releases', ['query' => ['limit' => 2, 'offset' => 2]]);
+    $pageTwoEtag = $this->getSession()->getResponseHeader('ETag');
+    self::assertNotEmpty($pageTwoEtag);
+    self::assertNotSame($etag, $pageTwoEtag);
     $pageTwo = json_decode($this->getSession()->getPage()->getContent(), TRUE, 512, JSON_THROW_ON_ERROR);
     self::assertSame(['Public one'], array_column($pageTwo['releases'], 'title'));
     self::assertFalse($pageTwo['pagination']['has_more']);

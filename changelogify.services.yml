@@ -24,6 +24,8 @@ services:
 
   Drupal\changelogify\PublicReleaseBuilder: ~
 
+  Drupal\changelogify\EventSubscriber\ApiEtagSubscriber: ~
+
   Drupal\changelogify\ScheduledPublicationManager:
     arguments:
       $lock: '@lock'

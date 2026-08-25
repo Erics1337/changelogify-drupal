@@ -40,7 +40,7 @@ final class ReleaseFeedFunctionalTest extends BrowserTestBase {
     $published = $this->release(
       'Public & <safe> release',
       'published',
-      'A safer <script>alert("no")</script> change & more.',
+      "A safer <script>alert(\"no\")</script> change & more.\x01",
     );
     $uuid = $published->uuid();
     $initialSlug = $published->getSlug();
@@ -58,6 +58,7 @@ final class ReleaseFeedFunctionalTest extends BrowserTestBase {
     self::assertStringStartsWith('http://', (string) $rssXml->channel->item[0]->link);
     self::assertStringContainsString('&lt;script&gt;', (string) $rssXml->channel->item[0]->description);
     self::assertStringNotContainsString('<script>', $rss);
+    self::assertStringNotContainsString("\x01", $rss);
     foreach (['Draft release', 'Review release', 'Archived release'] as $privateTitle) {
       self::assertStringNotContainsString($privateTitle, $rss);
     }

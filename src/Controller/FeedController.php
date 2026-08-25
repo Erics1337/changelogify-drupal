@@ -128,9 +128,9 @@ final class FeedController implements ContainerInjectionInterface {
   private function content(array $sections): string {
     $html = '';
     foreach ($sections as $section) {
-      $html .= '<h2>' . htmlspecialchars((string) $section['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</h2><ul>';
+      $html .= '<h2>' . $this->html((string) $section['label']) . '</h2><ul>';
       foreach ($section['items'] as $item) {
-        $html .= '<li>' . htmlspecialchars((string) $item['text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</li>';
+        $html .= '<li>' . $this->html((string) $item['text']) . '</li>';
       }
       $html .= '</ul>';
     }
@@ -158,7 +158,21 @@ final class FeedController implements ContainerInjectionInterface {
    * Escapes one value for XML text or attribute context.
    */
   private function xml(string $value): string {
-    return htmlspecialchars($value, ENT_XML1 | ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    return htmlspecialchars($this->stripInvalidXmlCharacters($value), ENT_XML1 | ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+  }
+
+  /**
+   * Escapes feed content for an HTML fragment embedded in XML.
+   */
+  private function html(string $value): string {
+    return htmlspecialchars($this->stripInvalidXmlCharacters($value), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+  }
+
+  /**
+   * Removes characters XML 1.0 cannot represent.
+   */
+  private function stripInvalidXmlCharacters(string $value): string {
+    return preg_replace('/[^\x09\x0A\x0D\x20-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]/u', '', $value) ?? '';
   }
 
 }

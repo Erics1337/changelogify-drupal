@@ -487,6 +487,24 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('Scheduled publication approved by an editor.');
     $this->assertSession()->pageTextContains('Scheduled publication rescheduled by an editor.');
     $this->assertSession()->pageTextContains('Scheduled publication canceled by an editor.');
+
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->submitForm([
+      'editorial_state' => 'review',
+      'publish_at[date]' => '2030-03-04',
+      'publish_at[time]' => '12:15:00',
+    ], 'Save');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertGreaterThan(0, $release->getScheduledPublicationTime());
+
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->submitForm(['editorial_state' => 'draft'], 'Save');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame('draft', $release->getEditorialState());
+    self::assertSame(0, $release->getScheduledPublicationTime());
+    self::assertNull($release->getScheduledRevisionId());
   }
 
   /**

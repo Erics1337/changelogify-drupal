@@ -120,7 +120,7 @@ final class AiOperationManager {
         'status' => 'failed',
         'completed' => $this->time->getRequestTime(),
         'error_class' => $exception::class,
-        'error_code' => (new AiFailureMessage())->describe($exception)['code'],
+        'error_code' => (new AiFailureMessage())->code($exception),
       ]);
       $store->set($request->idempotencyKey, $operation);
       $this->logger->error('AI operation @id failed with @exception.', [

@@ -439,7 +439,7 @@ class ReleaseForm extends ContentEntityForm {
       /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
       $release = $this->entity;
       $isChanged = $timestamp !== $release->getScheduledPublicationTime();
-      if ($targetState !== 'review') {
+      if ($isChanged && $targetState !== 'review') {
         $form_state->setErrorByName('publish_at', $this->t('Only a release in Ready for review can be scheduled.'));
         return;
       }
@@ -481,6 +481,8 @@ class ReleaseForm extends ContentEntityForm {
     }
     $originalState = (string) $form_state->get('original_editorial_state');
     $targetState = (string) $form_state->getValue(['editorial_state', 0, 'value']);
+    $shouldCancelSchedule = $existingTimestamp > 0
+      && ($cancelSchedule || $targetState !== 'review');
     $release->setEditorialState($targetState);
     $release->setNewRevision(TRUE);
     $release->setRevisionUserId((int) $this->currentUser->id());
@@ -507,7 +509,7 @@ class ReleaseForm extends ContentEntityForm {
 
     $status = parent::save($form, $form_state);
 
-    if ($cancelSchedule && $existingTimestamp > 0) {
+    if ($shouldCancelSchedule) {
       $release->setPublicationSchedule();
       $release->setNewRevision(TRUE);
       $release->setRevisionLogMessage('Scheduled publication canceled by an editor.');

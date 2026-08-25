@@ -478,7 +478,12 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       $revisionId,
       $this->language()->getId(),
       \Drupal::time()->getCurrentTime(),
-      sprintf('changelogify:publication:%s:%d', $this->uuid(), $revisionId),
+      sprintf(
+        'changelogify:publication:%s:%s:%d',
+        $this->uuid(),
+        $this->language()->getId(),
+        $revisionId,
+      ),
     );
     try {
       \Drupal::service('event_dispatcher')->dispatch($event, ReleasePublishedEvent::NAME);

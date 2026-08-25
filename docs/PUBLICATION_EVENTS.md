@@ -12,7 +12,7 @@ The immutable event contains:
 - `revisionId`: the exact revision that became public;
 - `language`: the release language code;
 - `publishedAt`: the canonical Unix timestamp of the transition; and
-- `idempotencyId`: `changelogify:publication:{uuid}:{revisionId}`.
+- `idempotencyId`: `changelogify:publication:{uuid}:{language}:{revisionId}`.
 
 Consumers must persist the idempotency identifier before performing a remote
 side effect and safely ignore a replay. Handlers should enqueue slow work and
