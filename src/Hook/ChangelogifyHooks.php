@@ -9,6 +9,7 @@ use Drupal\changelogify\EventSource\ContentEventSource;
 use Drupal\changelogify\EventSource\ModuleEventSource;
 use Drupal\changelogify\EventSource\UserEventSource;
 use Drupal\changelogify\Provenance\ReleaseProvenanceManagerInterface;
+use Drupal\changelogify\ScheduledPublicationManager;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Hook\Attribute\Hook;
@@ -26,6 +27,7 @@ final class ChangelogifyHooks {
     private readonly ModuleEventSource $moduleSource,
     private readonly UserEventSource $userSource,
     private readonly ReleaseProvenanceManagerInterface $provenanceManager,
+    private readonly ScheduledPublicationManager $scheduledPublicationManager,
   ) {
   }
 
@@ -138,6 +140,7 @@ final class ChangelogifyHooks {
    */
   #[Hook('cron')]
   public function cron(): void {
+    $this->scheduledPublicationManager->processDue();
     $settings = $this->configFactory->get('changelogify.settings');
     $retentionDays = (int) ($settings
       ->get('event_retention_days') ?? 90);

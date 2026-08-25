@@ -96,4 +96,19 @@ interface ChangelogifyReleaseInterface extends ContentEntityInterface, EntityCha
    */
   public function getVersion(): ?string;
 
+  /**
+   * Gets the scheduled publication timestamp, or zero when unscheduled.
+   */
+  public function getScheduledPublicationTime(): int;
+
+  /**
+   * Gets the reviewed revision approved for scheduled publication.
+   */
+  public function getScheduledRevisionId(): ?int;
+
+  /**
+   * Sets or clears scheduled publication metadata.
+   */
+  public function setPublicationSchedule(int $timestamp = 0, ?int $revisionId = NULL): self;
+
 }

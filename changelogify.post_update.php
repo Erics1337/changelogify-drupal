@@ -278,3 +278,31 @@ function changelogify_post_update_add_release_slugs(?array &$sandbox = NULL): vo
     ? 1
     : min(1, $sandbox['processed'] / $sandbox['total']);
 }
+
+/**
+ * Adds revision-safe scheduled publication fields and due-time index.
+ */
+function changelogify_post_update_add_release_scheduling(): void {
+  $updateManager = \Drupal::entityDefinitionUpdateManager();
+  $definitions = \Drupal::service('entity_field.manager')
+    ->getBaseFieldDefinitions('changelogify_release');
+  foreach (['scheduled_at', 'scheduled_revision_id'] as $fieldName) {
+    if ($updateManager->getFieldStorageDefinition($fieldName, 'changelogify_release') === NULL) {
+      $updateManager->installFieldStorageDefinition(
+        $fieldName,
+        'changelogify_release',
+        'changelogify',
+        $definitions[$fieldName],
+      );
+    }
+  }
+  $schema = Database::getConnection()->schema();
+  if (!$schema->indexExists('changelogify_release', 'changelogify_release__scheduled_at')) {
+    $schema->addIndex(
+      'changelogify_release',
+      'changelogify_release__scheduled_at',
+      ['scheduled_at'],
+      ['fields' => ['scheduled_at' => ['type' => 'int', 'not null' => TRUE, 'default' => 0]]],
+    );
+  }
+}

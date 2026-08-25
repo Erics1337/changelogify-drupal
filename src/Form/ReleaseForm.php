@@ -7,6 +7,7 @@ namespace Drupal\changelogify\Form;
 use Drupal\changelogify\ReleaseItemNormalizer;
 use Drupal\changelogify\Provenance\ReleaseProvenanceManagerInterface;
 use Drupal\Component\Datetime\TimeInterface;
+use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\ContentEntityForm;
 use Drupal\Core\Entity\EntityRepositoryInterface;
@@ -62,7 +63,7 @@ class ReleaseForm extends ContentEntityForm {
 
     // Sections are edited through the structured textareas below. Never expose
     // the JSON storage field as a second, conflicting form widget.
-    unset($form['sections'], $form['status']);
+    unset($form['sections'], $form['status'], $form['scheduled_at'], $form['scheduled_revision_id']);
 
     /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
     $release = $this->entity;
@@ -152,6 +153,45 @@ class ReleaseForm extends ContentEntityForm {
       ],
       '#attributes' => ['class' => ['button', 'button--small']],
     ];
+
+    if ($this->currentUser->hasPermission('publish changelogify releases')) {
+      $scheduledAt = $release->getScheduledPublicationTime();
+      $defaultDate = NULL;
+      if ($scheduledAt > 0) {
+        $defaultDate = new DrupalDateTime('@' . $scheduledAt);
+        $defaultDate->setTimezone(new \DateTimeZone(date_default_timezone_get()));
+      }
+      $form['publication_schedule'] = [
+        '#type' => 'details',
+        '#title' => $this->t('Scheduled publication'),
+        '#description' => $this->t('Save a release as Ready for review before scheduling it. Drupal cron will publish the exact reviewed content at or after this time.'),
+        '#open' => $scheduledAt > 0,
+        '#weight' => 8,
+      ];
+      if ($scheduledAt > 0) {
+        $form['publication_schedule']['schedule_status'] = [
+          '#type' => 'item',
+          '#title' => $this->t('Current schedule'),
+          '#markup' => $this->t('@date (approved revision @revision)', [
+            '@date' => $this->dateFormatter->format($scheduledAt, 'long'),
+            '@revision' => $release->getScheduledRevisionId() ?? '-',
+          ]),
+        ];
+      }
+      $form['publication_schedule']['publish_at'] = [
+        '#type' => 'datetime',
+        '#title' => $scheduledAt > 0 ? $this->t('Reschedule for') : $this->t('Publish at'),
+        '#default_value' => $defaultDate,
+        '#date_increment' => 1,
+        '#description' => $this->t('Shown in your Drupal timezone and stored as a canonical timestamp. Leave blank to keep the current schedule unchanged.'),
+      ];
+      if ($scheduledAt > 0) {
+        $form['publication_schedule']['cancel_schedule'] = [
+          '#type' => 'checkbox',
+          '#title' => $this->t('Cancel scheduled publication'),
+        ];
+      }
+    }
 
     return $form;
   }
@@ -392,6 +432,22 @@ class ReleaseForm extends ContentEntityForm {
       $form_state->setErrorByName('editorial_state', $this->t('You do not have permission for that editorial state transition.'));
       return;
     }
+    $cancelSchedule = (bool) $form_state->getValue('cancel_schedule', FALSE);
+    $scheduledDate = $form_state->getValue('publish_at');
+    $timestamp = $this->scheduleTimestamp($scheduledDate);
+    if (!$cancelSchedule && $timestamp > 0) {
+      /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+      $release = $this->entity;
+      $isChanged = $timestamp !== $release->getScheduledPublicationTime();
+      if ($targetState !== 'review') {
+        $form_state->setErrorByName('publish_at', $this->t('Only a release in Ready for review can be scheduled.'));
+        return;
+      }
+      if ($isChanged && $timestamp <= $this->time->getRequestTime()) {
+        $form_state->setErrorByName('publish_at', $this->t('Choose a future publication time.'));
+        return;
+      }
+    }
     try {
       /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
       $release = $this->entity;
@@ -412,6 +468,9 @@ class ReleaseForm extends ContentEntityForm {
   public function save(array $form, FormStateInterface $form_state): int {
     /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
     $release = $this->entity;
+    $cancelSchedule = (bool) $form_state->getValue('cancel_schedule', FALSE);
+    $requestedTimestamp = $this->scheduleTimestamp($form_state->getValue('publish_at'));
+    $existingTimestamp = $release->getScheduledPublicationTime();
 
     $sections = $form_state->get('normalized_release_sections');
     if (!is_array($sections)) {
@@ -448,6 +507,26 @@ class ReleaseForm extends ContentEntityForm {
 
     $status = parent::save($form, $form_state);
 
+    if ($cancelSchedule && $existingTimestamp > 0) {
+      $release->setPublicationSchedule();
+      $release->setNewRevision(TRUE);
+      $release->setRevisionLogMessage('Scheduled publication canceled by an editor.');
+      $release->save();
+      $this->messenger()->addStatus($this->t('Scheduled publication has been canceled.'));
+    }
+    elseif ($requestedTimestamp > 0 && $requestedTimestamp !== $existingTimestamp) {
+      $approvedRevisionId = (int) $release->getRevisionId();
+      $release->setPublicationSchedule($requestedTimestamp, $approvedRevisionId);
+      $release->setNewRevision(TRUE);
+      $release->setRevisionLogMessage($existingTimestamp > 0
+        ? 'Scheduled publication rescheduled by an editor.'
+        : 'Scheduled publication approved by an editor.');
+      $release->save();
+      $this->messenger()->addStatus($this->t('Publication is scheduled for @date.', [
+        '@date' => $this->dateFormatter->format($requestedTimestamp, 'long'),
+      ]));
+    }
+
     if ($status === SAVED_NEW) {
       $this->messenger()->addStatus($this->t('Release "@title" has been created.', ['@title' => $release->getTitle()]));
     }
@@ -458,6 +537,30 @@ class ReleaseForm extends ContentEntityForm {
     $form_state->setRedirectUrl($release->toUrl('collection'));
 
     return $status;
+  }
+
+  /**
+   * Normalizes a processed or raw Drupal datetime form value.
+   */
+  private function scheduleTimestamp(mixed $value): int {
+    if (is_object($value) && method_exists($value, 'getTimestamp')) {
+      return (int) $value->getTimestamp();
+    }
+    if (is_object($value) && method_exists($value, 'format')) {
+      return (int) $value->format('U');
+    }
+    if (is_array($value) && !empty($value['date'])) {
+      try {
+        return (new DrupalDateTime(
+          trim((string) $value['date'] . ' ' . (string) ($value['time'] ?? '00:00:00')),
+          new \DateTimeZone(date_default_timezone_get()),
+        ))->getTimestamp();
+      }
+      catch (\Exception) {
+        return 0;
+      }
+    }
+    return 0;
   }
 
 }

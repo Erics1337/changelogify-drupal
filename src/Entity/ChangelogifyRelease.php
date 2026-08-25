@@ -276,6 +276,15 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
         'weight' => 9,
       ]);
 
+    $fields['scheduled_at'] = BaseFieldDefinition::create('timestamp')
+      ->setLabel(t('Scheduled publication'))
+      ->setDescription(t('The canonical timestamp when this reviewed release should be published.'))
+      ->setDefaultValue(0);
+
+    $fields['scheduled_revision_id'] = BaseFieldDefinition::create('integer')
+      ->setLabel(t('Approved revision'))
+      ->setDescription(t('The reviewed revision approved for scheduled publication.'));
+
     $fields['created'] = BaseFieldDefinition::create('created')
       ->setLabel(t('Created'))
       ->setDescription(t('The time the release was created.'));
@@ -637,6 +646,33 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
    */
   public function getVersion(): ?string {
     return $this->get('version')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getScheduledPublicationTime(): int {
+    return (int) ($this->get('scheduled_at')->value ?? 0);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getScheduledRevisionId(): ?int {
+    $revisionId = (int) ($this->get('scheduled_revision_id')->value ?? 0);
+    return $revisionId > 0 ? $revisionId : NULL;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setPublicationSchedule(int $timestamp = 0, ?int $revisionId = NULL): ChangelogifyReleaseInterface {
+    if ($timestamp < 0 || ($timestamp > 0 && ($revisionId ?? 0) < 1)) {
+      throw new \InvalidArgumentException('A publication schedule requires a timestamp and approved revision.');
+    }
+    $this->set('scheduled_at', $timestamp);
+    $this->set('scheduled_revision_id', $timestamp > 0 ? $revisionId : NULL);
+    return $this;
   }
 
 }

@@ -423,6 +423,73 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
   }
 
   /**
+   * Tests schedule controls, permission enforcement, timezone, and canceling.
+   */
+  public function testScheduledPublicationForm(): void {
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    $release = $storage->create([
+      'title' => 'Scheduled workflow release',
+      'release_date' => 1_700_000_000,
+      'editorial_state' => 'review',
+    ]);
+    $release->save();
+
+    $manager = $this->drupalCreateUser(['manage changelogify releases']);
+    $this->drupalLogin($manager);
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->assertSession()->fieldNotExists('publish_at[date]');
+
+    $publisher = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'submit changelogify releases for review',
+      'publish changelogify releases',
+      'view changelogify release revisions',
+    ]);
+    $publisher->set('timezone', 'America/Los_Angeles')->save();
+    $this->drupalLogin($publisher);
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->assertSession()->fieldExists('publish_at[date]');
+    $this->submitForm([
+      'editorial_state' => 'review',
+      'publish_at[date]' => '2030-01-02',
+      'publish_at[time]' => '10:30:00',
+    ], 'Save');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertGreaterThan(0, $release->getScheduledPublicationTime());
+    self::assertNotNull($release->getScheduledRevisionId());
+    $firstTimestamp = $release->getScheduledPublicationTime();
+
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->assertSession()->pageTextContains('2 January 2030 - 10:30');
+    $this->submitForm([
+      'editorial_state' => 'review',
+      'publish_at[date]' => '2030-02-03',
+      'publish_at[time]' => '11:45:00',
+    ], 'Save');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertNotSame($firstTimestamp, $release->getScheduledPublicationTime());
+
+    $this->drupalGet($release->toUrl('edit-form'));
+    $this->submitForm([
+      'editorial_state' => 'review',
+      'publish_at[date]' => '2030-02-03',
+      'publish_at[time]' => '11:45:00',
+      'cancel_schedule' => TRUE,
+    ], 'Save');
+    $storage->resetCache([(int) $release->id()]);
+    $release = $storage->load($release->id());
+    self::assertSame(0, $release->getScheduledPublicationTime());
+    self::assertNull($release->getScheduledRevisionId());
+    $this->assertSession()->pageTextContains('Scheduled publication has been canceled.');
+    $this->drupalGet($release->toUrl('version-history'));
+    $this->assertSession()->pageTextContains('Scheduled publication approved by an editor.');
+    $this->assertSession()->pageTextContains('Scheduled publication rescheduled by an editor.');
+    $this->assertSession()->pageTextContains('Scheduled publication canceled by an editor.');
+  }
+
+  /**
    * Tests release provenance requires the release-management permission.
    */
   public function testProvenanceAccess(): void {
@@ -494,6 +561,10 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     self::assertTrue($schema->indexExists(
           'changelogify_release',
           'changelogify_release__status_date',
+    ));
+    self::assertTrue($schema->indexExists(
+      'changelogify_release',
+      'changelogify_release__scheduled_at',
     ));
   }
 

@@ -257,6 +257,7 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     do {
       changelogify_post_update_add_release_slugs($sandbox);
     } while (($sandbox['#finished'] ?? 1) < 1);
+    changelogify_post_update_add_release_scheduling();
   }
 
   /**
@@ -319,6 +320,7 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
       ],
       'changelogify_release' => [
         'changelogify_release__status_date',
+        'changelogify_release__scheduled_at',
       ],
     ];
   }

@@ -24,6 +24,10 @@ services:
 
   Drupal\changelogify\PublicReleaseBuilder: ~
 
+  Drupal\changelogify\ScheduledPublicationManager:
+    arguments:
+      $lock: '@lock'
+
   Drupal\changelogify\EventManagerInterface:
     alias: Drupal\changelogify\EventManager
 
