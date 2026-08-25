@@ -519,6 +519,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
   private function normalizeProvenanceItem(array $item): array {
     $allowed = [
       'change_set_id',
+      'change_set_ids',
       'kind',
       'section',
       'event_ids',
@@ -532,6 +533,16 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
     }
     if (!is_array($item['event_ids'] ?? NULL) || !is_array($item['events'] ?? NULL)) {
       throw new \InvalidArgumentException('Release provenance event references must be arrays.');
+    }
+    if (isset($item['change_set_ids'])) {
+      if (!is_array($item['change_set_ids']) || $item['change_set_ids'] === []) {
+        throw new \InvalidArgumentException('Release provenance change-set references must be a non-empty array.');
+      }
+      foreach ($item['change_set_ids'] as $changeSetId) {
+        if (!is_string($changeSetId) || $changeSetId === '') {
+          throw new \InvalidArgumentException('Release provenance contains an invalid change-set reference.');
+        }
+      }
     }
     foreach ($item['events'] as $event) {
       if (!is_array($event)) {

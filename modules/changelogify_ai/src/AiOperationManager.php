@@ -21,6 +21,11 @@ final class AiOperationManager {
 
   private const LOCK_TIMEOUT = 60;
 
+  /**
+   * Safe support reference for the most recent operation in this request.
+   */
+  private ?string $lastOperationId = NULL;
+
   public function __construct(private readonly SummarizerInterface $summarizer, private readonly ResultValidator $validator, private readonly KeyValueFactoryInterface $keyValue, private readonly LockBackendInterface $lock, private readonly AccountProxyInterface $currentUser, private readonly TimeInterface $time, private readonly LoggerInterface $logger, private readonly QueueFactory $queueFactory) {}
 
   /**
@@ -53,6 +58,7 @@ final class AiOperationManager {
    *   Target release revision ID, if one exists.
    */
   public function execute(SummarizationRequest $request, array $sourceIds, ?int $releaseId = NULL, ?int $revisionId = NULL): SummarizationResult {
+    $this->lastOperationId = $request->idempotencyKey;
     $store = $this->keyValue->get('changelogify_ai.operations');
     $existing = $store->get($request->idempotencyKey);
     $lockName = 'changelogify_ai:' . $request->idempotencyKey;
@@ -114,6 +120,7 @@ final class AiOperationManager {
         'status' => 'failed',
         'completed' => $this->time->getRequestTime(),
         'error_class' => $exception::class,
+        'error_code' => (new AiFailureMessage())->describe($exception)['code'],
       ]);
       $store->set($request->idempotencyKey, $operation);
       $this->logger->error('AI operation @id failed with @exception.', [
@@ -125,6 +132,13 @@ final class AiOperationManager {
     finally {
       $this->lock->release($lockName);
     }
+  }
+
+  /**
+   * Returns the current request's most recent safe support reference.
+   */
+  public function lastOperationId(): ?string {
+    return $this->lastOperationId;
   }
 
   /**

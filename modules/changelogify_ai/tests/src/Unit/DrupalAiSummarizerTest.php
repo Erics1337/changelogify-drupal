@@ -119,6 +119,8 @@ final class DrupalAiSummarizerTest extends TestCase {
     self::assertSame('change-1', $result->items[0]->id);
     self::assertStringContainsString('Return JSON only.', $provider->input->system);
     self::assertSame('changelogify_summary', $requests->schema['name']);
+    self::assertFalse($requests->schema['schema']['additionalProperties']);
+    self::assertFalse($requests->schema['schema']['properties']['items']['items']['additionalProperties']);
     $provider->structuredOutput = FALSE;
     $summarizer->summarize($this->request());
     self::assertNull($requests->schema);

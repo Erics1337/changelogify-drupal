@@ -9,6 +9,7 @@ use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Drupal\changelogify\ReleaseGeneratorInterface;
 use Drupal\changelogify_ai\Summarization\SummarizationRequest;
 use Drupal\changelogify_ai\Summarization\SummarizationResult;
+use Drupal\Core\Database\Connection;
 
 /**
  * Generates an unpublished release draft from selected change sets.
@@ -26,6 +27,7 @@ final class CompleteDraftGenerator {
     private readonly OutboundPayloadBuilder $payloadBuilder,
     private readonly AiOperationManager $operations,
     private readonly ReleaseGeneratorInterface $releaseGenerator,
+    private readonly Connection $database,
   ) {}
 
   /**
@@ -86,18 +88,25 @@ final class CompleteDraftGenerator {
       throw new \UnexpectedValueException('The provider did not return any release items.');
     }
 
-    // This revalidates current source evidence immediately before persistence.
-    $release = $this->releaseGenerator->generateReleaseFromSelection(
-      $start,
-      $end,
-      $selection,
-      $options,
-      $allowEmpty,
-      $allowEvidenceReuse,
-    );
-    $release->setUnpublished();
-    $this->applyResult($release, $result->items, $selected);
-    return $release;
+    $transaction = $this->database->startTransaction();
+    try {
+      // Revalidate current source evidence immediately before persistence.
+      $release = $this->releaseGenerator->generateReleaseFromSelection(
+        $start,
+        $end,
+        $selection,
+        $options,
+        $allowEmpty,
+        $allowEvidenceReuse,
+      );
+      $release->setUnpublished();
+      $this->applyResult($release, $result->items, $selected);
+      return $release;
+    }
+    catch (\Throwable $exception) {
+      $transaction->rollBack();
+      throw $exception;
+    }
   }
 
   /**
@@ -183,21 +192,28 @@ final class CompleteDraftGenerator {
       throw new \UnexpectedValueException('The provider did not return any release items.');
     }
     $preview = $this->releaseGenerator->previewRange($start, $end);
-    $release = $this->releaseGenerator->generateReleaseFromSelection(
-      $start,
-      $end,
-      $selection,
-      $options,
-      $allowEmpty,
-      $allowEvidenceReuse,
-    );
-    $release->setUnpublished();
     $selected = array_values(array_filter(
       $preview->changeSets,
       static fn (ChangeSet $changeSet): bool => isset($selection[$changeSet->id]),
     ));
-    $this->applyResult($release, $result->items, $selected);
-    return $release;
+    $transaction = $this->database->startTransaction();
+    try {
+      $release = $this->releaseGenerator->generateReleaseFromSelection(
+        $start,
+        $end,
+        $selection,
+        $options,
+        $allowEmpty,
+        $allowEvidenceReuse,
+      );
+      $release->setUnpublished();
+      $this->applyResult($release, $result->items, $selected);
+      return $release;
+    }
+    catch (\Throwable $exception) {
+      $transaction->rollBack();
+      throw $exception;
+    }
   }
 
   /**
@@ -245,11 +261,23 @@ final class CompleteDraftGenerator {
     $provenance = ['version' => 1, 'items' => []];
     foreach ($items as $item) {
       $eventIds = [];
+      $events = [];
+      $eventCount = 0;
+      $evidenceStatuses = [];
       foreach ($item->sourceIds as $sourceId) {
         if (!isset($bySource[$sourceId])) {
           throw new \UnexpectedValueException('The source evidence for a generated item is no longer available.');
         }
-        $eventIds = array_merge($eventIds, $bySource[$sourceId]->sourceEventIds);
+        $source = $bySource[$sourceId];
+        $eventIds = array_merge($eventIds, $source->sourceEventIds);
+        $eventCount += (int) ($source->provenance['event_count'] ?? count($source->sourceEventIds));
+        $evidenceStatuses[] = (string) ($source->provenance['evidence_status'] ?? 'available');
+        foreach (($source->provenance['events'] ?? []) as $event) {
+          if (is_array($event)) {
+            $eventKey = (string) ($event['event_id'] ?? $event['event_uuid'] ?? hash('sha256', json_encode($event, JSON_THROW_ON_ERROR)));
+            $events[$eventKey] = $event;
+          }
+        }
       }
       $eventIds = array_values(array_unique(array_map('intval', $eventIds)));
       if (!array_key_exists($item->section, $sections)) {
@@ -262,10 +290,12 @@ final class CompleteDraftGenerator {
       ];
       $provenance['items'][$item->id] = [
         'change_set_ids' => $item->sourceIds,
+        'kind' => count($item->sourceIds) === 1 ? $bySource[$item->sourceIds[0]]->kind : 'ai_combined',
         'section' => $item->section,
         'event_ids' => $eventIds,
-        'event_count' => count($eventIds),
-        'evidence_status' => 'available',
+        'event_count' => $eventCount,
+        'evidence_status' => count(array_unique($evidenceStatuses)) === 1 ? $evidenceStatuses[0] : 'partial',
+        'events' => array_values($events),
       ];
     }
     $release->setNewRevision(TRUE);

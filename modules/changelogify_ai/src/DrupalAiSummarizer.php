@@ -140,6 +140,7 @@ final class DrupalAiSummarizer implements SummarizerInterface {
       'strict' => TRUE,
       'schema' => [
         'type' => 'object',
+        'additionalProperties' => FALSE,
         'required' => ['status', 'items', 'omitted_source_ids', 'warnings'],
         'properties' => [
           'status' => ['type' => 'string', 'enum' => ['completed', 'partial', 'refused']],
@@ -148,6 +149,7 @@ final class DrupalAiSummarizer implements SummarizerInterface {
             'maxItems' => 200,
             'items' => [
               'type' => 'object',
+              'additionalProperties' => FALSE,
               'required' => ['id', 'section', 'text', 'source_ids'],
               'properties' => [
                 'id' => ['type' => 'string'],

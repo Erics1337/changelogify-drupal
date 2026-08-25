@@ -6,6 +6,8 @@
  */
 
 use Drupal\changelogify_ai\AiOperationManager;
+use Drupal\changelogify_ai\AiFailureMessage;
+use Drupal\changelogify_ai\AiReadinessChecker;
 use Drupal\changelogify\ReleaseGeneratorInterface;
 use Drupal\changelogify_ai\CompleteDraftGenerator;
 use Drupal\changelogify_ai\ReleaseSuggestionManager;
@@ -23,9 +25,9 @@ function changelogify_ai_cron(): void {
 }
 
 /**
- * Implements hook_form_changelogify_release_edit_form_alter().
+ * Implements hook_form_BASE_FORM_ID_alter().
  */
-function changelogify_ai_form_changelogify_release_edit_form_alter(array &$form, FormStateInterface $form_state): void {
+function changelogify_ai_form_changelogify_release_form_alter(array &$form, FormStateInterface $form_state): void {
   if (!\Drupal::currentUser()->hasPermission('use changelogify ai')) {
     return;
   }
@@ -80,11 +82,32 @@ function changelogify_ai_form_changelogify_generate_release_form_alter(array &$f
     '#default_value' => 'public_product',
     '#weight' => 20,
   ];
+  $readiness = \Drupal::service(AiReadinessChecker::class)->status();
+  $form['ai_readiness'] = [
+    '#type' => 'container',
+    '#weight' => 19,
+    '#attributes' => [
+      'class' => [
+        'messages',
+        $readiness['ready'] ? 'messages--status' : 'messages--warning',
+      ],
+    ],
+    'message' => ['#plain_text' => $readiness['message']],
+  ];
+  if (!$readiness['ready']) {
+    $form['ai_readiness']['configure'] = [
+      '#type' => 'link',
+      '#title' => t('Configure Changelogify AI'),
+      '#url' => Url::fromRoute('changelogify_ai.settings'),
+      '#attributes' => ['class' => ['button', 'button--small']],
+    ];
+  }
   $form['actions']['ai_commit'] = [
     '#type' => 'submit',
     '#value' => t('Create AI draft release'),
     '#submit' => ['changelogify_ai_generate_draft_submit'],
     '#button_type' => 'primary',
+    '#disabled' => !$readiness['ready'],
   ];
 }
 
@@ -155,7 +178,23 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
   }
   catch (\Throwable $exception) {
     \Drupal::logger('changelogify_ai')->error('AI complete-draft generation failed with @exception.', ['@exception' => $exception::class]);
-    \Drupal::messenger()->addError(t('No AI draft was created. Review your AI configuration and selected evidence.'));
+    $readiness = \Drupal::service(AiReadinessChecker::class)->status();
+    $failure = $readiness['ready']
+      ? \Drupal::service(AiFailureMessage::class)->describe($exception)
+      : [
+        'message' => $readiness['message'],
+        'configure' => TRUE,
+      ];
+    \Drupal::messenger()->addError($failure['message']);
+    if ($failure['configure']) {
+      \Drupal::messenger()->addWarning(t('Review the Changelogify AI settings before retrying.'));
+    }
+    $operationId = \Drupal::service(AiOperationManager::class)->lastOperationId();
+    if ($operationId !== NULL) {
+      \Drupal::messenger()->addStatus(t('Support reference: @reference', [
+        '@reference' => substr($operationId, 0, 16),
+      ]));
+    }
     $form_state->setRebuild();
   }
 }

@@ -126,6 +126,7 @@ final class AiOperationManagerTest extends TestCase {
     catch (\Throwable) {
       self::assertSame('failed', $records['test-key']['status']);
       self::assertArrayHasKey('error_class', $records['test-key']);
+      self::assertSame('provider_failure', $records['test-key']['error_code']);
       self::assertArrayNotHasKey('error', $records['test-key']);
     }
   }

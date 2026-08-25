@@ -7,6 +7,8 @@ namespace Drupal\Tests\changelogify_ai\Unit;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Config\Config;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Database\Connection;
+use Drupal\Core\Database\Transaction;
 use Drupal\Core\KeyValueStore\KeyValueFactoryInterface;
 use Drupal\Core\KeyValueStore\KeyValueStoreInterface;
 use Drupal\Core\Lock\LockBackendInterface;
@@ -42,7 +44,7 @@ final class CompleteDraftGeneratorTest extends TestCase {
   public function testMalformedOutputCannotCreateRelease(): void {
     $releaseGenerator = $this->createMock(ReleaseGeneratorInterface::class);
     $releaseGenerator->expects(self::never())->method('generateReleaseFromSelection');
-    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations(), $releaseGenerator);
+    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations(), $releaseGenerator, $this->database());
     $this->expectException(\UnexpectedValueException::class);
     $generator->generate([
       new ChangeSet('change-1', 'content', 1, 1, [1], 'changed', ['message' => 'Evidence.'], []),
@@ -55,7 +57,7 @@ final class CompleteDraftGeneratorTest extends TestCase {
   public function testProviderRefusalCannotCreateRelease(): void {
     $releaseGenerator = $this->createMock(ReleaseGeneratorInterface::class);
     $releaseGenerator->expects(self::never())->method('generateReleaseFromSelection');
-    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('refusal'), $releaseGenerator);
+    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('refusal'), $releaseGenerator, $this->database());
     $this->expectException(\UnexpectedValueException::class);
     $generator->generate([
       new ChangeSet('change-1', 'content', 1, 1, [1], 'changed', ['message' => 'Evidence.'], []),
@@ -68,7 +70,7 @@ final class CompleteDraftGeneratorTest extends TestCase {
   public function testEmptyCompletedResultRequiresExplicitConfirmation(): void {
     $releaseGenerator = $this->createMock(ReleaseGeneratorInterface::class);
     $releaseGenerator->expects(self::never())->method('generateReleaseFromSelection');
-    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('empty'), $releaseGenerator);
+    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('empty'), $releaseGenerator, $this->database());
     $this->expectException(\UnexpectedValueException::class);
     $generator->generate([
       new ChangeSet('change-1', 'content', 1, 1, [1], 'changed', ['message' => 'Evidence.'], []),
@@ -83,6 +85,7 @@ final class CompleteDraftGeneratorTest extends TestCase {
       $this->payloadBuilder(),
       $this->operations('success'),
       $this->createMock(ReleaseGeneratorInterface::class),
+      $this->database(),
     );
     $this->expectException(\UnexpectedValueException::class);
     $generator->queue([], new \DateTimeImmutable('@1'), new \DateTimeImmutable('@2'), [], [], 'concise', FALSE, FALSE);
@@ -98,7 +101,7 @@ final class CompleteDraftGeneratorTest extends TestCase {
     $releaseGenerator = $this->createMock(ReleaseGeneratorInterface::class);
     $releaseGenerator->method('previewRange')->willReturn(new ReleasePreview(1, 2, [$changeSet]));
     $releaseGenerator->method('generateReleaseFromSelection')->willReturn($release);
-    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('success'), $releaseGenerator);
+    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('success'), $releaseGenerator, $this->database());
     $result = new SummarizationResult('completed', [
       new SummarizationItem('item-1', 'changed', 'Generated.', ['missing-source']),
     ]);
@@ -116,7 +119,7 @@ final class CompleteDraftGeneratorTest extends TestCase {
     $releaseGenerator = $this->createMock(ReleaseGeneratorInterface::class);
     $releaseGenerator->method('previewRange')->willReturn(new ReleasePreview(1, 2, [$changeSet]));
     $releaseGenerator->method('generateReleaseFromSelection')->willReturn($release);
-    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('success'), $releaseGenerator);
+    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('success'), $releaseGenerator, $this->database());
     $result = new SummarizationResult('completed', [
       new SummarizationItem('item-1', 'unsupported', 'Generated.', ['change-1']),
     ]);
@@ -137,12 +140,25 @@ final class CompleteDraftGeneratorTest extends TestCase {
         && $sections['changed'][0]['event_ids'] === [1]
         && $sections['other'] === [];
     }));
-    $release->expects(self::once())->method('setProvenance');
+    $release->expects(self::once())->method('setProvenance')->with([
+      'version' => 1,
+      'items' => [
+        'change-1' => [
+          'change_set_ids' => ['change-1'],
+          'kind' => 'content',
+          'section' => 'changed',
+          'event_ids' => [1],
+          'event_count' => 1,
+          'evidence_status' => 'available',
+          'events' => [],
+        ],
+      ],
+    ]);
     $release->expects(self::once())->method('setRevisionLogMessage');
     $release->expects(self::once())->method('save');
     $releaseGenerator = $this->createMock(ReleaseGeneratorInterface::class);
     $releaseGenerator->expects(self::once())->method('generateReleaseFromSelection')->willReturn($release);
-    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('success'), $releaseGenerator);
+    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('success'), $releaseGenerator, $this->database());
     $result = $generator->generate([
       new ChangeSet('change-1', 'content', 1, 1, [1], 'changed', ['message' => 'Selected evidence.'], []),
       new ChangeSet('change-2', 'content', 1, 1, [2], 'other', ['message' => 'Unselected evidence.'], []),
@@ -164,7 +180,7 @@ final class CompleteDraftGeneratorTest extends TestCase {
     $release->method('save');
     $releaseGenerator = $this->createMock(ReleaseGeneratorInterface::class);
     $releaseGenerator->method('generateReleaseFromSelection')->willReturn($release);
-    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('completed_with_report'), $releaseGenerator);
+    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('completed_with_report'), $releaseGenerator, $this->database());
     $generator->generate([
       new ChangeSet('change-1', 'content', 1, 1, [1], 'changed', ['message' => 'Selected evidence.'], []),
     ], new \DateTimeImmutable('@1'), new \DateTimeImmutable('@2'), ['change-1' => 'changed'], [], 'concise', FALSE, FALSE);
@@ -183,6 +199,33 @@ final class CompleteDraftGeneratorTest extends TestCase {
     $factory = $this->createMock(ConfigFactoryInterface::class);
     $factory->method('get')->with('changelogify_ai.settings')->willReturn($config);
     return new OutboundPayloadBuilder($factory);
+  }
+
+  /**
+   * Creates a transaction-capable database mock.
+   */
+  private function database(): Connection {
+    $transaction = new class extends Transaction {
+
+      /**
+       * Avoids constructing a real database transaction in a unit test.
+       */
+      public function __construct() {}
+
+      /**
+       * Avoids committing a mocked database transaction during destruction.
+       */
+      public function __destruct() {}
+
+      /**
+       * Records no state when the mocked transaction is rolled back.
+       */
+      public function rollBack(): void {}
+
+    };
+    $database = $this->createMock(Connection::class);
+    $database->method('startTransaction')->willReturn($transaction);
+    return $database;
   }
 
   /**

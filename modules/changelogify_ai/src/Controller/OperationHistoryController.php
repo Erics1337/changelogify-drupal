@@ -44,6 +44,7 @@ final class OperationHistoryController extends ControllerBase {
         'model' => $operation['model_id'] ?? 'unavailable',
         'usage' => ($operation['input_tokens'] ?? 'unavailable') . ' / ' . ($operation['output_tokens'] ?? 'unavailable'),
         'created' => isset($operation['created']) ? $this->dateFormatter->format((int) $operation['created'], 'short') : '-',
+        'failure' => $operation['error_code'] ?? '-',
         'actions' => ($operation['status'] ?? NULL) === 'queued'
           ? Link::fromTextAndUrl($this->t('Cancel'), Url::fromRoute('changelogify_ai.cancel_operation', ['operation_id' => $operation['id']]))
           : '',
@@ -53,7 +54,7 @@ final class OperationHistoryController extends ControllerBase {
       '#type' => 'table',
       '#header' => [
         $this->t('Operation'), $this->t('Status'), $this->t('Type'), $this->t('Release'), $this->t('Revision'),
-        $this->t('Provider'), $this->t('Model'), $this->t('Input / output tokens'), $this->t('Created'), $this->t('Actions'),
+        $this->t('Provider'), $this->t('Model'), $this->t('Input / output tokens'), $this->t('Created'), $this->t('Failure category'), $this->t('Actions'),
       ],
       '#rows' => $rows,
       '#empty' => $this->t('No retained AI operations are available.'),

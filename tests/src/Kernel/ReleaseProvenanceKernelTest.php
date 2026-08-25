@@ -200,4 +200,33 @@ final class ReleaseProvenanceKernelTest extends ChangelogifyKernelTestBase {
     ]);
   }
 
+  /**
+   * Tests AI items can retain references to multiple safe change sets.
+   */
+  public function testProvenanceAcceptsMultipleChangeSetReferences(): void {
+    $storage = $this->container->get('entity_type.manager')
+      ->getStorage('changelogify_release');
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+    $release = $storage->create(['title' => 'Combined evidence']);
+    $release->setProvenance([
+      'version' => 1,
+      'items' => [
+        'combined-item' => [
+          'change_set_ids' => ['change-1', 'change-2'],
+          'kind' => 'ai_combined',
+          'section' => 'changed',
+          'event_ids' => [],
+          'event_count' => 0,
+          'evidence_status' => 'available',
+          'events' => [],
+        ],
+      ],
+    ])->save();
+
+    self::assertSame(
+      ['change-1', 'change-2'],
+      $release->getProvenance()['items']['combined-item']['change_set_ids'],
+    );
+  }
+
 }
