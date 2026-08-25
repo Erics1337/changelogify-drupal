@@ -11,6 +11,7 @@ use Drupal\Core\Url;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\changelogify_ai\AiOperationManager;
+use Drupal\changelogify_ai\AiReadinessChecker;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -18,7 +19,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 final class SettingsForm extends ConfigFormBase {
 
-  public function __construct(ConfigFactoryInterface $configFactory, TypedConfigManagerInterface $typedConfigManager, protected AiOperationManager $operations) {
+  public function __construct(ConfigFactoryInterface $configFactory, TypedConfigManagerInterface $typedConfigManager, protected AiOperationManager $operations, protected AiReadinessChecker $readiness) {
     parent::__construct($configFactory, $typedConfigManager);
   }
 
@@ -30,6 +31,7 @@ final class SettingsForm extends ConfigFormBase {
       $container->get('config.factory'),
       $container->get('config.typed'),
       $container->get(AiOperationManager::class),
+      $container->get(AiReadinessChecker::class),
     );
   }
 
@@ -52,6 +54,11 @@ final class SettingsForm extends ConfigFormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $config = $this->config('changelogify_ai.settings');
+    $form['introduction'] = [
+      '#type' => 'item',
+      '#markup' => $this->t('Changelogify AI is an optional editorial assistant. It can rewrite selected, already-recorded evidence into clearer release notes, but it never publishes a release or changes source content on its own.'),
+      '#weight' => -20,
+    ];
     $form['processing_consent'] = [
       '#type' => 'details',
       '#tree' => TRUE,
@@ -81,14 +88,6 @@ final class SettingsForm extends ConfigFormBase {
     $ready = $this->operations->isAvailable();
     $selection = $this->operations->selectedProviderModel();
     $providerConfig = $config->get('provider') ?: [];
-    $form['provider_status'] = [
-      '#type' => 'item',
-      '#title' => $this->t('External processing status'),
-      '#plain_text' => $ready
-        ? $this->t('Ready: consent is granted and the selected Drupal AI chat provider and model are available.')
-        : $this->t('Not ready: grant consent and configure an available Drupal AI chat provider and model.'),
-      '#weight' => -10,
-    ];
     $form['provider_identity'] = [
       '#type' => 'item',
       '#title' => $this->t('Selected provider and model'),
@@ -225,18 +224,90 @@ final class SettingsForm extends ConfigFormBase {
       '#default_value' => $config->get('output_language') ?: 'en',
     ];
     foreach ([
-      'history_retention_days' => [$this->t('History retention (days)'), 1, 3650],
-      'queue_threshold' => [$this->t('Queue complete drafts at this many change sets'), 1, 5000],
-    ] as $key => [$label, $min, $max]) {
+      'history_retention_days' => [
+        $this->t('History retention (days)'),
+        $this->t('How long to retain privacy-bounded operation metadata for troubleshooting. Generated release text is stored in release revisions, not this history.'),
+        1,
+        3650,
+      ],
+      'queue_threshold' => [
+        $this->t('Queue complete drafts at this many change sets'),
+        $this->t('Large whole-release requests at or above this size run in Drupal cron or another configured queue worker instead of making an editor wait.'),
+        1,
+        5000,
+      ],
+    ] as $key => [$label, $description, $min, $max]) {
       $form[$key] = [
         '#type' => 'number',
         '#title' => $label,
+        '#description' => $description,
         '#min' => $min,
         '#max' => $max,
         '#default_value' => $config->get($key),
       ];
     }
-    return parent::buildForm($form, $form_state);
+
+    $form['setup_status'] = [
+      '#type' => 'table',
+      '#caption' => $this->t('Setup status'),
+      '#header' => [
+        $this->t('Requirement'),
+        $this->t('Status'),
+        $this->t('Next action'),
+      ],
+      '#rows' => $this->readinessRows($config->get('consent_external_processing'), $selection, $ready),
+      '#weight' => -15,
+      '#attributes' => ['class' => ['changelogify-ai-readiness']],
+    ];
+    $form['provider_section'] = [
+      '#type' => 'details',
+      '#title' => $this->t('AI provider'),
+      '#description' => $this->t('Select the Drupal AI service and chat model used for drafting. Changelogify does not store provider credentials.'),
+      '#open' => $selection === NULL || !$ready,
+      '#weight' => -10,
+    ];
+    foreach (['provider_identity', 'provider_mode', 'provider_development_warning', 'provider_link', 'provider'] as $key) {
+      if (isset($form[$key])) {
+        $form['provider_section'][$key] = $form[$key];
+        unset($form[$key]);
+      }
+    }
+    $form['data_privacy'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Data and privacy'),
+      '#description' => $this->t('Review and control the filtered information that may be processed for AI-assisted drafting.'),
+      '#open' => TRUE,
+      '#weight' => -5,
+      'processing_consent' => $form['processing_consent'],
+      'policy' => $form['policy'],
+    ];
+    unset($form['processing_consent'], $form['policy']);
+    $form['editorial_output'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Editorial output'),
+      '#description' => $this->t('Set organization-wide writing guidance and the language used for future suggestions.'),
+      '#open' => TRUE,
+      'organization_guidance' => $form['organization_guidance'],
+      'output_language' => $form['output_language'],
+    ];
+    unset($form['organization_guidance'], $form['output_language']);
+    $form['advanced_operations'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Advanced operations'),
+      '#description' => $this->t('Most sites can keep these defaults. Change them only to meet retention or background-processing requirements.'),
+      '#open' => FALSE,
+      'history_retention_days' => $form['history_retention_days'],
+      'queue_threshold' => $form['queue_threshold'],
+    ];
+    unset($form['history_retention_days'], $form['queue_threshold']);
+
+    $form = parent::buildForm($form, $form_state);
+    $form['actions']['verify'] = [
+      '#type' => 'submit',
+      '#value' => $this->t('Save and verify configuration'),
+      '#submit' => ['::submitForm', '::verifyConfiguration'],
+    ];
+    return $form;
   }
 
   /**
@@ -248,6 +319,83 @@ final class SettingsForm extends ConfigFormBase {
     if (!preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $language)) {
       $form_state->setErrorByName('output_language', $this->t('Enter a valid IETF language tag, for example en or fr-CA.'));
     }
+  }
+
+  /**
+   * Reports setup prerequisites as an accessible, action-oriented table.
+   *
+   * @param mixed $consent
+   *   Saved consent value.
+   * @param array{provider: string, model: string}|null $selection
+   *   Resolved saved provider and model.
+   * @param bool $available
+   *   Whether the resolved selection is currently available.
+   *
+   * @return array<int, array<int, mixed>>
+   *   Table rows with safe status text and direct remediation links.
+   */
+  private function readinessRows(mixed $consent, ?array $selection, bool $available): array {
+    $providerLink = Link::fromTextAndUrl(
+      $this->t('Configure installed providers'),
+      Url::fromRoute('ai.admin_providers'),
+    )->toString();
+    $consentLink = Link::fromTextAndUrl(
+      $this->t('Review data and grant approval'),
+      Url::fromRoute('changelogify_ai.settings', [], ['fragment' => 'edit-processing-consent']),
+    )->toString();
+    $permissionLink = Link::fromTextAndUrl(
+      $this->t('Review Changelogify permissions'),
+      Url::fromRoute('user.admin_permissions'),
+    )->toString();
+    $passed = $this->t('Passed');
+    $actionRequired = $this->t('Action required');
+    $noAction = $this->t('No action needed');
+    $hasDraftPermission = $this->currentUser()->hasPermission('use changelogify ai');
+    return [
+      [
+        $this->t('AI provider'),
+        $selection === NULL ? $actionRequired : $passed,
+        $selection === NULL ? $providerLink : $noAction,
+      ],
+      [
+        $this->t('Chat model'),
+        $selection === NULL ? $actionRequired : $passed,
+        $selection === NULL ? $providerLink : $noAction,
+      ],
+      [
+        $this->t('Provider availability'),
+        $available ? $passed : $actionRequired,
+        $available ? $noAction : $providerLink,
+      ],
+      [
+        $this->t('Permission to process selected evidence'),
+        $consent ? $passed : $actionRequired,
+        $consent ? $noAction : $consentLink,
+      ],
+      [
+        $this->t('Permission to use AI drafting'),
+        $hasDraftPermission ? $passed : $actionRequired,
+        $hasDraftPermission ? $noAction : $permissionLink,
+      ],
+    ];
+  }
+
+  /**
+   * Reports saved readiness without contacting a provider or creating content.
+   */
+  public function verifyConfiguration(array &$form, FormStateInterface $form_state): void {
+    if (!$this->currentUser()->hasPermission('use changelogify ai')) {
+      $this->messenger()->addWarning($this->t('Configuration was saved, but this account cannot use AI drafting. Grant the “use Changelogify AI” permission to an appropriate editor role.'));
+      return;
+    }
+    $status = $this->readiness->status();
+    if ($status['ready']) {
+      $this->messenger()->addStatus($this->t('Configuration verified. AI drafting is ready. No provider request was made and no release was created.'));
+      return;
+    }
+    $this->messenger()->addWarning($this->t('Configuration was saved but is not ready: @message No provider request was made.', [
+      '@message' => $status['message'],
+    ]));
   }
 
   /**

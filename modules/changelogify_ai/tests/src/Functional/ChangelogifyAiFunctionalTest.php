@@ -172,4 +172,40 @@ final class ChangelogifyAiFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('Shared categories: People — account names, Names of unpublished content');
   }
 
+  /**
+   * Tests task-oriented settings sections and non-destructive verification.
+   */
+  public function testSettingsInformationArchitectureAndVerification(): void {
+    $user = $this->drupalCreateUser([
+      'administer changelogify ai',
+      'use changelogify ai',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    $this->drupalGet('/admin/config/development/changelogify/ai');
+    $this->assertSession()->pageTextContains('optional editorial assistant');
+    $this->assertSession()->pageTextContains('never publishes a release or changes source content on its own');
+    $this->assertSession()->elementExists('css', 'table.changelogify-ai-readiness');
+    $this->assertSession()->pageTextContains('Setup status');
+    $this->assertSession()->pageTextContains('AI provider');
+    $this->assertSession()->pageTextContains('Chat model');
+    $this->assertSession()->pageTextContains('Permission to process selected evidence');
+    $this->assertSession()->pageTextContains('Data and privacy');
+    $this->assertSession()->pageTextContains('Editorial output');
+    $this->assertSession()->pageTextContains('Advanced operations');
+    $this->assertSession()->buttonExists('Save and verify configuration');
+    $this->assertSession()->linkExists('Configure installed providers');
+
+    $this->submitForm([
+      'output_language' => 'not a language tag!',
+    ], 'Save configuration');
+    $this->assertSession()->pageTextContains('Enter a valid IETF language tag');
+    $this->assertSession()->pageTextContains('Data and privacy');
+
+    $this->submitForm(['output_language' => 'en'], 'Save and verify configuration');
+    $this->assertSession()->pageTextContains('Configuration was saved but is not ready: AI drafting is off because permission to process selected release evidence has not been granted.');
+    $this->assertSession()->pageTextContains('No provider request was made.');
+  }
+
 }
