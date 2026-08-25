@@ -8,6 +8,7 @@ use Drupal\changelogify\ChangeSet\ChangeSetAggregatorInterface;
 use Drupal\changelogify\ChangeSet\ChangeSet;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
@@ -34,6 +35,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
     protected TimeInterface $time,
     protected ChangeSetAggregatorInterface $changeSetAggregator,
     protected ReleaseCoverageAnalyzer $coverageAnalyzer,
+    protected DateFormatterInterface $dateFormatter,
   ) {
   }
 
@@ -252,7 +254,7 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
    * Generates a default title based on date range.
    */
   protected function generateDefaultTitle(\DateTimeInterface $start, \DateTimeInterface $end): string {
-    $end_date = $end->format('F Y');
+    $end_date = $this->dateFormatter->format($end->getTimestamp(), 'custom', 'F Y');
     return $this->t('Release - @date', ['@date' => $end_date])->__toString();
   }
 

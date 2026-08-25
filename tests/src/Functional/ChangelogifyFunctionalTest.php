@@ -745,6 +745,46 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
   }
 
   /**
+   * Tests unbounded history and generated release-option guidance.
+   */
+  public function testUnboundedReleaseBoundaryAndOptionDefaults(): void {
+    $this->config('system.date')->set('timezone.default', 'America/Denver')->save();
+    $user = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
+    $legacy = $storage->create([
+      'title' => 'Legacy initial release',
+      'release_date' => strtotime('2025-01-02 12:00:00 UTC'),
+      'date_start' => 0,
+      'date_end' => strtotime('2025-01-02 12:00:00 UTC'),
+      'status' => TRUE,
+    ]);
+    $legacy->setSections([])->save();
+
+    $this->drupalGet('/admin/config/development/changelogify/generate');
+    $this->submitForm([
+      'mode' => 'custom',
+      'start_date[date]' => '2025-01-01',
+      'end_date[date]' => '2025-01-03',
+    ], 'Preview changes');
+
+    $this->assertSession()->pageTextContains('Beginning of recorded history');
+    $this->assertSession()->pageTextNotContains('1969');
+    $this->assertSession()->pageTextNotContains('1970');
+    $this->assertSession()->pageTextContains('Leave blank to use “Release - January 2025”.');
+    $this->assertSession()->pageTextContains('Leave blank to use a date-based release label instead of a version badge.');
+
+    $this->drupalGet($legacy->toUrl('edit-form'));
+    $this->assertSession()->pageTextContains('Beginning of recorded history');
+    $this->assertSession()->pageTextNotContains('1969');
+    $this->assertSession()->pageTextNotContains('1970');
+  }
+
+  /**
    * Tests content tracking and unpublished-content privacy settings.
    */
   public function testContentTrackingSettings(): void {

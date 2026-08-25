@@ -155,7 +155,18 @@ class EventManager implements EventManagerInterface {
       ->execute();
 
     if (empty($release_ids)) {
-      return 0;
+      $event_storage = $this->entityTypeManager->getStorage('changelogify_event');
+      $event_ids = $event_storage->getQuery()
+        ->accessCheck(FALSE)
+        ->sort('timestamp', 'ASC')
+        ->sort('id', 'ASC')
+        ->range(0, 1)
+        ->execute();
+      if ($event_ids === []) {
+        return 0;
+      }
+      $event = $event_storage->load(reset($event_ids));
+      return $event === NULL ? 0 : (int) $event->get('timestamp')->value;
     }
 
     /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface|null $release */

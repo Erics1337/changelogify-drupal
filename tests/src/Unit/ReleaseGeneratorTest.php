@@ -11,6 +11,7 @@ use Drupal\changelogify\EventReleaseUsage;
 use Drupal\changelogify\ChangeSet\ChangeSetAggregatorInterface;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
@@ -49,6 +50,7 @@ final class ReleaseGeneratorTest extends TestCase {
         $entityTypeManager,
         new EventReleaseUsage($entityTypeManager),
       ),
+      $this->createMock(DateFormatterInterface::class),
     );
 
     $this->expectException(\LengthException::class);

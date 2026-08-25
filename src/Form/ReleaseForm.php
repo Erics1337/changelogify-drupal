@@ -66,6 +66,16 @@ class ReleaseForm extends ContentEntityForm {
 
     /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
     $release = $this->entity;
+    if ((int) $release->get('date_start')->value === 0) {
+      unset($form['date_start']);
+      $form['date_start_unbounded'] = [
+        '#type' => 'item',
+        '#title' => $this->t('Date Start'),
+        '#markup' => $this->t('Beginning of recorded history'),
+        '#description' => $this->t('This legacy boundary represents all recorded history before the release end date.'),
+        '#weight' => 2,
+      ];
+    }
     if ($form_state->get('original_editorial_state') === NULL) {
       $form_state->set('original_editorial_state', $release->getEditorialState());
     }

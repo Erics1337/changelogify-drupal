@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\changelogify\Form;
 
 use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Url;
@@ -23,6 +24,7 @@ class GenerateReleaseForm extends FormBase {
   public function __construct(
     protected ReleaseGeneratorInterface $releaseGenerator,
     protected LoggerInterface $logger,
+    protected DateFormatterInterface $dateFormatter,
   ) {
   }
 
@@ -33,6 +35,7 @@ class GenerateReleaseForm extends FormBase {
     return new static(
       $container->get(ReleaseGeneratorInterface::class),
       $container->get('logger.factory')->get('changelogify'),
+      $container->get('date.formatter'),
     );
   }
 
@@ -94,14 +97,14 @@ class GenerateReleaseForm extends FormBase {
     $form['options']['title'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Title'),
-      '#description' => $this->t('Leave empty to auto-generate based on date.'),
+      '#description' => $this->t('Optional. The exact generated title will be shown in the preview.'),
       '#maxlength' => 255,
     ];
 
     $form['options']['version'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Version'),
-      '#description' => $this->t('Optional semantic version, e.g. 1.2.0'),
+      '#description' => $this->t('Optional. Leave blank to use a date-based release label. Example: 1.2.0.'),
       '#maxlength' => 50,
     ];
 
@@ -194,8 +197,8 @@ class GenerateReleaseForm extends FormBase {
       '#type' => 'item',
       '#title' => $this->t('Release window'),
       '#markup' => $this->t('@start through @end', [
-        '@start' => date('Y-m-d H:i:s T', $preview['start']),
-        '@end' => date('Y-m-d H:i:s T', $preview['end']),
+        '@start' => $this->formatBoundary((int) $preview['start']),
+        '@end' => $this->formatBoundary((int) $preview['end']),
       ]),
     ];
     $warnings = [];
@@ -203,15 +206,15 @@ class GenerateReleaseForm extends FormBase {
       $warnings[] = $this->t('This window overlaps @status release "@title" (@start through @end).', [
         '@status' => $overlap['status'],
         '@title' => $overlap['title'],
-        '@start' => date('Y-m-d H:i:s T', $overlap['start']),
-        '@end' => date('Y-m-d H:i:s T', $overlap['end']),
+        '@start' => $this->formatBoundary((int) $overlap['start']),
+        '@end' => $this->formatBoundary((int) $overlap['end']),
       ]);
     }
     if (!empty($preview['coverage']['gap_before'])) {
       $gap = $preview['coverage']['gap_before'];
       $warnings[] = $this->t('A coverage gap exists from @start through @end.', [
-        '@start' => date('Y-m-d H:i:s T', $gap['start']),
-        '@end' => date('Y-m-d H:i:s T', $gap['end']),
+        '@start' => $this->formatBoundary((int) $gap['start']),
+        '@end' => $this->formatBoundary((int) $gap['end']),
       ]);
     }
     foreach ($preview['coverage']['reused_change_sets'] ?? [] as $changeSetId => $releases) {
@@ -238,12 +241,16 @@ class GenerateReleaseForm extends FormBase {
       '#title' => $this->t('Title'),
       '#maxlength' => 255,
       '#default_value' => $form_state->getValue('title', ''),
+      '#description' => $this->t('Optional. Leave blank to use “@title”.', [
+        '@title' => $this->defaultTitle((int) $preview['end']),
+      ]),
     ];
     $form['options']['version'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Version'),
       '#maxlength' => 50,
       '#default_value' => $form_state->getValue('version', ''),
+      '#description' => $this->t('Optional. Leave blank to use a date-based release label instead of a version badge.'),
     ];
     $form['change_sets'] = [
       '#type' => 'container',
@@ -267,7 +274,7 @@ class GenerateReleaseForm extends FormBase {
           '@source' => $changeSet['source'] ?: $this->t('Unknown source'),
           '@kind' => $changeSet['kind'],
           '@count' => $changeSet['evidence_count'],
-          '@date' => date('Y-m-d H:i:s T', $changeSet['start']),
+          '@date' => $this->formatBoundary((int) $changeSet['start']),
         ]),
       ];
       $form['change_sets'][$id]['include'] = [
@@ -408,6 +415,25 @@ class GenerateReleaseForm extends FormBase {
    */
   private function sections(): array {
     return ['added', 'changed', 'fixed', 'removed', 'security', 'other'];
+  }
+
+  /**
+   * Formats a release boundary without exposing the Unix-epoch sentinel.
+   */
+  private function formatBoundary(int $timestamp): string {
+    if ($timestamp === 0) {
+      return $this->t('Beginning of recorded history')->__toString();
+    }
+    return $this->dateFormatter->format($timestamp, 'custom', 'Y-m-d H:i:s T');
+  }
+
+  /**
+   * Returns the exact fallback title for a preview end boundary.
+   */
+  private function defaultTitle(int $endTimestamp): string {
+    return $this->t('Release - @date', [
+      '@date' => $this->dateFormatter->format($endTimestamp, 'custom', 'F Y'),
+    ])->__toString();
   }
 
   /**

@@ -112,6 +112,7 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
       static fn ($matchedEvent): int => (int) $matchedEvent->id(),
       $events,
     )));
+    self::assertSame(1_700_000_000, $manager->getNextReleaseStartTimestamp());
   }
 
 }
