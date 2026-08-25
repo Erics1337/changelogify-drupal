@@ -122,6 +122,14 @@ final class ChangelogifyHooks {
           'sections' => [],
         ],
       ],
+      'changelogify_release_block' => [
+        'variables' => [
+          'releases' => [],
+          'show_date' => TRUE,
+          'show_version' => TRUE,
+          'changelog_url' => NULL,
+        ],
+      ],
     ];
   }
 

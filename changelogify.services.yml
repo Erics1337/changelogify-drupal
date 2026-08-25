@@ -22,6 +22,8 @@ services:
   Drupal\changelogify\ReleaseItemNormalizer:
     arguments: ['@uuid']
 
+  Drupal\changelogify\PublicReleaseBuilder: ~
+
   Drupal\changelogify\EventManagerInterface:
     alias: Drupal\changelogify\EventManager
 

@@ -69,3 +69,29 @@ changelogify.settings:
           sequence:
             type: string
             label: Pattern
+
+block.settings.changelogify_latest_release:
+  type: block_settings
+  label: 'Latest Changelogify release block settings'
+  mapping:
+    item_count: { type: integer, label: 'Number of releases' }
+    show_date: { type: boolean, label: 'Show release date' }
+    show_version: { type: boolean, label: 'Show version' }
+    sections:
+      type: sequence
+      label: 'Included sections'
+      sequence: { type: boolean, label: 'Include section' }
+    show_changelog_link: { type: boolean, label: 'Show full changelog link' }
+
+block.settings.changelogify_recent_releases:
+  type: block_settings
+  label: 'Recent Changelogify releases block settings'
+  mapping:
+    item_count: { type: integer, label: 'Number of releases' }
+    show_date: { type: boolean, label: 'Show release date' }
+    show_version: { type: boolean, label: 'Show version' }
+    sections:
+      type: sequence
+      label: 'Included sections'
+      sequence: { type: boolean, label: 'Include section' }
+    show_changelog_link: { type: boolean, label: 'Show full changelog link' }

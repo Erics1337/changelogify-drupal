@@ -6,6 +6,7 @@ namespace Drupal\changelogify\Controller;
 
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Drupal\changelogify\ReleaseSlugManager;
+use Drupal\changelogify\PublicReleaseBuilder;
 use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Cache\CacheableRedirectResponse;
 use Drupal\Core\Controller\ControllerBase;
@@ -26,6 +27,7 @@ class ChangelogController extends ControllerBase {
     private readonly DateFormatterInterface $dateFormatter,
     private readonly ReleaseSlugManager $slugManager,
     private readonly RequestStack $requestStack,
+    private readonly PublicReleaseBuilder $publicReleaseBuilder,
   ) {
   }
 
@@ -38,6 +40,7 @@ class ChangelogController extends ControllerBase {
           $container->get('date.formatter'),
           $container->get(ReleaseSlugManager::class),
           $container->get('request_stack'),
+          $container->get(PublicReleaseBuilder::class),
       );
   }
 
@@ -58,17 +61,15 @@ class ChangelogController extends ControllerBase {
 
     $items = [];
     foreach ($releases as $release) {
+      $presentation = $this->publicReleaseBuilder->build($release, [
+        'added', 'changed', 'fixed', 'removed', 'security', 'other',
+      ]);
       $sections = $release->getSections();
       $excerpt = $this->buildExcerpt($sections);
 
-      $items[] = [
-        'title' => $release->getTitle(),
+      $items[] = $presentation + [
         'slug' => $release->getSlug(),
-        'date' => $this->dateFormatter->format($release->getReleaseDate(), 'medium'),
-        'date_iso' => $this->dateFormatter->format($release->getReleaseDate(), 'custom', 'c'),
-        'version' => $release->getVersion(),
         'excerpt' => $excerpt,
-        'url' => $this->publicUrl($release->getSlug())->toString(),
       ];
     }
 
@@ -120,36 +121,17 @@ class ChangelogController extends ControllerBase {
     if ($resolved['historical']) {
       return $this->canonicalRedirect($changelogify_release);
     }
-    $sections = $changelogify_release->getSections();
-    $section_labels = [
-      'added' => $this->t('Added'),
-      'changed' => $this->t('Changed'),
-      'fixed' => $this->t('Fixed'),
-      'removed' => $this->t('Removed'),
-      'security' => $this->t('Security'),
-      'other' => $this->t('Other'),
-    ];
-
-    $rendered_sections = [];
-    foreach ($sections as $key => $items) {
-      if (!empty($items)) {
-        $rendered_sections[$key] = [
-          'label' => $section_labels[$key] ?? ucfirst($key),
-          'items' => array_map(
-            static fn (array $item): array => ['text' => (string) ($item['text'] ?? '')],
-            $items,
-          ),
-        ];
-      }
-    }
+    $presentation = $this->publicReleaseBuilder->build($changelogify_release, [
+      'added', 'changed', 'fixed', 'removed', 'security', 'other',
+    ]);
 
     $build = [
       '#theme' => 'changelogify_release',
-      '#title' => $changelogify_release->getTitle(),
+      '#title' => $presentation['title'],
       '#date' => $this->dateFormatter->format($changelogify_release->getReleaseDate(), 'long'),
-      '#date_iso' => $this->dateFormatter->format($changelogify_release->getReleaseDate(), 'custom', 'c'),
-      '#version' => $changelogify_release->getVersion(),
-      '#sections' => $rendered_sections,
+      '#date_iso' => $presentation['date_iso'],
+      '#version' => $presentation['version'],
+      '#sections' => $presentation['sections'],
       '#attached' => [
         'library' => ['changelogify/public'],
         'html_head_link' => [[

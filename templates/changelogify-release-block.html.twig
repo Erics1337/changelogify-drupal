@@ -1,0 +1,32 @@
+{#
+/**
+ * @file
+ * Themeable latest/recent release block content.
+ */
+#}
+<div class="changelogify-release-block">
+  {% if releases is empty %}
+    <p class="changelogify-release-block__empty">{{ 'No releases have been published yet.'|t }}</p>
+  {% else %}
+    {% for release in releases %}
+      <article class="changelogify-release-block__release">
+        <h3><a href="{{ release.url }}" rel="bookmark">{{ release.title }}</a></h3>
+        {% if show_date or (show_version and release.version) %}
+          <p class="changelogify-release-block__meta">
+            {% if show_date %}<time datetime="{{ release.date_iso }}">{{ release.date }}</time>{% endif %}
+            {% if show_version and release.version %}<span>{{ 'Version @version'|t({'@version': release.version}) }}</span>{% endif %}
+          </p>
+        {% endif %}
+        {% for key, section in release.sections %}
+          <section class="changelogify-release-block__section changelogify-release-block__section--{{ key }}">
+            <h4>{{ section.label }}</h4>
+            <ul>
+              {% for item in section.items %}<li>{{ item.text }}</li>{% endfor %}
+            </ul>
+          </section>
+        {% endfor %}
+      </article>
+    {% endfor %}
+  {% endif %}
+  {% if changelog_url %}<p><a href="{{ changelog_url }}">{{ 'View the full changelog'|t }}</a></p>{% endif %}
+</div>
