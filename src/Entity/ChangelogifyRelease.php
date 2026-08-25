@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Drupal\changelogify\Entity;
 
 use Drupal\changelogify\ReleaseSlugManager;
+use Drupal\changelogify\Event\ReleasePublishedEvent;
+use Drupal\changelogify\PublicReleaseBuilder;
 use Drupal\Core\Entity\Attribute\ContentEntityType;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 
@@ -426,6 +428,42 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
             : 'Release updated.',
         );
       }
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function postSave(EntityStorageInterface $storage, $update = TRUE): void {
+    parent::postSave($storage, $update);
+    $original = method_exists($this, 'getOriginal')
+      ? $this->getOriginal()
+      : ($this->original ?? NULL);
+    $wasPublished = $update
+      && $original instanceof ChangelogifyReleaseInterface
+      && $original->isPublished();
+    if ($wasPublished || !$this->isPublished() || !$this->isDefaultRevision()) {
+      return;
+    }
+    $revisionId = (int) $this->getRevisionId();
+    $event = new ReleasePublishedEvent(
+      $this->uuid(),
+      \Drupal::service(PublicReleaseBuilder::class)
+        ->releaseUrl($this->getSlug(), ['absolute' => TRUE])
+        ->toString(),
+      $revisionId,
+      $this->language()->getId(),
+      \Drupal::time()->getCurrentTime(),
+      sprintf('changelogify:publication:%s:%d', $this->uuid(), $revisionId),
+    );
+    try {
+      \Drupal::service('event_dispatcher')->dispatch($event, ReleasePublishedEvent::NAME);
+    }
+    catch (\Throwable $exception) {
+      \Drupal::logger('changelogify')->error('A release publication subscriber failed after release @uuid was saved: @message', [
+        '@uuid' => $this->uuid(),
+        '@message' => $exception->getMessage(),
+      ]);
     }
   }
 
