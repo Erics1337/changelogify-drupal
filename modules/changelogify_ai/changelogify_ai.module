@@ -42,25 +42,499 @@ function changelogify_ai_form_changelogify_release_form_alter(array &$form, Form
   if (!is_array($form['sections_wrapper']['items'] ?? NULL)) {
     return;
   }
+  if ($release->id() === NULL) {
+    return;
+  }
+  $readiness = \Drupal::service(AiReadinessChecker::class)->status();
+  $suggestionManager = \Drupal::service(ReleaseSuggestionManager::class);
+  $eligible = [];
   foreach ($form['sections_wrapper']['items'] as &$element) {
     if (!is_array($element)) {
       continue;
     }
     $itemId = (string) ($element['id']['#value'] ?? '');
-    if ($itemId === '' || !\Drupal::service(ReleaseSuggestionManager::class)->canSuggest($release, $itemId)) {
+    if ($itemId === '' || !$suggestionManager->canSuggest($release, $itemId)) {
       continue;
     }
-    $element['humanize'] = [
+    $eligible[$itemId] = changelogify_ai_release_item_text($release, $itemId);
+    $itemSuggestions = $form_state->get('changelogify_ai_item_suggestions') ?: [];
+    $itemSuggestion = $itemSuggestions[$itemId] ?? NULL;
+    $element['ai_assistant'] = [
+      '#type' => 'details',
+      '#title' => t('Improve with AI'),
+      '#open' => is_array($itemSuggestion),
+      '#attributes' => ['class' => ['changelogify-ai-inline-editor']],
+      'profile' => [
+        '#type' => 'select',
+        '#title' => t('Editorial profile'),
+        '#options' => changelogify_ai_editorial_profiles(),
+        '#default_value' => 'public_product',
+      ],
+      'instructions' => [
+        '#type' => 'textarea',
+        '#title' => t('Instructions for this rewrite (optional)'),
+        '#description' => t('Temporary for this attempt and not saved as configuration.'),
+        '#maxlength' => 1000,
+        '#rows' => 2,
+      ],
+    ];
+    if (!is_array($itemSuggestion)) {
+      $element['ai_assistant']['actions']['generate'] = [
+        '#type' => 'submit',
+        '#value' => t('Generate suggestion'),
+        '#submit' => ['changelogify_ai_item_generate_submit'],
+        '#limit_validation_errors' => [],
+        '#changelogify_item_id' => $itemId,
+      ];
+    }
+    else {
+      $element['ai_assistant']['comparison'] = [
+        '#type' => 'container',
+        'original' => [
+          '#type' => 'item',
+          '#title' => t('Current wording'),
+          '#plain_text' => $itemSuggestion['original'],
+        ],
+        'suggested' => [
+          '#type' => 'item',
+          '#title' => t('Suggested wording'),
+          '#plain_text' => $itemSuggestion['text'],
+        ],
+        'evidence' => [
+          '#type' => 'item',
+          '#title' => t('Why it is eligible'),
+          '#plain_text' => t('This suggestion is tied to the trusted tracked evidence already attached to the note.'),
+        ],
+      ];
+      $element['ai_assistant']['actions']['accept'] = [
+        '#type' => 'submit',
+        '#value' => t('Use suggestion'),
+        '#submit' => ['changelogify_ai_item_accept_submit'],
+        '#limit_validation_errors' => [],
+        '#changelogify_item_id' => $itemId,
+      ];
+      $element['ai_assistant']['actions']['regenerate'] = [
+        '#type' => 'submit',
+        '#value' => t('Try again'),
+        '#submit' => ['changelogify_ai_item_generate_submit'],
+        '#limit_validation_errors' => [],
+        '#changelogify_item_id' => $itemId,
+      ];
+      $element['ai_assistant']['actions']['dismiss'] = [
+        '#type' => 'submit',
+        '#value' => t('Dismiss suggestion'),
+        '#submit' => ['changelogify_ai_item_dismiss_submit'],
+        '#limit_validation_errors' => [],
+        '#changelogify_item_id' => $itemId,
+      ];
+    }
+    $element['ai_assistant']['fallback'] = [
       '#type' => 'link',
-      '#title' => t('Humanize item'),
+      '#title' => t('Open the no-JavaScript suggestion page'),
       '#url' => Url::fromRoute('changelogify_ai.humanize_item', [
         'changelogify_release' => $release->id(),
         'item_id' => $itemId,
       ]),
-      '#attributes' => ['class' => ['button', 'button--small']],
     ];
   }
   unset($element);
+
+  $form_state->set('changelogify_ai_release_id', (int) $release->id());
+  $form_state->set('changelogify_ai_release_revision_id', (int) $release->getRevisionId());
+  $form['ai_workspace'] = [
+    '#type' => 'details',
+    '#tree' => TRUE,
+    '#title' => t('Improve entire release with AI'),
+    '#description' => t('Generate reviewable wording for selected current notes. Nothing is saved or published until you explicitly accept suggestions.'),
+    '#open' => $form_state->has('changelogify_ai_release_suggestion'),
+    '#weight' => 4,
+  ];
+  if ($release->getEditorialState() === 'archived') {
+    $form['ai_workspace']['archived'] = [
+      '#type' => 'item',
+      '#markup' => t('Archived releases cannot be rewritten. Restore this release to draft before using AI assistance.'),
+    ];
+    return;
+  }
+  $form['ai_workspace']['readiness'] = [
+    '#type' => 'container',
+    '#attributes' => ['class' => ['messages', $readiness['ready'] ? 'messages--status' : 'messages--warning']],
+    'message' => ['#plain_text' => $readiness['message']],
+  ];
+  if (!$readiness['ready']) {
+    $form['ai_workspace']['readiness']['configure'] = [
+      '#type' => 'link',
+      '#title' => t('Configure Changelogify AI'),
+      '#url' => Url::fromRoute('changelogify_ai.settings'),
+    ];
+    return;
+  }
+  if ($eligible === []) {
+    $form['ai_workspace']['empty'] = [
+      '#type' => 'item',
+      '#markup' => t('This release has no current notes eligible for AI rewriting.'),
+    ];
+    return;
+  }
+  $form['ai_workspace']['profile'] = [
+    '#type' => 'select',
+    '#title' => t('Editorial profile'),
+    '#options' => changelogify_ai_editorial_profiles(),
+    '#default_value' => $form_state->getValue(['ai_workspace', 'profile'], 'public_product'),
+  ];
+  $form['ai_workspace']['instructions'] = [
+    '#type' => 'textarea',
+    '#title' => t('Instructions for this rewrite (optional)'),
+    '#description' => t('Temporary for this generation attempt; not saved as site configuration. For example: “Focus on customer benefit” or “Use less technical language.”'),
+    '#maxlength' => 1000,
+    '#rows' => 3,
+    '#default_value' => $form_state->getValue(['ai_workspace', 'instructions'], ''),
+  ];
+  $form['ai_workspace']['items'] = [
+    '#type' => 'checkboxes',
+    '#title' => t('Notes to improve'),
+    '#options' => $eligible,
+    '#default_value' => array_keys($eligible),
+    '#description' => t('Every eligible current note is selected by default. Clear a note only when it should keep its present wording.'),
+  ];
+  $staged = $form_state->get('changelogify_ai_release_suggestion');
+  if (!is_array($staged)) {
+    $form['ai_workspace']['actions']['generate'] = [
+      '#type' => 'submit',
+      '#value' => t('Generate release suggestions'),
+      '#button_type' => 'primary',
+      '#submit' => ['changelogify_ai_release_generate_submit'],
+      '#limit_validation_errors' => [['ai_workspace']],
+    ];
+    return;
+  }
+  $form['ai_workspace']['review_intro'] = [
+    '#type' => 'item',
+    '#title' => t('Review suggestions before applying'),
+    '#plain_text' => t('Provider: @provider; model: @model. Suggestions remain staged in this form until accepted or dismissed.', [
+      '@provider' => $staged['provider'],
+      '@model' => $staged['model'],
+    ]),
+  ];
+  $form['ai_workspace']['review'] = ['#type' => 'container'];
+  foreach ($staged['items'] as $itemId => $suggestion) {
+    $form['ai_workspace']['review'][$itemId] = [
+      '#type' => 'fieldset',
+      '#title' => t('Release note suggestion'),
+      'original' => [
+        '#type' => 'item',
+        '#title' => t('Current wording'),
+        '#plain_text' => $suggestion['original'],
+      ],
+      'suggested' => [
+        '#type' => 'item',
+        '#title' => t('Suggested wording'),
+        '#plain_text' => $suggestion['text'],
+      ],
+      'coverage' => [
+        '#type' => 'item',
+        '#title' => t('Why it is eligible'),
+        '#plain_text' => t('The suggestion is tied to the trusted tracked evidence already attached to this release note.'),
+      ],
+      'accept' => [
+        '#type' => 'checkbox',
+        '#title' => t('Use this suggestion'),
+        '#default_value' => TRUE,
+      ],
+    ];
+  }
+  if (($staged['omitted'] ?? []) !== []) {
+    $form['ai_workspace']['omitted'] = [
+      '#type' => 'item',
+      '#markup' => t('@count selected note(s) were omitted by the provider and will remain unchanged.', [
+        '@count' => count($staged['omitted']),
+      ]),
+    ];
+  }
+  if (($staged['warnings'] ?? []) !== []) {
+    $form['ai_workspace']['warnings'] = [
+      '#theme' => 'item_list',
+      '#title' => t('Provider warnings'),
+      '#items' => $staged['warnings'],
+    ];
+  }
+  $form['ai_workspace']['review_actions']['accept_selected'] = [
+    '#type' => 'submit',
+    '#value' => t('Use selected suggestions'),
+    '#button_type' => 'primary',
+    '#submit' => ['changelogify_ai_release_accept_submit'],
+    '#limit_validation_errors' => [['ai_workspace', 'review']],
+  ];
+  $form['ai_workspace']['review_actions']['accept_all'] = [
+    '#type' => 'submit',
+    '#value' => t('Use all suggestions'),
+    '#submit' => ['changelogify_ai_release_accept_all_submit'],
+    '#limit_validation_errors' => [],
+  ];
+  $form['ai_workspace']['review_actions']['regenerate'] = [
+    '#type' => 'submit',
+    '#value' => t('Try again'),
+    '#submit' => ['changelogify_ai_release_generate_submit'],
+    '#limit_validation_errors' => [['ai_workspace']],
+  ];
+  $form['ai_workspace']['review_actions']['dismiss'] = [
+    '#type' => 'submit',
+    '#value' => t('Dismiss all suggestions'),
+    '#submit' => ['changelogify_ai_release_dismiss_submit'],
+    '#limit_validation_errors' => [],
+  ];
+}
+
+/**
+ * Generates an inline item suggestion and keeps it in server form state.
+ */
+function changelogify_ai_item_generate_submit(array &$form, FormStateInterface $form_state): void {
+  $trigger = $form_state->getTriggeringElement();
+  $itemId = (string) ($trigger['#changelogify_item_id'] ?? '');
+  try {
+    $release = changelogify_ai_load_unchanged_release($form_state);
+    $parents = array_slice($trigger['#parents'], 0, -2);
+    $profile = (string) $form_state->getValue([...$parents, 'profile']);
+    $instructions = (string) $form_state->getValue([...$parents, 'instructions']);
+    $suggestions = $form_state->get('changelogify_ai_item_suggestions') ?: [];
+    $previous = $suggestions[$itemId] ?? NULL;
+    $attempts = $form_state->get('changelogify_ai_item_attempts') ?: [];
+    $result = \Drupal::service(ReleaseSuggestionManager::class)->suggest(
+      $release,
+      $itemId,
+      $profile,
+      (int) ($attempts[$itemId] ?? 0),
+      $instructions,
+    );
+    if ($result->status !== 'completed' || count($result->items) !== 1) {
+      throw new \UnexpectedValueException('The provider did not return one usable suggestion.');
+    }
+    if (is_array($previous) && !empty($previous['operation_id'])) {
+      \Drupal::service(ReleaseSuggestionManager::class)->reject((string) $previous['operation_id']);
+    }
+    $suggestions[$itemId] = [
+      'original' => changelogify_ai_release_item_text($release, $itemId),
+      'text' => $result->items[0]->text,
+      'operation_id' => $result->operationId,
+    ];
+    $attempts[$itemId] = (int) ($attempts[$itemId] ?? 0) + 1;
+    $form_state->set('changelogify_ai_item_suggestions', $suggestions);
+    $form_state->set('changelogify_ai_item_attempts', $attempts)->setRebuild();
+  }
+  catch (\Throwable $exception) {
+    $failure = \Drupal::service(AiFailureMessage::class)->describe($exception);
+    \Drupal::messenger()->addError($failure['message']);
+    $form_state->setRebuild();
+  }
+}
+
+/**
+ * Applies one inline suggestion after stale-revision validation.
+ */
+function changelogify_ai_item_accept_submit(array &$form, FormStateInterface $form_state): void {
+  $itemId = (string) ($form_state->getTriggeringElement()['#changelogify_item_id'] ?? '');
+  $suggestion = ($form_state->get('changelogify_ai_item_suggestions') ?: [])[$itemId] ?? NULL;
+  if (!is_array($suggestion)) {
+    \Drupal::messenger()->addError(t('Generate a suggestion before using it.'));
+    return;
+  }
+  try {
+    $release = changelogify_ai_load_unchanged_release($form_state);
+    $stagedPublished = \Drupal::service(ReleaseSuggestionManager::class)->accept(
+      $release,
+      $itemId,
+      (string) $suggestion['text'],
+      (string) $suggestion['operation_id'],
+    );
+    if ($stagedPublished) {
+      \Drupal::messenger()->addStatus(t('The suggestion was saved in a non-public review revision. The published release is unchanged.'));
+      $form_state->setRedirect('entity.changelogify_release.version_history', ['changelogify_release' => $release->id()]);
+    }
+    else {
+      \Drupal::messenger()->addStatus(t('The suggestion was used in a new release revision.'));
+      $form_state->setRedirect('entity.changelogify_release.edit_form', ['changelogify_release' => $release->id()]);
+    }
+  }
+  catch (\Throwable $exception) {
+    \Drupal::messenger()->addError(t('The suggestion could not be applied. The release may have changed; generate a fresh suggestion and try again.'));
+    $form_state->setRebuild();
+  }
+}
+
+/**
+ * Dismisses one inline suggestion without changing release text.
+ */
+function changelogify_ai_item_dismiss_submit(array &$form, FormStateInterface $form_state): void {
+  $itemId = (string) ($form_state->getTriggeringElement()['#changelogify_item_id'] ?? '');
+  $suggestions = $form_state->get('changelogify_ai_item_suggestions') ?: [];
+  if (is_array($suggestions[$itemId] ?? NULL) && !empty($suggestions[$itemId]['operation_id'])) {
+    \Drupal::service(ReleaseSuggestionManager::class)->reject((string) $suggestions[$itemId]['operation_id']);
+  }
+  unset($suggestions[$itemId]);
+  $form_state->set('changelogify_ai_item_suggestions', $suggestions)->setRebuild();
+  \Drupal::messenger()->addStatus(t('The suggestion was dismissed. The release was not changed.'));
+}
+
+/**
+ * Returns the shared editor-facing AI profiles.
+ */
+function changelogify_ai_editorial_profiles(): array {
+  return [
+    'public_product' => t('Public product'),
+    'client_report' => t('Client report'),
+    'internal_technical' => t('Internal technical'),
+    'concise' => t('Concise'),
+  ];
+}
+
+/**
+ * Generates a release-wide suggestion without mutating the release.
+ */
+function changelogify_ai_release_generate_submit(array &$form, FormStateInterface $form_state): void {
+  try {
+    $release = changelogify_ai_load_unchanged_release($form_state);
+    $selected = array_values(array_filter($form_state->getValue(['ai_workspace', 'items'], [])));
+    $previous = $form_state->get('changelogify_ai_release_suggestion');
+    $attempt = max(0, (int) $form_state->get('changelogify_ai_release_attempt'));
+    $result = \Drupal::service(ReleaseSuggestionManager::class)->suggestRelease(
+      $release,
+      $selected,
+      (string) $form_state->getValue(['ai_workspace', 'profile']),
+      (string) $form_state->getValue(['ai_workspace', 'instructions']),
+      $attempt,
+    );
+    if (!in_array($result->status, ['completed', 'partial'], TRUE) || $result->items === []) {
+      throw new \UnexpectedValueException('The provider did not return usable suggestions.');
+    }
+    if (is_array($previous) && !empty($previous['operation_id'])) {
+      \Drupal::service(ReleaseSuggestionManager::class)->reject((string) $previous['operation_id']);
+    }
+    $items = [];
+    foreach ($result->items as $item) {
+      $items[$item->id] = [
+        'original' => changelogify_ai_release_item_text($release, $item->id),
+        'text' => $item->text,
+      ];
+    }
+    $form_state->set('changelogify_ai_release_suggestion', [
+      'items' => $items,
+      'operation_id' => $result->operationId,
+      'provider' => $result->providerId,
+      'model' => $result->modelId,
+      'omitted' => $result->omittedSourceIds,
+      'warnings' => $result->warnings,
+    ]);
+    $form_state->set('changelogify_ai_release_attempt', $attempt + 1)->setRebuild();
+  }
+  catch (\Throwable $exception) {
+    $failure = \Drupal::service(AiFailureMessage::class)->describe($exception);
+    \Drupal::messenger()->addError($failure['message']);
+    $form_state->setRebuild();
+  }
+}
+
+/**
+ * Accepts the explicitly selected staged suggestions.
+ */
+function changelogify_ai_release_accept_submit(array &$form, FormStateInterface $form_state): void {
+  $staged = $form_state->get('changelogify_ai_release_suggestion');
+  if (!is_array($staged)) {
+    \Drupal::messenger()->addError(t('Generate release suggestions before accepting them.'));
+    return;
+  }
+  $selected = [];
+  foreach ($form_state->getValue(['ai_workspace', 'review'], []) as $itemId => $values) {
+    if (!empty($values['accept']) && isset($staged['items'][$itemId])) {
+      $selected[] = $itemId;
+    }
+  }
+  changelogify_ai_accept_release_suggestions($form_state, $staged, $selected);
+}
+
+/**
+ * Accepts every staged suggestion.
+ */
+function changelogify_ai_release_accept_all_submit(array &$form, FormStateInterface $form_state): void {
+  $staged = $form_state->get('changelogify_ai_release_suggestion');
+  if (!is_array($staged)) {
+    \Drupal::messenger()->addError(t('Generate release suggestions before accepting them.'));
+    return;
+  }
+  changelogify_ai_accept_release_suggestions($form_state, $staged, array_keys($staged['items']));
+}
+
+/**
+ * Saves a reviewed suggestion subset with stale-revision protection.
+ */
+function changelogify_ai_accept_release_suggestions(FormStateInterface $form_state, array $staged, array $selected): void {
+  try {
+    $release = changelogify_ai_load_unchanged_release($form_state);
+    $suggestedText = array_map(static fn (array $item): string => (string) $item['text'], $staged['items']);
+    $stagedPublished = \Drupal::service(ReleaseSuggestionManager::class)->acceptRelease(
+      $release,
+      $suggestedText,
+      $selected,
+      (string) $staged['operation_id'],
+    );
+    if ($stagedPublished) {
+      \Drupal::messenger()->addStatus(t('Suggestions were saved in a non-public review revision. The published release is unchanged. Review revision history before publishing new wording.'));
+      $form_state->setRedirect('entity.changelogify_release.version_history', [
+        'changelogify_release' => $release->id(),
+      ]);
+    }
+    else {
+      \Drupal::messenger()->addStatus(t('@count AI suggestion(s) were accepted in a new release revision.', [
+        '@count' => count($selected),
+      ]));
+      $form_state->setRedirect('entity.changelogify_release.edit_form', [
+        'changelogify_release' => $release->id(),
+      ]);
+    }
+  }
+  catch (\Throwable $exception) {
+    \Drupal::messenger()->addError(t('The suggestions could not be applied. The release may have changed; generate a fresh review and try again.'));
+    $form_state->setRebuild();
+  }
+}
+
+/**
+ * Records dismissal without changing release text.
+ */
+function changelogify_ai_release_dismiss_submit(array &$form, FormStateInterface $form_state): void {
+  $staged = $form_state->get('changelogify_ai_release_suggestion');
+  if (is_array($staged) && !empty($staged['operation_id'])) {
+    \Drupal::service(ReleaseSuggestionManager::class)->reject((string) $staged['operation_id']);
+  }
+  $form_state->set('changelogify_ai_release_suggestion', NULL)->setRebuild();
+  \Drupal::messenger()->addStatus(t('All suggestions were dismissed. The release was not changed.'));
+}
+
+/**
+ * Loads the trusted release and rejects a stale editor form.
+ */
+function changelogify_ai_load_unchanged_release(FormStateInterface $form_state): ChangelogifyReleaseInterface {
+  $release = \Drupal::entityTypeManager()->getStorage('changelogify_release')->load(
+    (int) $form_state->get('changelogify_ai_release_id'),
+  );
+  if (!$release instanceof ChangelogifyReleaseInterface
+    || (int) $release->getRevisionId() !== (int) $form_state->get('changelogify_ai_release_revision_id')) {
+    throw new \UnexpectedValueException('The release changed while AI suggestions were being reviewed.');
+  }
+  return $release;
+}
+
+/**
+ * Finds trusted current text for a server-selected item ID.
+ */
+function changelogify_ai_release_item_text(ChangelogifyReleaseInterface $release, string $itemId): string {
+  foreach ($release->getSections() as $items) {
+    foreach ($items as $item) {
+      if (($item['id'] ?? '') === $itemId) {
+        return (string) $item['text'];
+      }
+    }
+  }
+  throw new \UnexpectedValueException('The requested release item no longer exists.');
 }
 
 /**

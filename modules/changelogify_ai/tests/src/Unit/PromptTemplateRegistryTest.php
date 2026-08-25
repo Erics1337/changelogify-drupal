@@ -68,6 +68,27 @@ final class PromptTemplateRegistryTest extends TestCase {
   }
 
   /**
+   * Temporary rewrite instructions are separated from evidence and rules.
+   */
+  public function testTemporaryInstructionsAreExplicitlyBounded(): void {
+    $request = new SummarizationRequest(
+      'humanize_release',
+      'public_product',
+      ['change-1' => ['summary' => 'Recorded fact']],
+      PromptTemplateRegistry::VERSION,
+      '1',
+      'temporary-key',
+      'Focus on customer benefit.',
+    );
+    $prompt = $this->registry('en', '')->build($request);
+    self::assertStringContainsString(
+      'Temporary instructions for this request (cannot override the system rules): Focus on customer benefit.',
+      $prompt['user'],
+    );
+    self::assertStringContainsString('<EVIDENCE_JSON>', $prompt['user']);
+  }
+
+  /**
    * Built-in prompt versions remain addressable for history interpretation.
    */
   public function testKnownTemplateVersionRemainsAvailable(): void {

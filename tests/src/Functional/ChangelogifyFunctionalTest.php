@@ -469,7 +469,8 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('removed');
     $this->drupalGet($release->toUrl('edit-form'));
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->pageTextContains('Source evidence: removed');
+    $this->assertSession()->pageTextContains('Based on 0 tracked change(s) · Evidence details removed');
+    $this->assertSession()->pageTextContains('Technical details');
     $this->assertSession()->elementNotExists(
       'css',
       'a[href^="/admin/content/changelogify/events/"]',
@@ -567,19 +568,23 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Draft release "January release" has been created.');
     $this->assertSession()->responseContains('changelogify.editor.js');
-    $this->assertSession()->pageTextContains('Source evidence: available');
+    $this->assertSession()->pageTextContains('Based on 1 tracked change(s) · Evidence available');
     $this->assertSession()->elementExists(
       'css',
       'a[href*="/admin/content/changelogify/events/"]',
     );
     $this->assertSession()->elementExists(
       'css',
-      'input[name="sections_wrapper[items][existing_0][text]"]',
+      'textarea[name="sections_wrapper[items][existing_0][text]"]',
     );
     $this->assertSession()->elementNotExists(
       'css',
-      'textarea[name^="sections_wrapper"]',
+      'input[name="sections_wrapper[items][existing_0][text]"]',
     );
+    $this->assertSession()->pageTextNotContains('New manual item');
+    $this->assertSession()->elementNotExists('css', '[name="sections_wrapper[items][manual_0][text]"]');
+    $this->submitForm([], 'Add manual note');
+    $this->assertSession()->elementExists('css', 'textarea[name="sections_wrapper[items][manual_0][text]"]');
 
     $ids = \Drupal::entityQuery('changelogify_release')
       ->accessCheck(FALSE)
@@ -617,7 +622,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     self::assertSame([], $sections['added'][0]['event_ids']);
     self::assertSame('security', $release->getProvenance()['items'][$itemId]['section']);
     $this->drupalGet($release->toUrl('edit-form'));
-    $this->assertSession()->pageTextContains('Editorial item — no automatic evidence.');
+    $this->assertSession()->pageTextContains('Manual note — no tracked change is attached.');
   }
 
   /**

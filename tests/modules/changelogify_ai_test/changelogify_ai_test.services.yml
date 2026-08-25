@@ -1,0 +1,4 @@
+services:
+  Drupal\changelogify_ai\Summarization\SummarizerInterface:
+    class: Drupal\changelogify_ai\Summarization\FakeSummarizer
+    public: true

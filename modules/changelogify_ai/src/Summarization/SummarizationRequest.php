@@ -24,6 +24,8 @@ final class SummarizationRequest {
    *   Payload-policy version.
    * @param string $idempotencyKey
    *   Stable duplicate-prevention key.
+   * @param string $instructions
+   *   Temporary editor instructions for this request only.
    */
   public function __construct(
     public readonly string $operation,
@@ -32,6 +34,7 @@ final class SummarizationRequest {
     public readonly string $promptVersion,
     public readonly string $policyVersion,
     public readonly string $idempotencyKey,
+    public readonly string $instructions = '',
   ) {}
 
 }

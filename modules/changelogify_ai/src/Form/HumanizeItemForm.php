@@ -71,16 +71,24 @@ final class HumanizeItemForm extends FormBase {
       ],
       '#default_value' => $form_state->getValue('profile', 'public_product'),
     ];
+    $form['instructions'] = [
+      '#type' => 'textarea',
+      '#title' => $this->t('Instructions for this rewrite (optional)'),
+      '#description' => $this->t('Temporary for this generation attempt and not saved as configuration. For example: “Focus on customer benefit” or “Use less technical language.”'),
+      '#maxlength' => 1000,
+      '#rows' => 3,
+      '#default_value' => $form_state->getValue('instructions', ''),
+    ];
     $suggestion = $form_state->get('suggestion');
     if (is_array($suggestion)) {
       $form['original'] = [
         '#type' => 'item',
-        '#title' => $this->t('Original'),
+        '#title' => $this->t('Current wording'),
         '#plain_text' => $suggestion['original'],
       ];
       $form['suggested'] = [
         '#type' => 'item',
-        '#title' => $this->t('Suggestion'),
+        '#title' => $this->t('Suggested wording'),
         '#plain_text' => $suggestion['text'],
       ];
       $form['provider_details'] = [
@@ -93,7 +101,7 @@ final class HumanizeItemForm extends FormBase {
       ];
       $form['supporting_evidence'] = [
         '#type' => 'item',
-        '#title' => $this->t('Supporting evidence'),
+        '#title' => $this->t('Why this note is eligible'),
         '#plain_text' => $this->evidenceSummary($changelogify_release, (string) $form_state->get('item_id')),
       ];
       if (($suggestion['warnings'] ?? []) !== []) {
@@ -105,26 +113,18 @@ final class HumanizeItemForm extends FormBase {
       }
       $form['actions']['accept'] = [
         '#type' => 'submit',
-        '#value' => $this->t('Accept suggestion'),
+        '#value' => $this->t('Use suggestion'),
         '#submit' => ['::acceptSubmit'],
       ];
       $form['actions']['regenerate'] = [
         '#type' => 'submit',
-        '#value' => $this->t('Regenerate'),
+        '#value' => $this->t('Try again'),
         '#submit' => ['::generateSubmit'],
       ];
       $form['actions']['reject'] = [
         '#type' => 'submit',
-        '#value' => $this->t('Reject suggestion'),
+        '#value' => $this->t('Dismiss suggestion'),
         '#submit' => ['::rejectSubmit'],
-      ];
-      $form['actions']['restore_original'] = [
-        '#type' => 'link',
-        '#title' => $this->t('Restore original from revision history'),
-        '#url' => Url::fromRoute('entity.changelogify_release.version_history', [
-          'changelogify_release' => $changelogify_release->id(),
-        ]),
-        '#attributes' => ['class' => ['button']],
       ];
     }
     else {
@@ -135,14 +135,16 @@ final class HumanizeItemForm extends FormBase {
         '#submit' => ['::generateSubmit'],
       ];
     }
-    $form['actions']['cancel'] = [
-      '#type' => 'link',
-      '#title' => $this->t('Cancel'),
-      '#url' => Url::fromRoute('entity.changelogify_release.edit_form', [
-        'changelogify_release' => $changelogify_release->id(),
-      ]),
-      '#attributes' => ['class' => ['button']],
-    ];
+    if (!is_array($suggestion)) {
+      $form['actions']['close'] = [
+        '#type' => 'link',
+        '#title' => $this->t('Close'),
+        '#url' => Url::fromRoute('entity.changelogify_release.edit_form', [
+          'changelogify_release' => $changelogify_release->id(),
+        ]),
+        '#attributes' => ['class' => ['button']],
+      ];
+    }
     return $form;
   }
 
@@ -154,7 +156,13 @@ final class HumanizeItemForm extends FormBase {
       $release = $this->loadUnchangedRelease($form_state);
       $previous = $form_state->get('suggestion');
       $attempt = max(0, (int) $form_state->get('generation_attempt'));
-      $result = $this->suggestions->suggest($release, (string) $form_state->get('item_id'), (string) $form_state->getValue('profile'), $attempt);
+      $result = $this->suggestions->suggest(
+        $release,
+        (string) $form_state->get('item_id'),
+        (string) $form_state->getValue('profile'),
+        $attempt,
+        (string) $form_state->getValue('instructions'),
+      );
       $form_state->set('generation_attempt', $attempt + 1);
       if ($result->status !== 'completed' || count($result->items) !== 1) {
         $this->messenger()->addError($this->t('The provider did not return one usable suggestion.'));
@@ -194,14 +202,20 @@ final class HumanizeItemForm extends FormBase {
       return;
     }
     try {
-      $this->suggestions->accept($release, (string) $form_state->get('item_id'), (string) $suggestion['text'], (string) $suggestion['operation_id']);
+      $stagedPublished = $this->suggestions->accept($release, (string) $form_state->get('item_id'), (string) $suggestion['text'], (string) $suggestion['operation_id']);
     }
     catch (\UnexpectedValueException) {
       $form_state->setErrorByName('suggestion', $this->t('This suggestion is no longer eligible for acceptance. Generate a new suggestion and try again.'));
       return;
     }
-    $this->messenger()->addStatus($this->t('The suggestion was accepted in a new release revision.'));
-    $form_state->setRedirectUrl(Url::fromRoute('entity.changelogify_release.edit_form', ['changelogify_release' => $release->id()]));
+    if ($stagedPublished) {
+      $this->messenger()->addStatus($this->t('The suggestion was saved in a non-public review revision. The published release is unchanged.'));
+      $form_state->setRedirectUrl(Url::fromRoute('entity.changelogify_release.version_history', ['changelogify_release' => $release->id()]));
+    }
+    else {
+      $this->messenger()->addStatus($this->t('The suggestion was used in a new release revision.'));
+      $form_state->setRedirectUrl(Url::fromRoute('entity.changelogify_release.edit_form', ['changelogify_release' => $release->id()]));
+    }
   }
 
   /**
@@ -213,7 +227,7 @@ final class HumanizeItemForm extends FormBase {
       $this->suggestions->reject((string) $suggestion['operation_id']);
     }
     $form_state->set('suggestion', NULL)->setRebuild();
-    $this->messenger()->addStatus($this->t('The suggestion was rejected. The release was not changed.'));
+    $this->messenger()->addStatus($this->t('The suggestion was dismissed. The release was not changed.'));
   }
 
   /**
@@ -238,7 +252,11 @@ final class HumanizeItemForm extends FormBase {
       foreach ($items as $item) {
         if (($item['id'] ?? '') === $itemId) {
           $eventIds = $item['event_ids'] ?? [];
-          return $eventIds === [] ? (string) $this->t('Manual item: no automatic evidence is attached.') : (string) $this->t('Source event IDs: @ids', ['@ids' => implode(', ', $eventIds)]);
+          return $eventIds === []
+            ? (string) $this->t('Manual note: no tracked change is attached.')
+            : (string) $this->t('Based on @count trusted tracked change(s) already attached to this release note. Technical identifiers remain available in the release evidence details.', [
+              '@count' => count($eventIds),
+            ]);
         }
       }
     }

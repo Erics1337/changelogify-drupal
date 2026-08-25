@@ -1,0 +1,7 @@
+name: Changelogify AI test support
+type: module
+description: Supplies a deterministic summarizer only to automated tests.
+package: Testing
+core_version_requirement: ^10.3 || ^11
+dependencies:
+  - changelogify:changelogify_ai

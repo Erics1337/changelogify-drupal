@@ -1,20 +1,104 @@
 .changelogify-release-items {
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .changelogify-release-item {
+  position: relative;
   min-inline-size: 0;
+  padding: 1rem;
+  border: 1px solid var(--color-gray-300, #d3d4d9);
+  border-radius: 0.25rem;
+  background: var(--color-white, #fff);
 }
 
-.changelogify-release-item__move {
+.changelogify-release-item.is-dragging {
+  opacity: 0.6;
+}
+
+.changelogify-release-item.is-pending-removal > :not(legend, .changelogify-release-item__toolbar) {
+  display: none;
+}
+
+.changelogify-release-item.is-pending-removal {
+  border-style: dashed;
+  background: var(--color-gray-050, #f7f7f7);
+}
+
+.changelogify-release-item__text textarea {
+  min-block-size: 5.5rem;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.changelogify-release-item__section {
+  display: inline-block;
+  max-inline-size: 12rem;
+}
+
+.changelogify-release-item__toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-block-end: 0.75rem;
+}
+
+.changelogify-release-item__toolbar .button {
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  min-block-size: auto;
+}
+
+.changelogify-release-item__drag {
+  cursor: grab;
+}
+
+.changelogify-release-item__drag:active {
+  cursor: grabbing;
+}
+
+.changelogify-ai-inline-editor {
+  margin-block-start: 0.75rem;
+}
+
+.changelogify-ai-inline-editor .form-item {
+  max-inline-size: 48rem;
+}
+
+.changelogify-ai-inline-editor .form-actions,
+[data-drupal-selector="edit-ai-workspace-review-actions"] {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-block-end: 0.75rem;
+}
+
+.js .changelogify-release-item__order-fallback,
+.js .changelogify-release-item__remove-fallback {
+  position: absolute !important;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap;
 }
 
 .changelogify-release-item:focus {
   outline: 0.2rem solid currentColor;
   outline-offset: 0.2rem;
+}
+
+@media (max-width: 48rem) {
+  .changelogify-release-item {
+    padding: 0.75rem;
+  }
+
+  .changelogify-release-item__section {
+    display: block;
+    max-inline-size: none;
+  }
+
+  .changelogify-ai-inline-editor .form-actions .button {
+    inline-size: 100%;
+  }
 }

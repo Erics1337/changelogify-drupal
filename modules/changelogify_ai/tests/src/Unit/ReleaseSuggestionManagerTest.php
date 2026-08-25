@@ -81,6 +81,101 @@ final class ReleaseSuggestionManagerTest extends TestCase {
   }
 
   /**
+   * Whole-release generation uses only trusted, explicitly selected items.
+   */
+  public function testWholeReleaseSuggestionIsStagedWithoutMutation(): void {
+    $release = $this->release();
+    $release->expects(self::never())->method('save');
+    $result = $this->manager()->suggestRelease(
+      $release,
+      ['item-1', 'item-2'],
+      'public_product',
+      'Use less technical language.',
+    );
+    self::assertCount(2, $result->items);
+    self::assertSame(['item-1'], $result->items[0]->sourceIds);
+    self::assertSame(['item-2'], $result->items[1]->sourceIds);
+  }
+
+  /**
+   * Client-supplied or stale IDs cannot enter a release-wide request.
+   */
+  public function testWholeReleaseRejectsUnknownItemIds(): void {
+    $this->expectException(\UnexpectedValueException::class);
+    $this->manager()->suggestRelease(
+      $this->release(),
+      ['item-1', 'invented-item'],
+      'public_product',
+    );
+  }
+
+  /**
+   * Partial acceptance changes only selected stable IDs in one revision.
+   */
+  public function testWholeReleasePartialAcceptance(): void {
+    $release = $this->release();
+    $release->expects(self::once())->method('setSections')->with([
+      'changed' => [
+        ['id' => 'item-1', 'text' => 'Improved first item', 'event_ids' => ['event-1']],
+        ['id' => 'item-2', 'text' => 'Keep this text', 'event_ids' => ['event-2']],
+      ],
+      'other' => [
+        ['id' => 'manual-1', 'text' => 'Manual text', 'event_ids' => []],
+      ],
+    ]);
+    $release->expects(self::once())->method('save');
+    $manager = $this->manager();
+    $result = $manager->suggestRelease($release, ['item-1', 'item-2'], 'concise');
+    self::assertFalse($manager->acceptRelease(
+      $release,
+      [
+        'item-1' => 'Improved first item',
+        'item-2' => 'Improved second item',
+      ],
+      ['item-1'],
+      (string) $result->operationId,
+    ));
+  }
+
+  /**
+   * Published acceptance is saved as a non-public draft revision.
+   */
+  public function testPublishedAcceptanceStagesNonPublicRevision(): void {
+    $release = $this->release('published');
+    $release->expects(self::once())->method('isDefaultRevision')->with(FALSE);
+    $release->expects(self::once())->method('setPublished')->with(FALSE);
+    $release->expects(self::once())->method('setEditorialState')->with('draft');
+    $release->expects(self::once())->method('save');
+    $manager = $this->manager();
+    $result = $manager->suggestRelease($release, ['item-1'], 'concise');
+    self::assertTrue($manager->acceptRelease(
+      $release,
+      ['item-1' => 'Reviewed private wording'],
+      ['item-1'],
+      (string) $result->operationId,
+    ));
+  }
+
+  /**
+   * Archived releases must be restored before any rewrite attempt.
+   */
+  public function testArchivedReleaseCannotBeSuggested(): void {
+    $release = $this->release('archived');
+    self::assertFalse($this->manager()->canSuggest($release, 'item-1'));
+    $this->expectException(\UnexpectedValueException::class);
+    $this->manager()->suggestRelease($release, ['item-1'], 'concise');
+  }
+
+  /**
+   * Missing or expired tracked evidence is not sent for rewriting.
+   */
+  public function testUnavailableEvidenceIsIneligible(): void {
+    self::assertFalse($this->manager()->canSuggest($this->release('draft', 'missing'), 'item-1'));
+    self::assertFalse($this->manager()->canSuggest($this->release('draft', 'expired'), 'item-1'));
+    self::assertTrue($this->manager()->canSuggest($this->release('draft', 'partial'), 'item-1'));
+  }
+
+  /**
    * Manual items require an explicit opt-in even with an available provider.
    */
   public function testManualItemRequiresExplicitOptIn(): void {
@@ -109,7 +204,7 @@ final class ReleaseSuggestionManagerTest extends TestCase {
   /**
    * Returns a release fixture with stable IDs, order, and provenance.
    */
-  private function release(): ChangelogifyReleaseInterface&MockObject {
+  private function release(string $editorialState = 'draft', ?string $evidenceStatus = NULL): ChangelogifyReleaseInterface&MockObject {
     /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface&\PHPUnit\Framework\MockObject\MockObject $release */
     $release = $this->createMock(ChangelogifyReleaseInterface::class);
     $release->method('getSections')->willReturn([
@@ -122,6 +217,14 @@ final class ReleaseSuggestionManagerTest extends TestCase {
       ],
     ]);
     $release->method('uuid')->willReturn('release-uuid');
+    $release->method('getEditorialState')->willReturn($editorialState);
+    $release->method('getProvenance')->willReturn($evidenceStatus === NULL ? [] : [
+      'version' => 1,
+      'items' => [
+        'item-1' => ['evidence_status' => $evidenceStatus],
+        'item-2' => ['evidence_status' => $evidenceStatus],
+      ],
+    ]);
     $release->method('getRevisionId')->willReturn(4);
     $release->method('id')->willReturn(7);
     return $release;
@@ -152,7 +255,11 @@ final class ReleaseSuggestionManagerTest extends TestCase {
     $queueFactory->method('get')->willReturn($this->createMock(QueueInterface::class));
     $operations = new AiOperationManager(new FakeSummarizer($providerMode), new ResultValidator(), $keyValue, $lock, $account, $time, $this->createMock(LoggerInterface::class), $queueFactory);
     $config = $this->createMock(ImmutableConfig::class);
-    $config->method('get')->with('policy.allow_manual_humanization')->willReturn($allowManual);
+    $config->method('get')->willReturnCallback(static fn (string $key): mixed => match ($key) {
+      'consent_external_processing' => TRUE,
+      'policy.allow_manual_humanization' => $allowManual,
+      default => NULL,
+    });
     $configFactory = $this->createMock(ConfigFactoryInterface::class);
     $configFactory->method('get')->with('changelogify_ai.settings')->willReturn($config);
     $database = $this->createMock(Connection::class);

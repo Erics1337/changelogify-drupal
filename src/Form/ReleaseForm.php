@@ -83,10 +83,13 @@ class ReleaseForm extends ContentEntityForm {
     // Add item-level editing without exposing provenance as client input.
     $form['sections_wrapper'] = [
       '#type' => 'details',
-      '#title' => $this->t('Release items'),
+      '#title' => $this->t('Release notes'),
+      '#description' => $this->t('Edit the public-facing wording first. Section, ordering, removal, and source details remain available as secondary controls.'),
       '#open' => TRUE,
       '#weight' => 5,
       '#tree' => TRUE,
+      '#prefix' => '<div id="changelogify-release-items-editor">',
+      '#suffix' => '</div>',
     ];
 
     $sections = $release->getSections();
@@ -119,29 +122,36 @@ class ReleaseForm extends ContentEntityForm {
           $section,
           $position,
           $sectionOptions,
-          $item['event_ids'] === [] ? $this->t('Manual item') : $this->t('Evidence-backed item'),
+          $item['event_ids'] === [] ? $this->t('Manual note') : $this->t('Tracked change'),
           TRUE,
           $resolvedProvenance['items'][$id] ?? NULL,
         );
         $position++;
       }
     }
-    $form['sections_wrapper']['manual_title'] = [
-      '#type' => 'html_tag',
-      '#tag' => 'h3',
-      '#value' => $this->t('Add manual items'),
-    ];
-    for ($manual = 0; $manual < 3; $manual++) {
+    $manualCount = max(0, (int) $form_state->get('manual_item_count'));
+    for ($manual = 0; $manual < $manualCount; $manual++) {
       $form['sections_wrapper']['items']['manual_' . $manual] = $this->itemElement(
         '',
         '',
         'other',
         $position + $manual,
         $sectionOptions,
-        $this->t('New manual item @number', ['@number' => $manual + 1]),
+        $this->t('Manual note @number', ['@number' => $manual + 1]),
         FALSE,
       );
     }
+    $form['sections_wrapper']['add_manual'] = [
+      '#type' => 'submit',
+      '#value' => $this->t('Add manual note'),
+      '#submit' => ['::addManualSubmit'],
+      '#limit_validation_errors' => [],
+      '#ajax' => [
+        'callback' => '::refreshItems',
+        'wrapper' => 'changelogify-release-items-editor',
+      ],
+      '#attributes' => ['class' => ['button', 'button--small']],
+    ];
 
     return $form;
   }
@@ -162,31 +172,41 @@ class ReleaseForm extends ContentEntityForm {
     $element = [
       '#type' => 'fieldset',
       '#title' => $label,
-      '#attributes' => ['class' => ['changelogify-release-item']],
+      '#attributes' => [
+        'class' => ['changelogify-release-item'],
+        'data-changelogify-item' => $id,
+      ],
     ];
     $element['id'] = ['#type' => 'hidden', '#value' => $id];
     $element['text'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Item text'),
+      '#type' => 'textarea',
+      '#title' => $this->t('Release note'),
       '#default_value' => $text,
       '#maxlength' => 2048,
+      '#rows' => 2,
+      '#attributes' => ['class' => ['changelogify-release-item__text']],
     ];
     $element['section'] = [
       '#type' => 'select',
       '#title' => $this->t('Section'),
       '#options' => $sectionOptions,
       '#default_value' => $section,
+      '#wrapper_attributes' => ['class' => ['changelogify-release-item__section']],
     ];
     $element['order'] = [
       '#type' => 'number',
       '#title' => $this->t('Order'),
       '#default_value' => $order,
       '#step' => 1,
+      '#min' => 0,
+      '#description' => $this->t('No-JavaScript ordering fallback. With JavaScript, use the compact move controls or drag handle.'),
+      '#wrapper_attributes' => ['class' => ['changelogify-release-item__order-fallback']],
     ];
     if ($existing) {
       $element['remove'] = [
         '#type' => 'checkbox',
-        '#title' => $this->t('Remove this item'),
+        '#title' => $this->t('Remove this note when changes are saved'),
+        '#wrapper_attributes' => ['class' => ['changelogify-release-item__remove-fallback']],
       ];
       $element['evidence'] = $this->evidenceElement($evidence);
     }
@@ -200,24 +220,25 @@ class ReleaseForm extends ContentEntityForm {
     if ($evidence === NULL) {
       return [
         '#type' => 'item',
-        '#title' => $this->t('Source evidence'),
-        '#markup' => $this->t('Editorial item — no automatic evidence.'),
+        '#title' => $this->t('Why this note is here'),
+        '#markup' => $this->t('Manual note — no tracked change is attached.'),
       ];
     }
+    $status = (string) ($evidence['evidence_status'] ?? 'unknown');
+    $eventCount = (int) ($evidence['event_count'] ?? count($evidence['events'] ?? []));
     $panel = [
       '#type' => 'details',
-      '#title' => $this->t('Source evidence: @status', [
-        '@status' => $evidence['evidence_status'] ?? 'unknown',
+      '#title' => $this->t('Based on @count tracked change(s) · @status', [
+        '@count' => $eventCount,
+        '@status' => $this->evidenceStatusLabel($status),
       ]),
       '#open' => FALSE,
     ];
     $panel['summary'] = [
       '#type' => 'item',
-      '#markup' => $this->t('@kind change set with @count evidence record(s).', [
-        '@kind' => $evidence['kind'] ?? 'unknown',
-        '@count' => $evidence['event_count'] ?? count($evidence['events'] ?? []),
-      ]),
+      '#markup' => $this->t('These retained, privacy-bounded details explain which recorded site changes support this release note.'),
     ];
+    $editorialItems = [];
     $rows = [];
     foreach ($evidence['events'] ?? [] as $event) {
       $eventId = (int) ($event['event_id'] ?? 0);
@@ -235,6 +256,18 @@ class ReleaseForm extends ContentEntityForm {
           Url::fromRoute('changelogify.event_detail', ['changelogify_event' => $eventId]),
         )->toRenderable();
       }
+      $object = implode(' · ', array_filter([
+        $event['bundle'] ?? NULL,
+        $event['entity_type_id'] ?? NULL,
+      ], static fn (mixed $value): bool => $value !== NULL && $value !== ''));
+      $editorialItems[] = $this->t('@change@object · @date · @status', [
+        '@change' => ucfirst(str_replace('_', ' ', (string) ($event['event_type'] ?? 'Recorded change'))),
+        '@object' => $object === '' ? '' : ' · ' . $object,
+        '@date' => isset($event['timestamp'])
+          ? $this->dateFormatter->format((int) $event['timestamp'], 'short')
+          : $this->t('Date unavailable'),
+        '@status' => $this->evidenceStatusLabel((string) ($event['evidence_status'] ?? 'unknown')),
+      ]);
       $rows[] = [
         'event' => ['data' => $eventLabel],
         'status' => $event['evidence_status'] ?? 'unknown',
@@ -243,10 +276,47 @@ class ReleaseForm extends ContentEntityForm {
         'time' => isset($event['timestamp'])
           ? $this->dateFormatter->format((int) $event['timestamp'], 'short')
           : '-',
+        'schema' => $event['schema_version'] ?? '-',
         'descriptor' => $descriptor ?: '-',
       ];
     }
-    $panel['events'] = [
+    $panel['editorial_details'] = [
+      '#theme' => 'item_list',
+      '#title' => $this->t('Tracked changes supporting this note'),
+      '#items' => $editorialItems,
+      '#empty' => $this->t('No retained tracked-change details are available.'),
+    ];
+    $reuseReleaseIds = array_values(array_filter(array_map(
+      'intval',
+      $evidence['evidence_reuse']['release_ids'] ?? [],
+    )));
+    if ($reuseReleaseIds !== []) {
+      $panel['reuse'] = [
+        '#theme' => 'item_list',
+        '#title' => $this->t('Also used by'),
+        '#items' => array_map(fn (int $releaseId): array => Link::fromTextAndUrl(
+          $this->t('Release @id', ['@id' => $releaseId]),
+          Url::fromRoute('entity.changelogify_release.canonical', [
+            'changelogify_release' => $releaseId,
+          ]),
+        )->toRenderable(), $reuseReleaseIds),
+      ];
+    }
+    $panel['technical'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Technical details'),
+      '#open' => FALSE,
+    ];
+    $changeSetIds = array_values(array_filter(array_map(
+      'strval',
+      $evidence['change_set_ids'] ?? [$evidence['change_set_id'] ?? ''],
+    )));
+    $panel['technical']['change_sets'] = [
+      '#type' => 'item',
+      '#title' => $this->t('Change-set identifiers'),
+      '#plain_text' => $changeSetIds === [] ? '-' : implode(', ', $changeSetIds),
+    ];
+    $panel['technical']['events'] = [
       '#type' => 'table',
       '#header' => [
         $this->t('Event'),
@@ -254,12 +324,42 @@ class ReleaseForm extends ContentEntityForm {
         $this->t('Source'),
         $this->t('Type'),
         $this->t('Time'),
+        $this->t('Schema'),
         $this->t('Technical descriptor'),
       ],
       '#rows' => $rows,
       '#empty' => $this->t('No retained evidence details are available.'),
     ];
     return $panel;
+  }
+
+  /**
+   * Returns an editor-facing label for an evidence lifecycle state.
+   */
+  private function evidenceStatusLabel(string $status): mixed {
+    return match ($status) {
+      'available' => $this->t('Evidence available'),
+      'partial' => $this->t('Some evidence unavailable'),
+      'expired' => $this->t('Evidence expired'),
+      'missing' => $this->t('Evidence missing'),
+      'removed' => $this->t('Evidence details removed'),
+      default => $this->t('Evidence status unknown'),
+    };
+  }
+
+  /**
+   * Adds one explicit blank manual-note editor and preserves unsaved values.
+   */
+  public function addManualSubmit(array &$form, FormStateInterface $form_state): void {
+    $form_state->set('manual_item_count', max(0, (int) $form_state->get('manual_item_count')) + 1);
+    $form_state->setRebuild();
+  }
+
+  /**
+   * Returns the rebuilt release-item workspace for AJAX requests.
+   */
+  public function refreshItems(array &$form, FormStateInterface $form_state): array {
+    return $form['sections_wrapper'];
   }
 
   /**
