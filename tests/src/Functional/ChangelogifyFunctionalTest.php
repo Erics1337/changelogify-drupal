@@ -559,11 +559,15 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
           'changelogify_event__event_type_timestamp',
       ));
     self::assertTrue($schema->indexExists(
-          'changelogify_release',
-          'changelogify_release__status_date',
+      'changelogify_release_field_data',
+      'changelogify_release__status',
     ));
     self::assertTrue($schema->indexExists(
-      'changelogify_release',
+      'changelogify_release_field_data',
+      'changelogify_release__release_date',
+    ));
+    self::assertTrue($schema->indexExists(
+      'changelogify_release_field_data',
       'changelogify_release__scheduled_at',
     ));
   }

@@ -7,6 +7,9 @@ namespace Drupal\changelogify;
 use Drupal\Component\Transliteration\TransliterationInterface;
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Language\LanguageManagerInterface;
+use Drupal\Core\Language\LanguageInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
 
 /**
  * Generates and resolves unique, durable public release slugs.
@@ -18,6 +21,8 @@ final class ReleaseSlugManager {
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly TransliterationInterface $transliteration,
+    private readonly LanguageManagerInterface $languageManager,
+    private readonly ConfigFactoryInterface $configFactory,
   ) {
   }
 
@@ -27,13 +32,17 @@ final class ReleaseSlugManager {
   public function prepare(ChangelogifyReleaseInterface $release): void {
     $requested = (string) $release->get('slug')->value;
     $base = $this->normalize($requested !== '' ? $requested : $release->getTitle());
-    $slug = $this->uniqueSlug($base, $release->id() === NULL ? NULL : (int) $release->id());
+    $langcode = $release->language()->getId();
+    $slug = $this->uniqueSlug($base, $release->id() === NULL ? NULL : (int) $release->id(), $langcode);
     $original = NULL;
     if (method_exists($release, 'getOriginal')) {
       $original = $release->getOriginal();
     }
     elseif (isset($release->original) && $release->original instanceof ChangelogifyReleaseInterface) {
       $original = $release->original;
+    }
+    if ($original instanceof ChangelogifyReleaseInterface && $original->hasTranslation($langcode)) {
+      $original = $original->getTranslation($langcode);
     }
     if ($original instanceof ChangelogifyReleaseInterface) {
       $oldSlug = $original->getSlug();
@@ -64,39 +73,100 @@ final class ReleaseSlugManager {
    * @return array{release: \Drupal\changelogify\Entity\ChangelogifyReleaseInterface, historical: bool}|null
    *   The resolved release and whether the slug is historical.
    */
-  public function resolve(string $slug): ?array {
+  public function resolve(string $slug, ?string $langcode = NULL): ?array {
+    $langcode ??= $this->languageManager->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE)->getId();
     $storage = $this->entityTypeManager->getStorage('changelogify_release');
     $ids = $storage->getQuery()
       ->accessCheck(FALSE)
       ->condition('slug', $slug)
+      ->condition('langcode', $langcode)
       ->range(0, 1)
       ->execute();
+    $usedFallback = FALSE;
+    if ($ids === [] && $this->allowsFallback()) {
+      $ids = $storage->getQuery()
+        ->accessCheck(FALSE)
+        ->condition('slug', $slug)
+        ->condition('default_langcode', TRUE)
+        ->range(0, 1)
+        ->execute();
+      $usedFallback = $ids !== [];
+    }
     if ($ids !== []) {
-      return ['release' => $storage->load(reset($ids)), 'historical' => FALSE];
+      $release = $storage->load(reset($ids));
+      if ($usedFallback && $release->hasTranslation($langcode)) {
+        return NULL;
+      }
+      if (!$release->hasTranslation($langcode)
+        && $release->language()->getId() !== $langcode) {
+        return [
+          'release' => $release,
+          'historical' => FALSE,
+        ];
+      }
+      return [
+        'release' => $release->getTranslation($langcode),
+        'historical' => FALSE,
+      ];
     }
     $ids = $storage->getQuery()
       ->accessCheck(FALSE)
       ->condition('slug_history', $slug)
+      ->condition('langcode', $langcode)
       ->range(0, 1)
       ->execute();
-    return $ids === []
-      ? NULL
-      : ['release' => $storage->load(reset($ids)), 'historical' => TRUE];
+    $usedFallback = FALSE;
+    if ($ids === [] && $this->allowsFallback()) {
+      $ids = $storage->getQuery()
+        ->accessCheck(FALSE)
+        ->condition('slug_history', $slug)
+        ->condition('default_langcode', TRUE)
+        ->range(0, 1)
+        ->execute();
+      $usedFallback = $ids !== [];
+    }
+    if ($ids === []) {
+      return NULL;
+    }
+    $release = $storage->load(reset($ids));
+    if ($usedFallback && $release->hasTranslation($langcode)) {
+      return NULL;
+    }
+    if (!$release->hasTranslation($langcode)
+      && $release->language()->getId() !== $langcode) {
+      return [
+        'release' => $release,
+        'historical' => TRUE,
+      ];
+    }
+    return [
+      'release' => $release->getTranslation($langcode),
+      'historical' => TRUE,
+    ];
   }
 
   /**
    * Finds an unused current and historical slug.
    */
-  private function uniqueSlug(string $base, ?int $releaseId): string {
+  private function uniqueSlug(string $base, ?int $releaseId, string $langcode): string {
     for ($suffix = 1; $suffix < 10000; $suffix++) {
       $addition = $suffix === 1 ? '' : '-' . $suffix;
       $candidate = substr($base, 0, self::MAX_LENGTH - strlen($addition)) . $addition;
-      $resolved = $this->resolve($candidate);
+      $resolved = $this->resolve($candidate, $langcode);
       if ($resolved === NULL || (int) $resolved['release']->id() === $releaseId) {
         return $candidate;
       }
     }
     throw new \LengthException('A unique release slug could not be generated.');
+  }
+
+  /**
+   * Returns whether source-language slug fallback is enabled.
+   */
+  private function allowsFallback(): bool {
+    return (string) ($this->configFactory
+      ->get('changelogify.settings')
+      ->get('translation_fallback') ?? 'fallback') !== 'hide';
   }
 
 }

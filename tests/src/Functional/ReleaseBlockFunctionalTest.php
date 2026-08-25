@@ -69,7 +69,6 @@ final class ReleaseBlockFunctionalTest extends BlockTestBase {
     $this->drupalGet('<front>');
     $this->assertSession()->pageTextContains('No releases have been published yet.');
 
-    $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
     $draft = $this->release('Private draft', 300, FALSE, 'Draft-only text');
     $older = $this->release('Older public release', 100, TRUE, 'Older added text', '1.0.0');
     $newer = $this->release('Newest public release', 200, TRUE, 'Newest added text', '1.1.0');

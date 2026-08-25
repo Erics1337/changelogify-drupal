@@ -5,6 +5,9 @@ changelogify.settings:
     changelog_path:
       type: string
       label: Public changelog path
+    translation_fallback:
+      type: string
+      label: Missing release translation behavior
     track_content:
       type: boolean
       label: Track content changes

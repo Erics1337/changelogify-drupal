@@ -99,3 +99,14 @@ function changelogify_update_14003(): string {
   }
   return 'Added the minimal release provenance retention policy.';
 }
+
+/**
+ * Adds the source-language fallback default for existing sites.
+ */
+function changelogify_update_17001(): string {
+  $config = \Drupal::configFactory()->getEditable('changelogify.settings');
+  if ($config->get('translation_fallback') === NULL) {
+    $config->set('translation_fallback', 'fallback')->save();
+  }
+  return 'Enabled source-language fallback for existing releases.';
+}

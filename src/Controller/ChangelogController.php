@@ -61,6 +61,10 @@ class ChangelogController extends ControllerBase {
 
     $items = [];
     foreach ($releases as $release) {
+      $release = $this->publicReleaseBuilder->translateForPublic($release);
+      if ($release === NULL) {
+        continue;
+      }
       $presentation = $this->publicReleaseBuilder->build($release, [
         'added', 'changed', 'fixed', 'removed', 'security', 'other',
       ]);
@@ -129,6 +133,8 @@ class ChangelogController extends ControllerBase {
       '#date_iso' => $presentation['date_iso'],
       '#version' => $presentation['version'],
       '#sections' => $presentation['sections'],
+      '#translation_fallback' => $presentation['translation_fallback'],
+      '#language_name' => $presentation['language_name'],
       '#attached' => [
         'library' => ['changelogify/public'],
         'html_head_link' => array_merge([[

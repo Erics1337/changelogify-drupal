@@ -80,6 +80,19 @@ class SettingsForm extends ConfigFormBase {
       '#required' => TRUE,
     ];
 
+    $form['general']['translation_fallback'] = [
+      '#type' => 'select',
+      '#title' => $this->t('When a release translation is missing'),
+      '#description' => $this->t('Draft translations are always hidden. This setting controls only releases with no translation in the requested language.'),
+      '#options' => [
+        'hide' => $this->t('Hide the release'),
+        'fallback' => $this->t('Show the source language'),
+        'label' => $this->t('Show and label the source language'),
+      ],
+      '#config_target' => 'changelogify.settings:translation_fallback',
+      '#default_value' => $this->config('changelogify.settings')->get('translation_fallback') ?: 'fallback',
+    ];
+
     $form['event_sources'] = [
       '#type' => 'details',
       '#title' => $this->t('Event Sources'),

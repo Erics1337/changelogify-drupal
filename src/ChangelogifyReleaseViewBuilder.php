@@ -29,7 +29,7 @@ final class ChangelogifyReleaseViewBuilder extends EntityViewBuilder implements 
     LanguageManagerInterface $languageManager,
     Registry $themeRegistry,
     EntityDisplayRepositoryInterface $entityDisplayRepository,
-    private readonly DateFormatterInterface $dateFormatter,
+    protected DateFormatterInterface $dateFormatter,
   ) {
     parent::__construct(
       $entityType,

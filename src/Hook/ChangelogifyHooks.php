@@ -122,6 +122,8 @@ final class ChangelogifyHooks {
           'date_iso' => '',
           'version' => NULL,
           'sections' => [],
+          'translation_fallback' => FALSE,
+          'language_name' => '',
         ],
       ],
       'changelogify_release_block' => [

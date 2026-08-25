@@ -246,6 +246,7 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
     changelogify_update_14001();
     changelogify_update_14002();
     changelogify_update_14003();
+    changelogify_update_17001();
     changelogify_post_update_ensure_query_indexes();
     changelogify_post_update_add_event_contract_fields();
     changelogify_post_update_add_release_provenance();
@@ -258,6 +259,10 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
       changelogify_post_update_add_release_slugs($sandbox);
     } while (($sandbox['#finished'] ?? 1) < 1);
     changelogify_post_update_add_release_scheduling();
+    $sandbox = [];
+    do {
+      changelogify_post_update_make_releases_translatable($sandbox);
+    } while (($sandbox['#finished'] ?? 1) < 1);
   }
 
   /**
@@ -318,8 +323,9 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
         'changelogify_event__correlation_timestamp',
         'changelogify_event__schema_timestamp',
       ],
-      'changelogify_release' => [
-        'changelogify_release__status_date',
+      'changelogify_release_field_data' => [
+        'changelogify_release__status',
+        'changelogify_release__release_date',
         'changelogify_release__scheduled_at',
       ],
     ];
@@ -337,6 +343,7 @@ final class UpdatePathKernelTest extends ChangelogifyKernelTestBase {
       'provenance_retention_days' => 0,
       'track_unpublished_content' => FALSE,
       'changelog_path' => '/changelog',
+      'translation_fallback' => 'fallback',
       'content_capture' => [
         'entity_types' => [
           'node' => [

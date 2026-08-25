@@ -32,6 +32,7 @@ use Drupal\user\EntityOwnerTrait;
  *     "list_builder" = "Drupal\changelogify\ReleaseListBuilder",
  *     "access" = "Drupal\changelogify\Access\ChangelogifyReleaseAccessControlHandler",
  *     "storage_schema" = "Drupal\changelogify\Entity\ChangelogifyReleaseStorageSchema",
+ *     "translation" = "Drupal\content_translation\ContentTranslationHandler",
  *     "form" = {
  *       "default" = "Drupal\changelogify\Form\ReleaseForm",
  *       "delete" = "Drupal\Core\Entity\ContentEntityDeleteForm",
@@ -43,7 +44,10 @@ use Drupal\user\EntityOwnerTrait;
  *     }
  *   },
  *   base_table = "changelogify_release",
+ *   data_table = "changelogify_release_field_data",
  *   revision_table = "changelogify_release_revision",
+ *   revision_data_table = "changelogify_release_field_revision",
+ *   translatable = TRUE,
  *   show_revision_ui = TRUE,
  *   admin_permission = "manage changelogify releases",
  *   entity_keys = {
@@ -52,7 +56,8 @@ use Drupal\user\EntityOwnerTrait;
  *     "uuid" = "uuid",
  *     "label" = "title",
  *     "owner" = "uid",
- *     "published" = "status"
+ *     "published" = "status",
+ *     "langcode" = "langcode"
  *   },
  *   links = {
  *     "canonical" = "/admin/content/changelogify/releases/{changelogify_release}/view",
@@ -62,7 +67,11 @@ use Drupal\user\EntityOwnerTrait;
  *     "collection" = "/admin/content/changelogify/releases",
  *     "revision" = "/admin/content/changelogify/releases/{changelogify_release}/revisions/{changelogify_release_revision}/view",
  *     "revision-revert-form" = "/admin/content/changelogify/releases/{changelogify_release}/revisions/{changelogify_release_revision}/revert",
- *     "version-history" = "/admin/content/changelogify/releases/{changelogify_release}/revisions"
+ *     "version-history" = "/admin/content/changelogify/releases/{changelogify_release}/revisions",
+ *     "drupal:content-translation-overview" = "/admin/content/changelogify/releases/{changelogify_release}/translations",
+ *     "drupal:content-translation-add" = "/admin/content/changelogify/releases/{changelogify_release}/translations/add/{source}/{target}",
+ *     "drupal:content-translation-edit" = "/admin/content/changelogify/releases/{changelogify_release}/translations/edit/{language}",
+ *     "drupal:content-translation-delete" = "/admin/content/changelogify/releases/{changelogify_release}/translations/delete/{language}"
  *   },
  *   revision_metadata_keys = {
  *     "revision_user" = "revision_user",
@@ -82,6 +91,7 @@ use Drupal\user\EntityOwnerTrait;
     "list_builder" => "Drupal\changelogify\ReleaseListBuilder",
     "access" => "Drupal\changelogify\Access\ChangelogifyReleaseAccessControlHandler",
     "storage_schema" => "Drupal\changelogify\Entity\ChangelogifyReleaseStorageSchema",
+    "translation" => "Drupal\content_translation\ContentTranslationHandler",
     "form" => [
       "default" => "Drupal\changelogify\Form\ReleaseForm",
       "delete" => "Drupal\Core\Entity\ContentEntityDeleteForm",
@@ -93,7 +103,10 @@ use Drupal\user\EntityOwnerTrait;
     ],
   ],
   base_table: "changelogify_release",
+  data_table: "changelogify_release_field_data",
   revision_table: "changelogify_release_revision",
+  revision_data_table: "changelogify_release_field_revision",
+  translatable: TRUE,
   show_revision_ui: TRUE,
   admin_permission: "manage changelogify releases",
   entity_keys: [
@@ -103,6 +116,7 @@ use Drupal\user\EntityOwnerTrait;
     "label" => "title",
     "owner" => "uid",
     "published" => "status",
+    "langcode" => "langcode",
   ],
   links: [
     "canonical" => "/admin/content/changelogify/releases/{changelogify_release}/view",
@@ -113,6 +127,10 @@ use Drupal\user\EntityOwnerTrait;
     "revision" => "/admin/content/changelogify/releases/{changelogify_release}/revisions/{changelogify_release_revision}/view",
     "revision-revert-form" => "/admin/content/changelogify/releases/{changelogify_release}/revisions/{changelogify_release_revision}/revert",
     "version-history" => "/admin/content/changelogify/releases/{changelogify_release}/revisions",
+    "drupal:content-translation-overview" => "/admin/content/changelogify/releases/{changelogify_release}/translations",
+    "drupal:content-translation-add" => "/admin/content/changelogify/releases/{changelogify_release}/translations/add/{source}/{target}",
+    "drupal:content-translation-edit" => "/admin/content/changelogify/releases/{changelogify_release}/translations/edit/{language}",
+    "drupal:content-translation-delete" => "/admin/content/changelogify/releases/{changelogify_release}/translations/delete/{language}",
   ],
   revision_metadata_keys: [
     "revision_user" => "revision_user",
@@ -139,6 +157,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ->setLabel(t('Title'))
       ->setDescription(t('The title of the release, e.g. "October 2025 Release" or "v1.2.0".'))
       ->setRequired(TRUE)
+      ->setTranslatable(TRUE)
       ->setRevisionable(TRUE)
       ->setSetting('max_length', 255)
       ->setDisplayOptions('form', [
@@ -185,6 +204,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ->setLabel(t('Public slug'))
       ->setDescription(t('Stable public URL segment. Leave empty to generate it from the title.'))
       ->setSetting('max_length', 128)
+      ->setTranslatable(TRUE)
       ->setRevisionable(TRUE)
       ->setDisplayOptions('form', [
         'type' => 'string_textfield',
@@ -195,6 +215,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ->setLabel(t('Historical public slugs'))
       ->setSetting('max_length', 128)
       ->setCardinality(BaseFieldDefinition::CARDINALITY_UNLIMITED)
+      ->setTranslatable(TRUE)
       ->setRevisionable(TRUE);
 
     $fields['release_date'] = BaseFieldDefinition::create('timestamp')
@@ -238,6 +259,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ->setLabel(t('Sections'))
       ->setDescription(t('JSON-encoded sections with release items.'))
       ->setDefaultValue('{}')
+      ->setTranslatable(TRUE)
       ->setRevisionable(TRUE)
       ->setDisplayConfigurable('form', TRUE);
 
@@ -251,6 +273,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ->setLabel(t('Published'))
       ->setDescription(t('Whether the release is published.'))
       ->setDefaultValue(FALSE)
+      ->setTranslatable(TRUE)
       ->setRevisionable(TRUE)
       ->setDisplayOptions('form', [
         'type' => 'boolean_checkbox',
@@ -272,6 +295,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       ])
       ->setDefaultValue('draft')
       ->setRequired(TRUE)
+      ->setTranslatable(TRUE)
       ->setRevisionable(TRUE)
       ->setDisplayOptions('form', [
         'type' => 'options_select',

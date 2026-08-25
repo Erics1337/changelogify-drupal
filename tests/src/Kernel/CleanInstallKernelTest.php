@@ -27,6 +27,7 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
     unset($settings['_core']);
     self::assertSame([
       'changelog_path' => '/changelog',
+      'translation_fallback' => 'fallback',
       'track_content' => TRUE,
       'track_unpublished_content' => FALSE,
       'track_modules' => TRUE,
@@ -64,7 +65,8 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
       'provenance',
       'editorial_state', 'revision_created', 'revision_user',
       'revision_log_message', 'revision_id', 'revision_default',
-      'slug', 'slug_history',
+      'revision_translation_affected', 'langcode', 'default_langcode',
+      'slug', 'slug_history', 'scheduled_at', 'scheduled_revision_id',
     ], array_keys($fieldManager->getBaseFieldDefinitions('changelogify_release')));
 
     $schema = Database::getConnection()->schema();
@@ -74,9 +76,11 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
     self::assertTrue($schema->indexExists('changelogify_event', 'changelogify_event__section_timestamp'));
     self::assertTrue($schema->indexExists('changelogify_event', 'changelogify_event__correlation_timestamp'));
     self::assertTrue($schema->indexExists('changelogify_event', 'changelogify_event__schema_timestamp'));
-    self::assertTrue($schema->indexExists('changelogify_release', 'changelogify_release__status_date'));
+    self::assertTrue($schema->indexExists('changelogify_release_field_data', 'changelogify_release__status'));
+    self::assertTrue($schema->indexExists('changelogify_release_field_data', 'changelogify_release__release_date'));
     self::assertTrue($schema->tableExists('changelogify_release_revision'));
-    self::assertTrue($schema->indexExists('changelogify_release', 'changelogify_release__slug'));
+    self::assertTrue($schema->tableExists('changelogify_release_field_revision'));
+    self::assertTrue($schema->indexExists('changelogify_release_field_data', 'changelogify_release__langcode_slug'));
   }
 
   /**

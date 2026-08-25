@@ -6,6 +6,7 @@ namespace Drupal\changelogify\Controller;
 
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Drupal\changelogify\PublicReleaseBuilder;
+use Drupal\changelogify\ReleaseSlugManager;
 use Drupal\Core\Cache\CacheableJsonResponse;
 use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Config\ConfigFactoryInterface;
@@ -26,6 +27,7 @@ final class ReleaseApiController implements ContainerInjectionInterface {
     private readonly PublicReleaseBuilder $releaseBuilder,
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly ConfigFactoryInterface $configFactory,
+    private readonly ReleaseSlugManager $slugManager,
   ) {}
 
   /**
@@ -36,6 +38,7 @@ final class ReleaseApiController implements ContainerInjectionInterface {
       $container->get(PublicReleaseBuilder::class),
       $container->get('entity_type.manager'),
       $container->get('config.factory'),
+      $container->get(ReleaseSlugManager::class),
     );
   }
 
@@ -64,14 +67,10 @@ final class ReleaseApiController implements ContainerInjectionInterface {
    * Returns one accessible published release by its current public slug.
    */
   public function detail(string $release_slug, Request $request): CacheableJsonResponse {
-    $storage = $this->entityTypeManager->getStorage('changelogify_release');
-    $ids = $storage->getQuery()
-      ->accessCheck(TRUE)
-      ->condition('status', TRUE)
-      ->condition('slug', $release_slug)
-      ->range(0, 1)
-      ->execute();
-    $release = $ids === [] ? NULL : $storage->load(reset($ids));
+    $resolved = $this->slugManager->resolve($release_slug);
+    $release = $resolved === NULL || $resolved['historical']
+      ? NULL
+      : $this->releaseBuilder->translateForPublic($resolved['release']);
     if (!$release instanceof ChangelogifyReleaseInterface || !$release->access('view')) {
       throw new NotFoundHttpException();
     }

@@ -17,7 +17,7 @@ services:
 
   Drupal\changelogify\ReleaseSlugManager:
     class: Drupal\changelogify\ReleaseSlugManager
-    arguments: ['@entity_type.manager', '@transliteration']
+    arguments: ['@entity_type.manager', '@transliteration', '@language_manager', '@config.factory']
 
   Drupal\changelogify\ReleaseItemNormalizer:
     arguments: ['@uuid']

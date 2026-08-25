@@ -11,6 +11,7 @@
     {% for release in releases %}
       <article class="changelogify-release-block__release">
         <h3><a href="{{ release.url }}" rel="bookmark">{{ release.title }}</a></h3>
+        {% if release.translation_fallback %}<p class="translation-fallback">{{ 'Shown in @language because a translation is unavailable.'|t({'@language': release.language_name}) }}</p>{% endif %}
         {% if show_date or (show_version and release.version) %}
           <p class="changelogify-release-block__meta">
             {% if show_date %}<time datetime="{{ release.date_iso }}">{{ release.date }}</time>{% endif %}

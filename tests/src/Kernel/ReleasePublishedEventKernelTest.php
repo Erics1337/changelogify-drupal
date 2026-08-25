@@ -37,7 +37,7 @@ final class ReleasePublishedEventKernelTest extends ChangelogifyKernelTestBase {
     self::assertSame($release->uuid(), $event->releaseUuid);
     self::assertSame((int) $release->getRevisionId(), $event->revisionId);
     self::assertStringContainsString('/changelog/' . $release->getSlug(), $event->canonicalUrl);
-    self::assertSame('und', $event->language);
+    self::assertSame('en', $event->language);
     self::assertGreaterThan(0, $event->publishedAt);
     self::assertSame(
       sprintf('changelogify:publication:%s:%d', $release->uuid(), $release->getRevisionId()),

@@ -22,6 +22,9 @@
           {% if item.version %}
             <span class="version">{{ 'Version @version'|t({'@version': item.version}) }}</span>
           {% endif %}
+          {% if item.translation_fallback %}
+            <span class="translation-fallback">{{ 'Shown in @language because a translation is unavailable.'|t({'@language': item.language_name}) }}</span>
+          {% endif %}
         </header>
         {% if item.excerpt %}
           <p class="excerpt">{{ item.excerpt }}</p>

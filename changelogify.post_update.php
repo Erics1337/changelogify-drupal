@@ -16,6 +16,12 @@ use Drupal\changelogify\Provenance\ReleaseProvenanceManagerInterface;
  */
 function changelogify_post_update_ensure_query_indexes(): void {
   $schema = Database::getConnection()->schema();
+  if (!$schema->tableExists('changelogify_release')) {
+    throw new UpdateException('Changelogify cannot add query indexes because required tables are missing: changelogify_release. Restore the module database tables from backup, then rerun database updates.');
+  }
+  $releaseTable = $schema->fieldExists('changelogify_release', 'status')
+    ? 'changelogify_release'
+    : 'changelogify_release_field_data';
   $tables = [
     'changelogify_event' => [
       'fields' => [
@@ -31,7 +37,7 @@ function changelogify_post_update_ensure_query_indexes(): void {
         'changelogify_event__section_timestamp' => ['section_hint', 'timestamp'],
       ],
     ],
-    'changelogify_release' => [
+    $releaseTable => [
       'fields' => [
         'status' => ['type' => 'int', 'size' => 'tiny', 'not null' => TRUE],
         'release_date' => ['type' => 'int'],
@@ -254,8 +260,15 @@ function changelogify_post_update_add_release_slugs(?array &$sandbox = NULL): vo
     }
   }
   $schema = Database::getConnection()->schema();
-  if (!$schema->indexExists('changelogify_release', 'changelogify_release__slug')) {
-    $schema->addUniqueKey('changelogify_release', 'changelogify_release__slug', ['slug']);
+  $entityType = \Drupal::entityTypeManager()->getDefinition('changelogify_release');
+  $slugTable = $entityType->getDataTable() ?: $entityType->getBaseTable();
+  if ($schema->fieldExists($slugTable, 'langcode')) {
+    if (!$schema->indexExists($slugTable, 'changelogify_release__langcode_slug')) {
+      $schema->addUniqueKey($slugTable, 'changelogify_release__langcode_slug', ['langcode', 'slug']);
+    }
+  }
+  elseif (!$schema->indexExists($slugTable, 'changelogify_release__slug')) {
+    $schema->addUniqueKey($slugTable, 'changelogify_release__slug', ['slug']);
   }
 
   $storage = \Drupal::entityTypeManager()->getStorage('changelogify_release');
@@ -297,12 +310,43 @@ function changelogify_post_update_add_release_scheduling(): void {
     }
   }
   $schema = Database::getConnection()->schema();
-  if (!$schema->indexExists('changelogify_release', 'changelogify_release__scheduled_at')) {
+  $scheduleTable = $schema->fieldExists('changelogify_release', 'scheduled_at')
+    ? 'changelogify_release'
+    : 'changelogify_release_field_data';
+  if (!$schema->indexExists($scheduleTable, 'changelogify_release__scheduled_at')) {
     $schema->addIndex(
-      'changelogify_release',
+      $scheduleTable,
       'changelogify_release__scheduled_at',
       ['scheduled_at'],
       ['fields' => ['scheduled_at' => ['type' => 'int', 'not null' => TRUE, 'default' => 0]]],
     );
   }
+}
+
+/**
+ * Migrates releases to Drupal's multilingual data-table storage.
+ */
+function changelogify_post_update_make_releases_translatable(?array &$sandbox = NULL): void {
+  $sandbox ??= [];
+  $schema = Database::getConnection()->schema();
+  $defaultLangcode = (string) (\Drupal::config('system.site')->get('default_langcode') ?: 'en');
+  foreach (['changelogify_release', 'changelogify_release_revision'] as $table) {
+    if ($schema->tableExists($table) && !$schema->fieldExists($table, 'langcode')) {
+      $schema->addField($table, 'langcode', [
+        'type' => 'varchar',
+        'length' => 12,
+        'not null' => TRUE,
+        'default' => $defaultLangcode,
+        'description' => 'Temporary source language used while migrating release storage.',
+      ]);
+    }
+  }
+  $entityType = \Drupal::entityTypeManager()->getDefinition('changelogify_release');
+  $definitions = \Drupal::service('entity_field.manager')
+    ->getFieldStorageDefinitions('changelogify_release');
+  \Drupal::entityDefinitionUpdateManager()->updateFieldableEntityType(
+    $entityType,
+    $definitions,
+    $sandbox,
+  );
 }

@@ -14,6 +14,9 @@
         <span class="version">{{ 'Version @version'|t({'@version': version}) }}</span>
       {% endif %}
     </div>
+    {% if translation_fallback %}
+      <p class="translation-fallback">{{ 'Shown in @language because a translation is unavailable.'|t({'@language': language_name}) }}</p>
+    {% endif %}
   </header>
 
   <div class="release-sections">

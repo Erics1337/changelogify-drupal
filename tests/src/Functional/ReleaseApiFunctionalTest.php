@@ -93,7 +93,7 @@ final class ReleaseApiFunctionalTest extends BrowserTestBase {
     $detail = json_decode($this->getSession()->getPage()->getContent(), TRUE, 512, JSON_THROW_ON_ERROR);
     self::assertSame('changelogify.release.v1', $detail['schema']);
     self::assertSame($first->uuid(), $detail['release']['uuid']);
-    self::assertSame('und', $detail['release']['language']);
+    self::assertSame('en', $detail['release']['language']);
     self::assertNull($detail['release']['coverage']['start']);
 
     $this->drupalGet('/changelog/api/v1/releases/' . $draft->getSlug());

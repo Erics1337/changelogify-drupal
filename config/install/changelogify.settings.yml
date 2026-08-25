@@ -1,4 +1,5 @@
 changelog_path: /changelog
+translation_fallback: fallback
 track_content: true
 track_unpublished_content: false
 track_modules: true
