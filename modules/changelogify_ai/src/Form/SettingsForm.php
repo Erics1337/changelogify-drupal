@@ -52,19 +52,31 @@ final class SettingsForm extends ConfigFormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $config = $this->config('changelogify_ai.settings');
-    $form['consent_external_processing'] = [
-      '#type' => 'checkbox',
-      '#title' => $this->t('Allow selected evidence to be processed by the configured AI provider'),
-      '#description' => $this->t('Provider credentials remain managed by Drupal AI and its provider module.'),
-      '#default_value' => $config->get('consent_external_processing'),
+    $form['processing_consent'] = [
+      '#type' => 'details',
+      '#tree' => TRUE,
+      '#title' => $this->t('Allow AI processing of release evidence'),
+      '#description' => $this->t('Changelogify sends only the filtered evidence selected for an AI action to the configured Drupal AI provider. Cloud providers may process that data outside this Drupal site; local providers process it according to their own configuration.'),
+      '#open' => !$config->get('consent_external_processing'),
+      '#weight' => -7,
     ];
-    $form['payload_preview'] = [
+    $form['processing_consent']['payload_preview'] = [
       '#type' => 'item',
-      '#title' => $this->t('Payload preview'),
+      '#title' => $this->t('Review before allowing processing'),
       '#markup' => Link::fromTextAndUrl(
-        $this->t('Preview redacted outbound payload'),
+        $this->t('Preview the filtered information shared with the AI provider'),
         Url::fromRoute('changelogify_ai.payload_preview'),
       )->toString(),
+    ];
+    $form['processing_consent']['consent_external_processing'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Allow the configured AI provider to process selected release evidence'),
+      '#description' => $this->t('This separate administrator approval is required even after a provider is configured. Changelogify never receives provider credentials; Drupal AI and its provider module manage them.'),
+      '#default_value' => $config->get('consent_external_processing'),
+    ];
+    $form['processing_consent']['consequences'] = [
+      '#type' => 'item',
+      '#markup' => $this->t('Disabling this approval blocks new AI requests. It does not delete previously accepted release revisions or the privacy-bounded AI operation history.'),
     ];
     $ready = $this->operations->isAvailable();
     $selection = $this->operations->selectedProviderModel();
@@ -172,21 +184,30 @@ final class SettingsForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
-    parent::submitForm($form, $form_state);
+    $consent = (bool) $form_state->getValue([
+      'processing_consent',
+      'consent_external_processing',
+    ]);
     $provider = $form_state->getValue('provider') ?: [];
+    $policy = $form_state->getValue('policy') ?: [];
+    $guidance = trim((string) $form_state->getValue('organization_guidance'));
+    $language = trim((string) $form_state->getValue('output_language')) ?: 'en';
+    $historyRetention = (int) $form_state->getValue('history_retention_days');
+    $queueThreshold = (int) $form_state->getValue('queue_threshold');
+    parent::submitForm($form, $form_state);
     $this->configFactory->getEditable('changelogify_ai.settings')
-      ->set('consent_external_processing', (bool) $form_state->getValue('consent_external_processing'))
+      ->set('consent_external_processing', $consent)
       ->set('provider', [
         'use_default' => (bool) ($provider['use_default'] ?? TRUE),
         'provider' => trim((string) ($provider['provider'] ?? '')),
         'model' => trim((string) ($provider['model'] ?? '')),
         'config' => is_array($provider['config'] ?? NULL) ? $provider['config'] : [],
       ])
-      ->set('policy', $this->policyValues($form_state->getValue('policy')))
-      ->set('organization_guidance', trim((string) $form_state->getValue('organization_guidance')))
-      ->set('output_language', trim((string) $form_state->getValue('output_language')) ?: 'en')
-      ->set('history_retention_days', (int) $form_state->getValue('history_retention_days'))
-      ->set('queue_threshold', (int) $form_state->getValue('queue_threshold'))
+      ->set('policy', $this->policyValues($policy))
+      ->set('organization_guidance', $guidance)
+      ->set('output_language', $language)
+      ->set('history_retention_days', $historyRetention)
+      ->set('queue_threshold', $queueThreshold)
       ->save();
   }
 
