@@ -77,3 +77,17 @@ changelogify.changelog_release_legacy:
     parameters:
       changelogify_release:
         type: entity:changelogify_release
+
+changelogify.feed_rss:
+  path: '/changelog/feed.rss'
+  defaults:
+    _controller: '\Drupal\changelogify\Controller\FeedController::rss'
+  requirements:
+    _permission: 'view changelogify releases'
+
+changelogify.feed_atom:
+  path: '/changelog/feed.atom'
+  defaults:
+    _controller: '\Drupal\changelogify\Controller\FeedController::atom'
+  requirements:
+    _permission: 'view changelogify releases'

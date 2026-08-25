@@ -30,6 +30,8 @@ final class RouteSubscriber extends RouteSubscriberBase {
     $collection->get('changelogify.changelog')?->setPath($base_path);
     $collection->get('changelogify.changelog_release')?->setPath($base_path . '/{release_slug}');
     $collection->get('changelogify.changelog_release_legacy')?->setPath($base_path . '/{changelogify_release}');
+    $collection->get('changelogify.feed_rss')?->setPath($base_path . '/feed.rss');
+    $collection->get('changelogify.feed_atom')?->setPath($base_path . '/feed.atom');
     $collection->get('entity.changelogify_release.canonical')
       ?->setRequirement('_permission', 'manage changelogify releases');
   }

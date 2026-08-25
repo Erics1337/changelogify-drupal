@@ -79,17 +79,14 @@ class ChangelogController extends ControllerBase {
       $canonicalOptions['query'] = ['page' => (string) $page];
     }
     $canonical = $this->publicUrl(NULL, $canonicalOptions)->toString();
+    $feedLinks = $this->feedDiscoveryLinks();
 
     $build = [
       '#theme' => 'changelogify_release_list',
       '#releases' => $items,
       '#attached' => [
         'library' => ['changelogify/public'],
-        'html_head_link' => [[
-          ['rel' => 'canonical', 'href' => $canonical],
-          TRUE,
-        ],
-        ],
+        'html_head_link' => array_merge([[['rel' => 'canonical', 'href' => $canonical], TRUE]], $feedLinks),
       ],
       '#pager' => [
         '#type' => 'pager',
@@ -134,7 +131,7 @@ class ChangelogController extends ControllerBase {
       '#sections' => $presentation['sections'],
       '#attached' => [
         'library' => ['changelogify/public'],
-        'html_head_link' => [[
+        'html_head_link' => array_merge([[
           [
             'rel' => 'canonical',
             'href' => $this->publicUrl(
@@ -144,7 +141,7 @@ class ChangelogController extends ControllerBase {
           ],
           TRUE,
         ],
-        ],
+        ], $this->feedDiscoveryLinks()),
       ],
     ];
 
@@ -219,6 +216,29 @@ class ChangelogController extends ControllerBase {
       $path .= '/' . rawurlencode($slug);
     }
     return Url::fromUserInput($path, $options);
+  }
+
+  /**
+   * Returns RSS and Atom discovery links for public changelog pages.
+   */
+  private function feedDiscoveryLinks(): array {
+    $base = rtrim($this->publicUrl(NULL, ['absolute' => TRUE])->toString(), '/');
+    return [
+      [[
+        'rel' => 'alternate',
+        'type' => 'application/rss+xml',
+        'title' => (string) $this->t('Changelog RSS feed'),
+        'href' => $base . '/feed.rss',
+      ], TRUE,
+      ],
+      [[
+        'rel' => 'alternate',
+        'type' => 'application/atom+xml',
+        'title' => (string) $this->t('Changelog Atom feed'),
+        'href' => $base . '/feed.atom',
+      ], TRUE,
+      ],
+    ];
   }
 
   /**

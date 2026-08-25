@@ -77,15 +77,15 @@ final class PublicReleaseBuilder {
   /**
    * Returns the configured changelog URL without assuming the default route.
    */
-  public function changelogUrl(): Url {
-    return Url::fromUserInput($this->basePath());
+  public function changelogUrl(array $options = []): Url {
+    return Url::fromUserInput($this->basePath(), $options);
   }
 
   /**
    * Returns the configured URL for one release slug.
    */
-  public function releaseUrl(string $slug): Url {
-    return Url::fromUserInput($this->basePath() . '/' . rawurlencode($slug));
+  public function releaseUrl(string $slug, array $options = []): Url {
+    return Url::fromUserInput($this->basePath() . '/' . rawurlencode($slug), $options);
   }
 
   /**
