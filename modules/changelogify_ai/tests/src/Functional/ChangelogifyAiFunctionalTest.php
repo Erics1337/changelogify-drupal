@@ -122,4 +122,54 @@ final class ChangelogifyAiFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('do not produce production-quality humanized writing');
   }
 
+  /**
+   * Tests deterministic privacy presets and understandable custom controls.
+   */
+  public function testPrivacyPresetsAndCustomPolicy(): void {
+    $user = $this->drupalCreateUser([
+      'administer changelogify ai',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    $this->drupalGet('/admin/config/development/changelogify/ai');
+    $this->assertSession()->pageTextContains('Information shared with the AI provider');
+    $this->assertSession()->pageTextContains('Recommended — minimum necessary');
+    $this->assertSession()->pageTextContains('People — account names');
+    $this->assertSession()->pageTextContains('Example: “editor_jane”');
+    $this->assertSession()->pageTextContains('Field names may be shared, but their values remain excluded unless explicitly approved below.');
+
+    $this->submitForm([
+      'policy[preset]' => 'more_context',
+    ], 'Save configuration');
+    $policy = $this->config('changelogify_ai.settings')->get('policy');
+    self::assertSame('more_context', $policy['preset']);
+    self::assertSame('redact', $policy['usernames']);
+    self::assertSame('redact', $policy['unpublished_labels']);
+    self::assertSame('include', $policy['entity_ids']);
+    self::assertSame('include', $policy['paths']);
+    $this->assertSession()->pageTextContains('This policy includes information that may identify people, individual content, unpublished content, or private site locations.');
+
+    $this->submitForm([
+      'policy[preset]' => 'custom',
+      'policy[custom_controls][usernames]' => 'include',
+      'policy[custom_controls][actor_ids]' => 'redact',
+      'policy[custom_controls][entity_ids]' => 'redact',
+      'policy[custom_controls][paths]' => 'redact',
+      'policy[custom_controls][unpublished_labels]' => 'include',
+      'policy[custom_controls][bundle_labels]' => 'include',
+      'policy[custom_controls][changed_field_names]' => 'include',
+      'policy[custom_controls][allowlisted_values]' => "field_release_category\nfield_release_category\n",
+      'policy[custom_controls][allow_manual_humanization]' => TRUE,
+    ], 'Save configuration');
+    $policy = $this->config('changelogify_ai.settings')->get('policy');
+    self::assertSame('custom', $policy['preset']);
+    self::assertSame('include', $policy['usernames']);
+    self::assertSame('include', $policy['unpublished_labels']);
+    self::assertSame('redact', $policy['entity_ids']);
+    self::assertSame(['field_release_category'], $policy['allowlisted_values']);
+    self::assertTrue($policy['allow_manual_humanization']);
+    $this->assertSession()->pageTextContains('Shared categories: People — account names, Names of unpublished content');
+  }
+
 }

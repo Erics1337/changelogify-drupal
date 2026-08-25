@@ -136,30 +136,79 @@ final class SettingsForm extends ConfigFormBase {
     ];
     $form['policy'] = [
       '#type' => 'details',
-      '#title' => $this->t('Outbound payload policy'),
+      '#tree' => TRUE,
+      '#title' => $this->t('Information shared with the AI provider'),
+      '#description' => $this->t('Choose how much identifying and site-structure information accompanies the release evidence. Release text and credentials are governed separately.'),
       '#open' => TRUE,
+      '#prefix' => '<div id="changelogify-ai-policy">',
+      '#suffix' => '</div>',
     ];
-    foreach ($this->policyLabels() as $key => $label) {
-      $form['policy'][$key] = [
-        '#type' => 'select',
-        '#title' => $this->t('@label treatment', ['@label' => $label]),
-        '#options' => ['redact' => $this->t('Redact'), 'include' => $this->t('Include')],
-        '#default_value' => $config->get("policy.$key") ?? 'redact',
+    $storedPolicy = $config->get('policy') ?: [];
+    $preset = (string) ($form_state->getValue(['policy', 'preset']) ?: ($storedPolicy['preset'] ?? 'recommended'));
+    $effectivePolicy = $this->effectivePolicy($preset, $form_state->getValue('policy') ?: $storedPolicy);
+    $form['policy']['preset'] = [
+      '#type' => 'radios',
+      '#title' => $this->t('Privacy level'),
+      '#options' => [
+        'recommended' => $this->t('Recommended — minimum necessary'),
+        'more_context' => $this->t('More context — include content identifiers and paths'),
+        'custom' => $this->t('Custom — choose each category'),
+      ],
+      '#default_value' => $preset,
+      '#description' => $this->t('Recommended keeps information that can identify people, individual content, unpublished content, and internal paths out of AI requests.'),
+      '#ajax' => [
+        'callback' => '::refreshPolicy',
+        'wrapper' => 'changelogify-ai-policy',
+      ],
+    ];
+    $form['policy']['effective_summary'] = [
+      '#type' => 'item',
+      '#title' => $this->t('What will be shared'),
+      '#plain_text' => $this->policySummary($effectivePolicy),
+    ];
+    if ($this->hasSensitiveIncludes($effectivePolicy)) {
+      $form['policy']['sensitive_warning'] = [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['messages', 'messages--warning']],
+        'message' => [
+          '#plain_text' => $this->t('This policy includes information that may identify people, individual content, unpublished content, or private site locations. Review the payload preview before saving.'),
+        ],
       ];
     }
-    $allowlistedValues = $config->get('policy.allowlisted_values') ?: [];
-    $form['policy']['allowlisted_values'] = [
+    $form['policy']['custom_controls'] = [
+      '#type' => 'container',
+      '#states' => [
+        'visible' => [':input[name="policy[preset]"]' => ['value' => 'custom']],
+      ],
+    ];
+    foreach ($this->policyDefinitions() as $key => $definition) {
+      $form['policy']['custom_controls'][$key] = [
+        '#type' => 'select',
+        '#title' => $definition['label'],
+        '#options' => [
+          'redact' => $this->t('Keep private'),
+          'include' => $this->t('Share with the AI provider'),
+        ],
+        '#description' => $definition['description'],
+        '#default_value' => $effectivePolicy[$key],
+        '#ajax' => [
+          'callback' => '::refreshPolicy',
+          'wrapper' => 'changelogify-ai-policy',
+        ],
+      ];
+    }
+    $form['policy']['custom_controls']['allowlisted_values'] = [
       '#type' => 'textarea',
-      '#title' => $this->t('Allowed structured field values'),
-      '#description' => $this->t('Enter one field name per line. All other source field values are excluded.'),
-      '#default_value' => implode("\n", array_values($allowlistedValues)),
+      '#title' => $this->t('Approved source fields whose values may be shared'),
+      '#description' => $this->t('Optional. Enter one machine-readable field name per line, such as field_release_category. Values from every other source field remain excluded.'),
+      '#default_value' => implode("\n", array_values($storedPolicy['allowlisted_values'] ?? [])),
       '#maxlength' => 1000,
     ];
-    $form['policy']['allow_manual_humanization'] = [
+    $form['policy']['custom_controls']['allow_manual_humanization'] = [
       '#type' => 'checkbox',
-      '#title' => $this->t('Allow manual release items to be humanized'),
-      '#description' => $this->t('Manual items have no automatic evidence and are clearly marked as such during review.'),
-      '#default_value' => $config->get('policy.allow_manual_humanization'),
+      '#title' => $this->t('Allow manually written release items to be sent for rewriting'),
+      '#description' => $this->t('Manual items do not have automatic source evidence and remain clearly marked during review.'),
+      '#default_value' => $storedPolicy['allow_manual_humanization'] ?? FALSE,
     ];
     $form['organization_guidance'] = [
       '#type' => 'textarea',
@@ -202,6 +251,13 @@ final class SettingsForm extends ConfigFormBase {
   }
 
   /**
+   * Rebuilds the privacy controls and effective-policy summary.
+   */
+  public function refreshPolicy(array &$form, FormStateInterface $form_state): array {
+    return $form['policy'];
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
@@ -238,16 +294,103 @@ final class SettingsForm extends ConfigFormBase {
    * @return \Drupal\Core\StringTranslation\TranslatableMarkup[]
    *   Keys mapped to human-readable labels.
    */
-  private function policyLabels(): array {
+  private function policyDefinitions(): array {
     return [
-      'usernames' => $this->t('Usernames'),
-      'actor_ids' => $this->t('Actor IDs'),
-      'entity_ids' => $this->t('Entity IDs'),
-      'paths' => $this->t('Paths'),
-      'unpublished_labels' => $this->t('Unpublished labels'),
-      'bundle_labels' => $this->t('Bundle labels'),
-      'changed_field_names' => $this->t('Changed field names'),
+      'usernames' => [
+        'label' => $this->t('People — account names'),
+        'description' => $this->t('Example: “editor_jane”. Keep private replaces the account name with a neutral placeholder.'),
+      ],
+      'actor_ids' => [
+        'label' => $this->t('People — account numbers'),
+        'description' => $this->t('Example: Drupal user ID 42. Keep private removes the numeric account identifier.'),
+      ],
+      'entity_ids' => [
+        'label' => $this->t('Individual content identifiers'),
+        'description' => $this->t('Example: content item ID 135. Sharing can help correlate repeated changes; keeping private removes the numeric identifier.'),
+      ],
+      'paths' => [
+        'label' => $this->t('Internal site locations and URLs'),
+        'description' => $this->t('Example: /admin/content or /private-roadmap. Keep private removes paths from the request.'),
+      ],
+      'unpublished_labels' => [
+        'label' => $this->t('Names of unpublished content'),
+        'description' => $this->t('Example: the title of an unpublished campaign page. Keep private replaces the title before processing.'),
+      ],
+      'bundle_labels' => [
+        'label' => $this->t('Types of content and configuration'),
+        'description' => $this->t('Example: “Article” or “Basic page” (Drupal bundle labels). These labels provide structure without sending field values.'),
+      ],
+      'changed_field_names' => [
+        'label' => $this->t('Names of fields that changed'),
+        'description' => $this->t('Example: “Title” or “Publication date”. Field names may be shared, but their values remain excluded unless explicitly approved below.'),
+      ],
     ];
+  }
+
+  /**
+   * Returns the deterministic settings represented by a privacy preset.
+   */
+  private function presetPolicy(string $preset): array {
+    $recommended = [
+      'usernames' => 'redact',
+      'actor_ids' => 'redact',
+      'entity_ids' => 'redact',
+      'paths' => 'redact',
+      'unpublished_labels' => 'redact',
+      'bundle_labels' => 'include',
+      'changed_field_names' => 'include',
+    ];
+    if ($preset === 'more_context') {
+      $recommended['entity_ids'] = 'include';
+      $recommended['paths'] = 'include';
+    }
+    return $recommended;
+  }
+
+  /**
+   * Resolves a preset or custom selection into the policy sent to the filter.
+   */
+  private function effectivePolicy(string $preset, array $submitted): array {
+    if ($preset !== 'custom') {
+      return $this->presetPolicy($preset);
+    }
+    $custom = is_array($submitted['custom_controls'] ?? NULL)
+      ? $submitted['custom_controls']
+      : $submitted;
+    $effective = $this->presetPolicy('recommended');
+    foreach (array_keys($effective) as $key) {
+      $effective[$key] = ($custom[$key] ?? $effective[$key]) === 'include' ? 'include' : 'redact';
+    }
+    return $effective;
+  }
+
+  /**
+   * Summarizes the bounded categories included by the effective policy.
+   */
+  private function policySummary(array $policy): string {
+    $included = [];
+    foreach ($this->policyDefinitions() as $key => $definition) {
+      if (($policy[$key] ?? 'redact') === 'include') {
+        $included[] = (string) $definition['label'];
+      }
+    }
+    return $included === []
+      ? (string) $this->t('No optional identity or site-structure categories will be shared.')
+      : (string) $this->t('Shared categories: @categories. All other listed categories remain private.', [
+        '@categories' => implode(', ', $included),
+      ]);
+  }
+
+  /**
+   * Checks whether the current policy merits an explicit privacy warning.
+   */
+  private function hasSensitiveIncludes(array $policy): bool {
+    foreach (['usernames', 'actor_ids', 'entity_ids', 'paths', 'unpublished_labels'] as $key) {
+      if (($policy[$key] ?? 'redact') === 'include') {
+        return TRUE;
+      }
+    }
+    return FALSE;
   }
 
   /**
@@ -261,9 +404,16 @@ final class SettingsForm extends ConfigFormBase {
    * Normalizes human-entered allowlist lines into stable configuration.
    */
   private function policyValues(array $policy): array {
-    $lines = preg_split('/\R/', (string) ($policy['allowlisted_values'] ?? '')) ?: [];
-    $policy['allowlisted_values'] = array_values(array_unique(array_filter(array_map('trim', $lines))));
-    return $policy;
+    $preset = in_array($policy['preset'] ?? '', ['recommended', 'more_context', 'custom'], TRUE)
+      ? $policy['preset']
+      : 'recommended';
+    $custom = is_array($policy['custom_controls'] ?? NULL) ? $policy['custom_controls'] : [];
+    $values = $this->effectivePolicy($preset, $custom);
+    $lines = preg_split('/\R/', (string) ($custom['allowlisted_values'] ?? '')) ?: [];
+    $values['preset'] = $preset;
+    $values['allowlisted_values'] = array_values(array_unique(array_filter(array_map('trim', $lines))));
+    $values['allow_manual_humanization'] = (bool) ($custom['allow_manual_humanization'] ?? FALSE);
+    return $values;
   }
 
 }

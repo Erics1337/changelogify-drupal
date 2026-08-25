@@ -8,8 +8,9 @@ changelogify_ai.settings:
       label: 'Drupal AI provider configuration'
     policy:
       type: mapping
-      label: 'Outbound payload policy'
+      label: 'Information shared with the AI provider'
       mapping:
+        preset: { type: string, label: 'Privacy preset' }
         usernames: { type: string, label: 'Username treatment' }
         actor_ids: { type: string, label: 'Actor ID treatment' }
         entity_ids: { type: string, label: 'Entity ID treatment' }

@@ -5,6 +5,7 @@ provider:
   model: ''
   config: { }
 policy:
+  preset: recommended
   usernames: redact
   actor_ids: redact
   entity_ids: redact
