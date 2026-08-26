@@ -1,7 +1,11 @@
 (function changelogifyAiProgress(Drupal, drupalSettings, once) {
   Drupal.behaviors.changelogifyAiProgress = {
     attach(context) {
-      once('changelogify-ai-progress', '[data-changelogify-ai-job]', context).forEach((root) => {
+      once(
+        'changelogify-ai-progress',
+        '[data-changelogify-ai-job]',
+        context,
+      ).forEach((root) => {
         const statusUrl = drupalSettings.changelogifyAiJob?.statusUrl;
         if (!statusUrl || root.dataset.terminal === 'true') return;
 
@@ -14,6 +18,7 @@
         let attempt = 0;
         let timer;
         let stopped = false;
+        let poll;
 
         const addAction = (text, url, primary = false) => {
           if (!url) return;
@@ -29,29 +34,53 @@
           message.textContent = data.message;
           progress.max = data.progress.total;
           progress.value = data.progress.completed;
-          progress.textContent = Drupal.t('@done of @total background steps complete', {
-            '@done': data.progress.completed,
-            '@total': data.progress.total,
-          });
-          detail.textContent = Drupal.t('@done of @total background steps complete', {
-            '@done': data.progress.completed,
-            '@total': data.progress.total,
-          });
+          progress.textContent = Drupal.t(
+            '@done of @total background steps complete',
+            {
+              '@done': data.progress.completed,
+              '@total': data.progress.total,
+            },
+          );
+          detail.textContent = Drupal.t(
+            '@done of @total background steps complete',
+            {
+              '@done': data.progress.completed,
+              '@total': data.progress.total,
+            },
+          );
           actions.replaceChildren();
-          if (data.release_url) addAction(Drupal.t('Review unpublished draft'), data.release_url, true);
-          if (data.provenance_url) addAction(Drupal.t('Review evidence and coverage'), data.provenance_url);
-          if (data.can_cancel) addAction(Drupal.t('Cancel synthesis'), data.cancel_url);
-          if (data.state === 'failed') addAction(Drupal.t('Try again from a fresh preview'), data.generate_url, true);
+          if (data.release_url)
+            addAction(
+              Drupal.t('Review unpublished draft'),
+              data.release_url,
+              true,
+            );
+          if (data.provenance_url)
+            addAction(
+              Drupal.t('Review evidence and coverage'),
+              data.provenance_url,
+            );
+          if (data.can_cancel)
+            addAction(Drupal.t('Cancel synthesis'), data.cancel_url);
+          if (data.state === 'failed')
+            addAction(
+              Drupal.t('Try again from a fresh preview'),
+              data.generate_url,
+              true,
+            );
           root.dataset.terminal = data.terminal ? 'true' : 'false';
           stopped = data.terminal;
         };
 
         const schedule = () => {
           if (stopped || document.hidden) return;
-          timer = window.setTimeout(poll, delays[Math.min(attempt, delays.length - 1)]);
+          timer = window.setTimeout(
+            poll,
+            delays[Math.min(attempt, delays.length - 1)],
+          );
         };
 
-        const poll = async () => {
+        poll = async () => {
           if (stopped || document.hidden) return;
           try {
             const response = await fetch(statusUrl, {
@@ -59,11 +88,14 @@
               headers: { Accept: 'application/json' },
               cache: 'no-store',
             });
-            if (!response.ok) throw new Error(`Status request failed: ${response.status}`);
+            if (!response.ok)
+              throw new Error(`Status request failed: ${response.status}`);
             render(await response.json());
             attempt += 1;
           } catch (error) {
-            message.textContent = Drupal.t('The status could not be refreshed. Changelogify will try again automatically.');
+            message.textContent = Drupal.t(
+              'The status could not be refreshed. Changelogify will try again automatically.',
+            );
             attempt = Math.max(attempt, 2);
           }
           schedule();

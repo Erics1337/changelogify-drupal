@@ -7,6 +7,8 @@
 
 declare(strict_types=1);
 
+use Drupal\changelogify_ai\AiOperationHistoryRepository;
+
 /**
  * Implements hook_schema().
  */
@@ -64,7 +66,7 @@ function changelogify_ai_update_18001(): string {
     $schema->createTable('changelogify_ai_operation', $definition);
   }
 
-  $repository = \Drupal::service(\Drupal\changelogify_ai\AiOperationHistoryRepository::class);
+  $repository = \Drupal::service(AiOperationHistoryRepository::class);
   $keyValue = \Drupal::service('keyvalue');
   foreach ($keyValue->get('changelogify_ai.operations')->getAll() as $operation) {
     if (is_array($operation)) {
