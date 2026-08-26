@@ -45,7 +45,7 @@ final class PayloadPreviewController extends ControllerBase {
     }
     return [
       'description' => [
-        '#markup' => $this->t('This is the redacted data portion of a representative request. No provider request was made.'),
+        '#markup' => $this->t('This is the exact eligible, policy-filtered data portion of a representative request. Event categories excluded by the AI eligibility settings are not shown. No provider request was made.'),
       ],
       'payload' => [
         '#type' => 'html_tag',

@@ -4,6 +4,13 @@ provider:
   provider: ''
   model: ''
   config: { }
+eligibility:
+  categories:
+    - content
+    - extensions
+    - users
+    - configuration
+    - custom
 policy:
   preset: recommended
   usernames: redact
@@ -13,6 +20,7 @@ policy:
   unpublished_labels: redact
   bundle_labels: include
   changed_field_names: include
+  correlation_ids: redact
   allowlisted_values: { }
   allow_manual_humanization: false
 organization_guidance: ''

@@ -12,6 +12,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\changelogify_ai\AiOperationManager;
 use Drupal\changelogify_ai\AiReadinessChecker;
+use Drupal\changelogify_ai\OutboundPayloadBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -132,6 +133,25 @@ final class SettingsForm extends ConfigFormBase {
       '#advanced_config' => TRUE,
       '#default_provider_allowed' => TRUE,
       '#default_value' => $config->get('provider'),
+    ];
+    $configuredCategories = $config->get('eligibility.categories');
+    $configuredCategories = is_array($configuredCategories)
+      ? $configuredCategories
+      : OutboundPayloadBuilder::ELIGIBILITY_CATEGORIES;
+    $form['eligibility'] = [
+      '#type' => 'details',
+      '#tree' => TRUE,
+      '#title' => $this->t('Evidence eligible for AI summaries'),
+      '#description' => $this->t('Choose which recorded event categories may be considered by AI. Privacy controls below independently determine which fields from eligible evidence may leave Drupal.'),
+      '#open' => TRUE,
+      '#weight' => -6,
+    ];
+    $form['eligibility']['categories'] = [
+      '#type' => 'checkboxes',
+      '#title' => $this->t('Eligible event categories'),
+      '#options' => $this->eligibilityDefinitions(),
+      '#default_value' => $configuredCategories,
+      '#description' => $this->t('All recorded change sets in the selected categories are eligible by default. Editors may narrow that evidence for an individual synthesis operation.'),
     ];
     $form['policy'] = [
       '#type' => 'details',
@@ -319,6 +339,13 @@ final class SettingsForm extends ConfigFormBase {
     if (!preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $language)) {
       $form_state->setErrorByName('output_language', $this->t('Enter a valid IETF language tag, for example en or fr-CA.'));
     }
+    $eligibility = $this->eligibilityValues($form_state->getValue(['eligibility', 'categories']) ?: []);
+    if ($eligibility === []) {
+      $form_state->setError(
+        $form['eligibility']['categories'],
+        $this->t('Select at least one event category eligible for AI summaries.'),
+      );
+    }
   }
 
   /**
@@ -414,6 +441,7 @@ final class SettingsForm extends ConfigFormBase {
       'consent_external_processing',
     ]);
     $provider = $form_state->getValue('provider') ?: [];
+    $eligibility = $this->eligibilityValues($form_state->getValue(['eligibility', 'categories']) ?: []);
     $policy = $form_state->getValue('policy') ?: [];
     $guidance = trim((string) $form_state->getValue('organization_guidance'));
     $language = trim((string) $form_state->getValue('output_language')) ?: 'en';
@@ -428,6 +456,7 @@ final class SettingsForm extends ConfigFormBase {
         'model' => trim((string) ($provider['model'] ?? '')),
         'config' => is_array($provider['config'] ?? NULL) ? $provider['config'] : [],
       ])
+      ->set('eligibility.categories', $eligibility)
       ->set('policy', $this->policyValues($policy))
       ->set('organization_guidance', $guidance)
       ->set('output_language', $language)
@@ -472,7 +501,40 @@ final class SettingsForm extends ConfigFormBase {
         'label' => $this->t('Names of fields that changed'),
         'description' => $this->t('Example: “Title” or “Publication date”. Field names may be shared, but their values remain excluded unless explicitly approved below.'),
       ],
+      'correlation_ids' => [
+        'label' => $this->t('Operation correlation identifiers'),
+        'description' => $this->t('Identifiers can connect events from one operation. Keeping them private still tells AI that correlation exists without sharing the identifier.'),
+      ],
     ];
+  }
+
+  /**
+   * Returns the stable site-wide evidence categories available to AI.
+   */
+  private function eligibilityDefinitions(): array {
+    return [
+      'content' => $this->t('Content changes'),
+      'extensions' => $this->t('Module and theme changes'),
+      'users' => $this->t('User account and permission changes'),
+      'configuration' => $this->t('Configuration imports'),
+      'custom' => $this->t('Contributed and custom event sources'),
+    ];
+  }
+
+  /**
+   * Normalizes checkbox values into a deterministic category allowlist.
+   */
+  private function eligibilityValues(mixed $submitted): array {
+    if (!is_array($submitted)) {
+      return [];
+    }
+    $selected = array_values(array_filter(
+      $submitted,
+      static fn (mixed $value): bool => is_string($value) && $value !== '0',
+    ));
+    $selected = array_values(array_intersect(OutboundPayloadBuilder::ELIGIBILITY_CATEGORIES, $selected));
+    sort($selected);
+    return $selected;
   }
 
   /**
@@ -487,6 +549,7 @@ final class SettingsForm extends ConfigFormBase {
       'unpublished_labels' => 'redact',
       'bundle_labels' => 'include',
       'changed_field_names' => 'include',
+      'correlation_ids' => 'redact',
     ];
     if ($preset === 'more_context') {
       $recommended['entity_ids'] = 'include';

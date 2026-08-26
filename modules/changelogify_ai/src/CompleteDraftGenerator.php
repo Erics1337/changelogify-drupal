@@ -68,6 +68,9 @@ final class CompleteDraftGenerator {
       throw new \UnexpectedValueException('Select at least one change to create a draft release.');
     }
     $payload = $this->payloadBuilder->build($selected);
+    if ($payload === []) {
+      throw new \UnexpectedValueException('No selected change sets are eligible for AI processing.');
+    }
     $request = new SummarizationRequest(
       'complete_draft',
       $profile,
@@ -232,6 +235,9 @@ final class CompleteDraftGenerator {
    */
   private function request(array $selected, \DateTimeInterface $start, \DateTimeInterface $end, array $selection, string $profile): SummarizationRequest {
     $payload = $this->payloadBuilder->build($selected);
+    if ($payload === []) {
+      throw new \UnexpectedValueException('No selected change sets are eligible for AI processing.');
+    }
     return new SummarizationRequest(
       'complete_draft',
       $profile,

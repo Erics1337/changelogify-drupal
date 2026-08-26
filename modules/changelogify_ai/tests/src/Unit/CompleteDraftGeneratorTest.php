@@ -9,6 +9,8 @@ use Drupal\Core\Config\Config;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Transaction;
+use Drupal\Core\Entity\EntityStorageInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\KeyValueStore\KeyValueFactoryInterface;
 use Drupal\Core\KeyValueStore\KeyValueStoreInterface;
 use Drupal\Core\Lock\LockBackendInterface;
@@ -89,6 +91,33 @@ final class CompleteDraftGeneratorTest extends TestCase {
     );
     $this->expectException(\UnexpectedValueException::class);
     $generator->queue([], new \DateTimeImmutable('@1'), new \DateTimeImmutable('@2'), [], [], 'concise', FALSE, FALSE);
+  }
+
+  /**
+   * An empty eligibility result never reaches the configured AI provider.
+   */
+  public function testIneligibleSelectionDoesNotCreateProviderOperation(): void {
+    $operations = $this->operations('success');
+    $generator = new CompleteDraftGenerator(
+      $this->payloadBuilder([]),
+      $operations,
+      $this->createMock(ReleaseGeneratorInterface::class),
+      $this->database(),
+    );
+    try {
+      $generator->generate([
+        new ChangeSet('change-1', 'content', 1, 1, [1], 'changed', [
+          'message' => 'Evidence.',
+          'source' => 'content_entity',
+        ], []),
+      ], new \DateTimeImmutable('@1'), new \DateTimeImmutable('@2'), [
+        'change-1' => 'changed',
+      ], [], 'concise', FALSE, FALSE);
+      self::fail('Expected ineligible evidence to stop before provider use.');
+    }
+    catch (\UnexpectedValueException) {
+      self::assertNull($operations->lastOperationId());
+    }
   }
 
   /**
@@ -193,12 +222,22 @@ final class CompleteDraftGeneratorTest extends TestCase {
   /**
    * Creates the minimum payload builder for one safe change set.
    */
-  private function payloadBuilder(): OutboundPayloadBuilder {
+  private function payloadBuilder(?array $eligibility = NULL): OutboundPayloadBuilder {
     $config = $this->createMock(Config::class);
-    $config->method('get')->with('policy')->willReturn([]);
+    $config->method('get')->willReturnCallback(static function (string $key) use ($eligibility): mixed {
+      return match ($key) {
+        'policy' => [],
+        'eligibility.categories' => $eligibility,
+        default => NULL,
+      };
+    });
     $factory = $this->createMock(ConfigFactoryInterface::class);
     $factory->method('get')->with('changelogify_ai.settings')->willReturn($config);
-    return new OutboundPayloadBuilder($factory);
+    $storage = $this->createMock(EntityStorageInterface::class);
+    $storage->method('loadMultiple')->willReturn([]);
+    $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+    $entityTypeManager->method('getStorage')->with('changelogify_event')->willReturn($storage);
+    return new OutboundPayloadBuilder($factory, $entityTypeManager);
   }
 
   /**

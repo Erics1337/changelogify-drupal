@@ -173,6 +173,82 @@ final class ChangelogifyAiFunctionalTest extends BrowserTestBase {
   }
 
   /**
+   * Tests eligibility controls and the exact no-network evidence preview.
+   */
+  public function testEvidenceEligibilityAndPayloadPreview(): void {
+    $user = $this->drupalCreateUser([
+      'administer changelogify ai',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    $this->drupalGet('/admin/config/development/changelogify/ai');
+    $this->assertSession()->pageTextContains('Evidence eligible for AI summaries');
+    $this->assertSession()->pageTextContains('Privacy controls below independently determine which fields');
+    $this->assertSession()->checkboxChecked('eligibility[categories][content]');
+    $this->assertSession()->checkboxChecked('eligibility[categories][custom]');
+
+    $this->submitForm([
+      'eligibility[categories][content]' => FALSE,
+      'eligibility[categories][extensions]' => FALSE,
+      'eligibility[categories][users]' => FALSE,
+      'eligibility[categories][configuration]' => FALSE,
+      'eligibility[categories][custom]' => FALSE,
+    ], 'Save configuration');
+    $this->assertSession()->pageTextContains('Select at least one event category eligible for AI summaries.');
+
+    $this->submitForm([
+      'eligibility[categories][content]' => 'content',
+      'eligibility[categories][extensions]' => FALSE,
+      'eligibility[categories][users]' => FALSE,
+      'eligibility[categories][configuration]' => 'configuration',
+      'eligibility[categories][custom]' => FALSE,
+    ], 'Save configuration');
+    self::assertSame(
+      ['configuration', 'content'],
+      $this->config('changelogify_ai.settings')->get('eligibility.categories'),
+    );
+
+    $this->container->get(EventManagerInterface::class)->logEvent([
+      'event_type' => 'node_unpublished',
+      'source' => 'content_entity',
+      'message' => 'Unpublished page "Secret roadmap" at /private/roadmap.',
+      'bundle' => 'page',
+      'section_hint' => 'removed',
+      'correlation_id' => 'operation-secret',
+      'metadata' => [
+        'action' => 'unpublished',
+        'label' => 'Secret roadmap',
+        'path' => '/private/roadmap',
+        'changed_fields' => ['title', 'status'],
+        'safe_field' => 'Approved context',
+        'api_token' => 'must-never-leave',
+      ],
+    ]);
+    $policy = $this->config('changelogify_ai.settings')->get('policy');
+    $policy['allowlisted_values'] = ['safe_field', 'api_token'];
+    $this->config('changelogify_ai.settings')->set('policy', $policy)->save();
+
+    $this->drupalGet('/admin/config/development/changelogify/ai/payload-preview');
+    $this->assertSession()->pageTextContains('exact eligible, policy-filtered data');
+    $this->assertSession()->pageTextContains('No provider request was made.');
+    $this->assertSession()->pageTextContains('node_unpublished');
+    $this->assertSession()->pageTextContains('content_entity');
+    $this->assertSession()->pageTextContains('Approved context');
+    $this->assertSession()->pageTextContains('[redacted]');
+    $this->assertSession()->pageTextNotContains('Secret roadmap');
+    $this->assertSession()->pageTextNotContains('/private/roadmap');
+    $this->assertSession()->pageTextNotContains('must-never-leave');
+
+    $this->config('changelogify_ai.settings')
+      ->set('eligibility.categories', ['users'])
+      ->save();
+    $this->drupalGet('/admin/config/development/changelogify/ai/payload-preview');
+    $this->assertSession()->pageTextNotContains('node_unpublished');
+    $this->assertSession()->pageTextNotContains('Approved context');
+  }
+
+  /**
    * Tests task-oriented settings sections and non-destructive verification.
    */
   public function testSettingsInformationArchitectureAndVerification(): void {
