@@ -467,7 +467,9 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $firstTimestamp = $release->getScheduledPublicationTime();
 
     $this->drupalGet($release->toUrl('edit-form'));
-    $this->assertSession()->pageTextContains('2 January 2030 - 10:30');
+    $this->assertSession()->pageTextContains(
+      \Drupal::service('date.formatter')->format($firstTimestamp, 'long'),
+    );
     $this->submitForm([
       'editorial_state' => 'review',
       'publish_at[date]' => '2030-02-03',
