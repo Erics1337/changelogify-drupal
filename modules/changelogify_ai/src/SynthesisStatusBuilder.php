@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify_ai;
 
-use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\Core\Url;
 
@@ -15,15 +14,12 @@ final class SynthesisStatusBuilder {
 
   use StringTranslationTrait;
 
-  public function __construct(private readonly AiQueueHealth $queueHealth, private readonly DateFormatterInterface $dateFormatter) {}
-
   /**
    * Returns a privacy-bounded status payload.
    */
-  public function build(array $job, bool $canCancel = FALSE, bool $canConfigureProcessing = FALSE): array {
+  public function build(array $job, bool $canCancel = FALSE): array {
     $status = (string) ($job['status'] ?? 'unknown');
-    $health = $this->queueHealth->status((int) ($job['created'] ?? 0));
-    $state = $this->state($job, $health['delayed']);
+    $state = $this->state($status);
     $terminal = in_array($status, ['finalized', 'failed', 'cancelled'], TRUE);
     $releaseId = isset($job['release_id']) ? (int) $job['release_id'] : 0;
     $coverage = is_array($job['coverage'] ?? NULL) ? $job['coverage'] : [];
@@ -32,31 +28,16 @@ final class SynthesisStatusBuilder {
       'status' => $status,
       'state' => $state,
       'label' => $this->label($state),
-      'message' => $this->message($state, (string) ($job['error_code'] ?? ''), $health),
+      'message' => $this->message($state, (string) ($job['error_code'] ?? '')),
       'terminal' => $terminal,
-      'delayed' => (bool) $health['delayed'],
       'progress' => [
-        'completed' => max(0, (int) ($job['completed_batches'] ?? 0)),
-        'total' => max(1, (int) ($job['total_batches'] ?? 1)),
-        'round' => max(0, (int) ($job['round'] ?? 0)),
+        'completed' => in_array($status, ['completed', 'finalized'], TRUE) ? 1 : 0,
+        'total' => 1,
       ],
       'coverage' => [
         'considered' => max(0, (int) ($coverage['evidence_considered'] ?? 0)),
         'cited' => max(0, (int) ($coverage['evidence_cited'] ?? 0)),
         'not_surfaced' => max(0, (int) ($coverage['eligible_not_surfaced'] ?? 0)),
-      ],
-      'queue' => [
-        'visible' => in_array($state, ['waiting', 'delayed'], TRUE),
-        'state' => $health['processor_state'],
-        'label' => $this->queueLabel($health['processor_state']),
-        'badge' => $this->queueBadge($health['processor_state']),
-        'summary' => $this->queueSummary($health),
-        'queued_steps' => max(0, (int) $health['queued_count']),
-        'last_activity' => $this->timeLabel((int) $health['last_activity']),
-        'next_run' => $this->nextRunLabel($health),
-        'processing_url' => $canConfigureProcessing
-          ? Url::fromRoute('changelogify_ai.settings')->toString()
-          : NULL,
       ],
       'details' => [
         'profile' => (string) ($job['profile'] ?? ''),
@@ -70,8 +51,8 @@ final class SynthesisStatusBuilder {
         'eligibility_version' => (string) ($job['eligibility_version'] ?? ''),
         'failure_code' => (string) ($job['error_code'] ?? ''),
       ],
-      'can_cancel' => $canCancel && in_array($status, ['queued', 'running'], TRUE),
-      'cancel_url' => $canCancel && in_array($status, ['queued', 'running'], TRUE)
+      'can_cancel' => $canCancel && in_array($status, ['prepared', 'running'], TRUE),
+      'cancel_url' => $canCancel && in_array($status, ['prepared', 'running'], TRUE)
         ? Url::fromRoute('changelogify_ai.cancel_operation', ['operation_id' => $job['id']])->toString()
         : NULL,
       'release_url' => $releaseId > 0
@@ -86,14 +67,12 @@ final class SynthesisStatusBuilder {
   }
 
   /**
-   * Maps internal job state to an editorial stage.
+   * Maps internal job status to an editorial stage.
    */
-  private function state(array $job, bool $delayed): string {
-    return match ($job['status'] ?? 'unknown') {
-      'queued' => $delayed ? 'delayed' : 'waiting',
-      'running' => ((int) ($job['round'] ?? 0)) > 0 || ($job['stage'] ?? '') === 'intermediate'
-        ? 'consolidating'
-        : 'analyzing',
+  private function state(string $status): string {
+    return match ($status) {
+      'prepared' => 'preparing',
+      'running' => 'requesting',
       'completed' => 'finalizing',
       'finalized' => 'ready',
       'failed' => 'failed',
@@ -107,10 +86,8 @@ final class SynthesisStatusBuilder {
    */
   private function label(string $state): string {
     return (string) match ($state) {
-      'waiting' => $this->t('Waiting for background processing'),
-      'delayed' => $this->t('Background processing is delayed'),
-      'analyzing' => $this->t('Analyzing evidence'),
-      'consolidating' => $this->t('Consolidating summaries'),
+      'preparing' => $this->t('Preparing the AI request'),
+      'requesting' => $this->t('Generating your changelog summary'),
       'finalizing' => $this->t('Creating the unpublished draft'),
       'ready' => $this->t('Your unpublished changelog draft is ready'),
       'failed' => $this->t('No AI draft was created'),
@@ -122,7 +99,7 @@ final class SynthesisStatusBuilder {
   /**
    * Returns safe guidance for the current stage.
    */
-  private function message(string $state, string $errorCode, array $health): string {
+  private function message(string $state, string $errorCode): string {
     if ($state === 'failed') {
       return (string) match ($errorCode) {
         'provider_unavailable' => $this->t('The selected provider is unavailable. Review AI configuration before trying again.'),
@@ -135,78 +112,13 @@ final class SynthesisStatusBuilder {
       };
     }
     return (string) match ($state) {
-      'waiting' => $health['processor_state'] === 'scheduled'
-        ? $this->t('The request is stored safely and will begin at the next configured processing opportunity.')
-        : $this->t('The request is stored safely and is waiting for a synthesis worker. No provider request is running yet.'),
-      'delayed' => $this->t('No provider request is running. Background processing needs attention before this job can continue.'),
-      'analyzing' => $this->t('The configured provider is reviewing the eligible, privacy-filtered evidence.'),
-      'consolidating' => $this->t('Changelogify is combining bounded batch results into one final changelog.'),
+      'preparing' => $this->t('The reviewed evidence is stored safely. The provider request normally begins immediately from the Generate action.'),
+      'requesting' => $this->t('The configured provider is reviewing all eligible, privacy-filtered evidence in one request.'),
       'finalizing' => $this->t('The AI response is complete and current evidence is being revalidated before the draft is saved.'),
       'ready' => $this->t('Nothing was published automatically. Review and edit the draft before changing its editorial state.'),
-      'cancelled' => $this->t('No draft was created and queued provider work will be ignored.'),
+      'cancelled' => $this->t('No draft was created and any in-flight provider response will be ignored.'),
       default => $this->t('The current operation status could not be determined.'),
     };
-  }
-
-  /**
-   * Returns an editorial processing-health label.
-   */
-  private function queueLabel(string $state): string {
-    return (string) match ($state) {
-      'active' => $this->t('Processor available'),
-      'scheduled' => $this->t('Scheduled processing'),
-      'delayed' => $this->t('Processor needs attention'),
-      'idle' => $this->t('Queue is clear'),
-      default => $this->t('No recent processor heartbeat'),
-    };
-  }
-
-  /**
-   * Returns a compact translated queue badge.
-   */
-  private function queueBadge(string $state): string {
-    return (string) match ($state) {
-      'active' => $this->t('Available'),
-      'scheduled' => $this->t('Waiting'),
-      'delayed' => $this->t('Delayed'),
-      'idle' => $this->t('Clear'),
-      default => $this->t('Unavailable'),
-    };
-  }
-
-  /**
-   * Explains what will cause a queued job to advance.
-   */
-  private function queueSummary(array $health): string {
-    return (string) match ($health['processor_state']) {
-      'active' => $this->t('A dedicated worker or recent Drupal cron run is available to claim queued synthesis steps.'),
-      'scheduled' => $this->t('Drupal Automated Cron is enabled. Processing begins only when that schedule is due and Drupal receives a request.'),
-      'delayed' => $this->t('The queue has waited at least 15 minutes without relevant worker activity.'),
-      'idle' => $this->t('There are no synthesis steps waiting to be processed.'),
-      default => $this->t('Configure a dedicated Changelogify worker or reliable external Drupal cron schedule.'),
-    };
-  }
-
-  /**
-   * Formats a safe operational timestamp.
-   */
-  private function timeLabel(int $timestamp): string {
-    return $timestamp > 0
-      ? $this->dateFormatter->format($timestamp, 'short')
-      : (string) $this->t('Not recorded');
-  }
-
-  /**
-   * Formats the next request-driven cron opportunity.
-   */
-  private function nextRunLabel(array $health): string {
-    if ((int) $health['automated_cron_interval'] === 0) {
-      return (string) $this->t('No Automated Cron schedule');
-    }
-    if ((int) $health['next_automated_cron'] <= 0) {
-      return (string) $this->t('On the next eligible site request');
-    }
-    return $this->dateFormatter->format((int) $health['next_automated_cron'], 'short');
   }
 
 }

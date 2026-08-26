@@ -38,7 +38,7 @@ final class SynthesisOperationAccess {
   public function cancel(AccountInterface $account, string $operation_id): AccessResultInterface {
     $job = $this->jobs->get($operation_id);
     if (is_array($job)) {
-      $active = in_array($job['status'] ?? NULL, ['queued', 'running'], TRUE);
+      $active = in_array($job['status'] ?? NULL, ['prepared', 'running'], TRUE);
       $privileged = $account->hasPermission('administer changelogify ai');
       $owner = (int) ($job['actor'] ?? 0) > 0
         && (int) $job['actor'] === (int) $account->id()
@@ -47,7 +47,7 @@ final class SynthesisOperationAccess {
         ->addCacheContexts(['user', 'user.permissions'])
         ->setCacheMaxAge(0);
     }
-    return AccessResult::allowedIf($account->hasPermission('administer changelogify ai'))
+    return AccessResult::forbidden()
       ->addCacheContexts(['user.permissions'])
       ->setCacheMaxAge(0);
   }

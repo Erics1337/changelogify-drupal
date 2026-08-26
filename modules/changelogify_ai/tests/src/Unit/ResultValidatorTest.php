@@ -83,22 +83,6 @@ final class ResultValidatorTest extends TestCase {
   }
 
   /**
-   * Intermediate candidates use their separate contract bound.
-   */
-  public function testEnforcesIntermediateCandidateBound(): void {
-    $items = [];
-    for ($index = 1; $index <= 51; $index++) {
-      $items[] = new SummarizationItem("candidate-{$index}", 'other', "Candidate {$index}.", ['change-1']);
-    }
-    $this->expectException(\LengthException::class);
-    (new ResultValidator())->validate(
-      new SummarizationResult('completed', $items),
-      ['change-1'],
-      $this->synthesisRequest(SynthesisContract::STAGE_INTERMEDIATE, SynthesisContract::PRESET_DETAILED),
-    );
-  }
-
-  /**
    * Provides hostile and invalid provider-result fixtures.
    */
   public static function invalidResultProvider(): array {

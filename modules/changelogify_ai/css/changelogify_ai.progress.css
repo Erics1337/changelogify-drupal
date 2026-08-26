@@ -27,7 +27,8 @@
   animation: changelogify-ai-live 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   border-radius: 50%;
   background: var(--gin-color-green, #168856);
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--gin-color-green, #168856) 35%, transparent);
+  box-shadow: 0 0 0 0
+    color-mix(in srgb, var(--gin-color-green, #168856) 35%, transparent);
 }
 
 .changelogify-ai-job[data-terminal="true"] .changelogify-ai-job__live span {
@@ -50,7 +51,7 @@
 
 .changelogify-ai-job__stages {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   margin-block: 2rem 1.5rem;
   padding: 0;
@@ -89,27 +90,27 @@
 
 .changelogify-ai-job__stages li[aria-current="step"]::before {
   background: var(--gin-color-primary, #003cc5);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--gin-color-primary, #003cc5) 35%, transparent);
+  box-shadow: 0 2px 8px
+    color-mix(in srgb, var(--gin-color-primary, #003cc5) 35%, transparent);
 }
 
-.changelogify-ai-job[data-state="analyzing"] [data-job-stage="queued"],
-.changelogify-ai-job[data-state="consolidating"] [data-job-stage="queued"],
-.changelogify-ai-job[data-state="consolidating"] [data-job-stage="analyzing"],
-.changelogify-ai-job[data-state="finalizing"] [data-job-stage="queued"],
-.changelogify-ai-job[data-state="finalizing"] [data-job-stage="analyzing"],
-.changelogify-ai-job[data-state="finalizing"] [data-job-stage="consolidating"],
+.changelogify-ai-job[data-state="requesting"] [data-job-stage="preparing"],
+.changelogify-ai-job[data-state="finalizing"] [data-job-stage="preparing"],
+.changelogify-ai-job[data-state="finalizing"] [data-job-stage="requesting"],
 .changelogify-ai-job[data-state="ready"] .changelogify-ai-job__stages li {
   color: var(--gin-color-text, #222330);
   border-color: var(--gin-color-green, #168856);
 }
 
-.changelogify-ai-job[data-state="analyzing"] [data-job-stage="queued"]::before,
-.changelogify-ai-job[data-state="consolidating"] [data-job-stage="queued"]::before,
-.changelogify-ai-job[data-state="consolidating"] [data-job-stage="analyzing"]::before,
-.changelogify-ai-job[data-state="finalizing"] [data-job-stage="queued"]::before,
-.changelogify-ai-job[data-state="finalizing"] [data-job-stage="analyzing"]::before,
-.changelogify-ai-job[data-state="finalizing"] [data-job-stage="consolidating"]::before,
-.changelogify-ai-job[data-state="ready"] .changelogify-ai-job__stages li::before {
+.changelogify-ai-job[data-state="requesting"]
+  [data-job-stage="preparing"]::before,
+.changelogify-ai-job[data-state="finalizing"]
+  [data-job-stage="preparing"]::before,
+.changelogify-ai-job[data-state="finalizing"]
+  [data-job-stage="requesting"]::before,
+.changelogify-ai-job[data-state="ready"]
+  .changelogify-ai-job__stages
+  li::before {
   background: var(--gin-color-green, #168856);
 }
 
@@ -120,8 +121,7 @@
 }
 
 .changelogify-ai-job__detail,
-.changelogify-ai-job__support,
-.changelogify-ai-job__admin-note {
+.changelogify-ai-job__support {
   color: var(--gin-color-text-light, #545560);
 }
 
@@ -131,80 +131,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.changelogify-ai-job__queue {
-  margin-block-start: 2rem;
-  padding-block: 1.5rem;
-  border-block: 1px solid var(--gin-border-color, #d4d4d8);
-}
-
-.changelogify-ai-job__queue-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.changelogify-ai-job__queue h3 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.changelogify-ai-job__queue-state {
-  flex: 0 0 auto;
-  padding: 0.25rem 0.625rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--gin-color-text, #222330);
-  border-radius: 999px;
-  background: var(--gin-bg-item-hover, #f0f2f5);
-  font-size: 0.75rem;
-  font-weight: 800;
-}
-
-.changelogify-ai-job__queue-state[data-processor-state="active"] {
-  color: var(--gin-color-green, #126b46);
-  background: color-mix(in srgb, var(--gin-color-green, #168856) 14%, transparent);
-}
-
-.changelogify-ai-job__queue-state[data-processor-state="delayed"],
-.changelogify-ai-job__queue-state[data-processor-state="unavailable"] {
-  color: var(--gin-color-danger, #b51515);
-  background: color-mix(in srgb, var(--gin-color-danger, #d72222) 12%, transparent);
-}
-
-.changelogify-ai-job__queue-facts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.5rem;
-  margin-block: 1.25rem;
-}
-
-.changelogify-ai-job__queue-facts div {
-  min-width: 0;
-}
-
-.changelogify-ai-job__queue-facts dt {
-  margin-block-end: 0.25rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--gin-color-text-light, #545560);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.changelogify-ai-job__queue-facts dd {
-  margin: 0;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-  font-variant-numeric: tabular-nums;
-}
-
-.changelogify-ai-job__processing-link {
-  font-weight: 700;
-  text-underline-offset: 0.2em;
-}
-
-.changelogify-ai-job__processing-link:focus-visible,
 .changelogify-ai-job__diagnostics summary:focus-visible {
   border-radius: 0.25rem;
   outline: 3px solid var(--gin-color-focus, #26a769);
@@ -279,19 +205,9 @@
   .changelogify-ai-job__stages li[aria-current="step"] {
     border-color: var(--gin-color-primary, #003cc5);
   }
-
-  .changelogify-ai-job__queue-facts {
-    grid-template-columns: 1fr;
-    gap: 0.875rem;
-  }
 }
 
 @media (max-width: 36rem) {
-  .changelogify-ai-job__queue-heading {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
   .changelogify-ai-job__actions .button {
     width: 100%;
     margin: 0;

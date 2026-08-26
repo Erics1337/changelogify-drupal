@@ -31,7 +31,7 @@ final class SynthesisDraftFinalizer {
   ) {}
 
   /**
-   * Finalizes a ready job once; intermediate and legacy jobs are ignored.
+   * Finalizes a ready single-request job exactly once.
    */
   public function finalizeIfReady(string $jobId): ?ChangelogifyReleaseInterface {
     $lockName = "changelogify_ai:synthesis_finalize:{$jobId}";

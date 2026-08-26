@@ -36,9 +36,7 @@ function changelogify_ai_schema(): array {
       'profile' => ['type' => 'varchar', 'length' => 64, 'not null' => FALSE],
       'length_preset' => ['type' => 'varchar', 'length' => 32, 'not null' => FALSE],
       'payload_hash' => ['type' => 'varchar', 'length' => 64, 'not null' => FALSE],
-      'round' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
-      'total_batches' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
-      'completed_batches' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
+      'attempt_count' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
       'retry_count' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
       'evidence_considered' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
       'evidence_cited' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
@@ -80,4 +78,63 @@ function changelogify_ai_update_18001(): string {
   }
 
   return 'Added and backfilled the privacy-bounded Changelogify AI operation index.';
+}
+
+/**
+ * Replaces pre-release batched synthesis state with the single-call contract.
+ */
+function changelogify_ai_update_18002(): string {
+  $database = \Drupal::database();
+  $schema = $database->schema();
+  $table = AiOperationHistoryRepository::TABLE;
+  if ($schema->tableExists($table)) {
+    foreach (['round', 'total_batches', 'completed_batches'] as $field) {
+      if ($schema->fieldExists($table, $field)) {
+        $schema->dropField($table, $field);
+      }
+    }
+    if (!$schema->fieldExists($table, 'attempt_count')) {
+      $schema->addField($table, 'attempt_count', [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ]);
+    }
+  }
+
+  $repository = \Drupal::service(AiOperationHistoryRepository::class);
+  $store = \Drupal::service('keyvalue')->get('changelogify_ai.synthesis_jobs');
+  foreach ($store->getAll() as $id => $job) {
+    if (is_array($job) && ($job['synthesis_version'] ?? '') !== '2') {
+      if (in_array($job['status'] ?? NULL, ['queued', 'running', 'completed'], TRUE)) {
+        $job['status'] = 'cancelled';
+        $job['error_code'] = 'contract_replaced';
+        $job['completed'] = \Drupal::time()->getRequestTime();
+        $repository->save($job);
+      }
+      $store->delete((string) $id);
+    }
+  }
+  $operations = \Drupal::service('keyvalue')->get('changelogify_ai.operations');
+  foreach ($operations->getAll() as $id => $operation) {
+    if (is_array($operation) && ($operation['status'] ?? NULL) === 'queued') {
+      $operation['status'] = 'cancelled';
+      $operation['error_code'] = 'contract_replaced';
+      $operation['completed'] = \Drupal::time()->getRequestTime();
+      $operations->set((string) $id, $operation);
+      $repository->save($operation);
+    }
+  }
+  if ($schema->tableExists('queue')) {
+    $database->delete('queue')
+      ->condition('name', [
+        'changelogify_ai_synthesis',
+        'changelogify_ai_draft',
+        'changelogify_ai_complete_draft',
+      ], 'IN')
+      ->execute();
+  }
+
+  return 'Removed hierarchical synthesis batches and activated immediate single-request synthesis.';
 }

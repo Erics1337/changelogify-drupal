@@ -10,9 +10,7 @@ use Drupal\Core\Link;
 use Drupal\Core\Url;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\TypedConfigManagerInterface;
-use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\changelogify_ai\AiOperationManager;
-use Drupal\changelogify_ai\AiQueueHealth;
 use Drupal\changelogify_ai\AiReadinessChecker;
 use Drupal\changelogify_ai\OutboundPayloadBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -22,7 +20,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 final class SettingsForm extends ConfigFormBase {
 
-  public function __construct(ConfigFactoryInterface $configFactory, TypedConfigManagerInterface $typedConfigManager, protected AiOperationManager $operations, protected AiReadinessChecker $readiness, protected AiQueueHealth $queueHealth, protected DateFormatterInterface $dateFormatter) {
+  public function __construct(ConfigFactoryInterface $configFactory, TypedConfigManagerInterface $typedConfigManager, protected AiOperationManager $operations, protected AiReadinessChecker $readiness) {
     parent::__construct($configFactory, $typedConfigManager);
   }
 
@@ -35,8 +33,6 @@ final class SettingsForm extends ConfigFormBase {
       $container->get('config.typed'),
       $container->get(AiOperationManager::class),
       $container->get(AiReadinessChecker::class),
-      $container->get(AiQueueHealth::class),
-      $container->get('date.formatter'),
     );
   }
 
@@ -64,50 +60,6 @@ final class SettingsForm extends ConfigFormBase {
       '#markup' => $this->t('Changelogify AI is an optional editorial assistant. It can rewrite selected, already-recorded evidence into clearer release notes, but it never publishes a release or changes source content on its own.'),
       '#weight' => -20,
     ];
-    $health = $this->queueHealth->status();
-    $lastCron = $health['last_cron'] > 0
-      ? $this->dateFormatter->formatTimeDiffSince($health['last_cron']) . ' ' . $this->t('ago')
-      : $this->t('No heartbeat recorded');
-    $lastWorker = $health['last_worker'] > 0
-      ? $this->dateFormatter->formatTimeDiffSince($health['last_worker']) . ' ' . $this->t('ago')
-      : $this->t('No synthesis work recorded');
-    $lastRunner = $health['last_runner'] > 0
-      ? $this->dateFormatter->formatTimeDiffSince($health['last_runner']) . ' ' . $this->t('ago')
-      : $this->t('No dedicated runner heartbeat');
-    $oldestWait = $health['oldest_created'] > 0
-      ? $this->dateFormatter->formatTimeDiffSince($health['oldest_created'])
-      : $this->t('None');
-    $form['queue_health'] = [
-      '#type' => 'details',
-      '#title' => $this->t('Background processing health'),
-      '#description' => $this->t('Editors only submit and review work. A production scheduler should run the dedicated Changelogify synthesis worker every minute; Drupal cron remains a compatible fallback.'),
-      '#open' => $health['queued_count'] > 0 || (bool) $health['delayed'],
-      '#weight' => -19,
-      'summary' => [
-        '#theme' => 'item_list',
-        '#items' => [
-          $this->t('Last site cron: @value', ['@value' => $lastCron]),
-          $this->t('Last dedicated runner: @value', ['@value' => $lastRunner]),
-          $this->t('Last synthesis worker: @value', ['@value' => $lastWorker]),
-          $this->t('Queued synthesis steps: @count', ['@count' => $health['queued_count']]),
-          $this->t('Oldest queued wait: @value', ['@value' => $oldestWait]),
-        ],
-      ],
-    ];
-    $form['queue_health']['production'] = [
-      '#type' => 'item',
-      '#title' => $this->t('Recommended production schedule'),
-      '#markup' => '<code>drush changelogify:ai-worker --time-limit=55</code>',
-      '#description' => $this->t('Configure this once in the hosting platform or server scheduler. Editors do not run command-line tools.'),
-    ];
-    if ($health['queued_count'] > 0 && $this->currentUser()->hasPermission('administer site configuration')) {
-      $form['queue_health']['cron'] = [
-        '#type' => 'link',
-        '#title' => $this->t('Review fallback cron configuration'),
-        '#url' => Url::fromRoute('system.cron_settings'),
-        '#attributes' => ['class' => ['button', 'button--small']],
-      ];
-    }
     $form['processing_consent'] = [
       '#type' => 'details',
       '#tree' => TRUE,
@@ -291,29 +243,14 @@ final class SettingsForm extends ConfigFormBase {
       '#maxlength' => 35,
       '#default_value' => $config->get('output_language') ?: 'en',
     ];
-    foreach ([
-      'history_retention_days' => [
-        $this->t('History retention (days)'),
-        $this->t('How long to retain privacy-bounded operation metadata for troubleshooting. Generated release text is stored in release revisions, not this history.'),
-        1,
-        3650,
-      ],
-      'queue_threshold' => [
-        $this->t('Queue complete drafts at this many change sets'),
-        $this->t('Large whole-release requests at or above this size run in Drupal cron or another configured queue worker instead of making an editor wait.'),
-        1,
-        5000,
-      ],
-    ] as $key => [$label, $description, $min, $max]) {
-      $form[$key] = [
-        '#type' => 'number',
-        '#title' => $label,
-        '#description' => $description,
-        '#min' => $min,
-        '#max' => $max,
-        '#default_value' => $config->get($key),
-      ];
-    }
+    $form['history_retention_days'] = [
+      '#type' => 'number',
+      '#title' => $this->t('History retention (days)'),
+      '#description' => $this->t('How long to retain privacy-bounded operation metadata for troubleshooting. Generated release text is stored in release revisions, not this history.'),
+      '#min' => 1,
+      '#max' => 3650,
+      '#default_value' => $config->get('history_retention_days'),
+    ];
 
     $form['setup_status'] = [
       '#type' => 'table',
@@ -362,12 +299,11 @@ final class SettingsForm extends ConfigFormBase {
     $form['advanced_operations'] = [
       '#type' => 'details',
       '#title' => $this->t('Advanced operations'),
-      '#description' => $this->t('Most sites can keep these defaults. Change them only to meet retention or background-processing requirements.'),
+      '#description' => $this->t('Most sites can keep this default. Change it only to meet operation-history retention requirements.'),
       '#open' => FALSE,
       'history_retention_days' => $form['history_retention_days'],
-      'queue_threshold' => $form['queue_threshold'],
     ];
-    unset($form['history_retention_days'], $form['queue_threshold']);
+    unset($form['history_retention_days']);
 
     $form = parent::buildForm($form, $form_state);
     $form['actions']['verify'] = [
@@ -494,7 +430,6 @@ final class SettingsForm extends ConfigFormBase {
     $guidance = trim((string) $form_state->getValue('organization_guidance'));
     $language = trim((string) $form_state->getValue('output_language')) ?: 'en';
     $historyRetention = (int) $form_state->getValue('history_retention_days');
-    $queueThreshold = (int) $form_state->getValue('queue_threshold');
     parent::submitForm($form, $form_state);
     $this->configFactory->getEditable('changelogify_ai.settings')
       ->set('consent_external_processing', $consent)
@@ -509,7 +444,6 @@ final class SettingsForm extends ConfigFormBase {
       ->set('organization_guidance', $guidance)
       ->set('output_language', $language)
       ->set('history_retention_days', $historyRetention)
-      ->set('queue_threshold', $queueThreshold)
       ->save();
   }
 

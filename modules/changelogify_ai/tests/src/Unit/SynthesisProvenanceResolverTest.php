@@ -11,7 +11,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests transitive synthesis provenance and server-side coverage.
+ * Tests direct synthesis provenance and server-side coverage.
  *
  * @group changelogify_ai
  */
@@ -19,7 +19,7 @@ use PHPUnit\Framework\TestCase;
 final class SynthesisProvenanceResolverTest extends TestCase {
 
   /**
-   * Combined final notes resolve candidates to original sources and events.
+   * Combined final notes resolve original sources and events.
    */
   public function testFinalizesCombinedNoteAndCompleteCoverage(): void {
     $resolver = new SynthesisProvenanceResolver();
@@ -29,18 +29,11 @@ final class SynthesisProvenanceResolverTest extends TestCase {
       'change-2' => $this->provenance(2),
       'change-3' => $this->provenance(3),
     ]);
-    $finalEvidence = [
-      'candidate-one' => [
-        'kind' => 'synthesis_candidate',
-        'job_id' => 'job-1',
-        'original_source_ids' => ['change-1', 'change-2'],
-      ],
-    ];
     $result = new SummarizationResult('completed', [
-      new SummarizationItem('note-1', 'changed', 'Combined factual note.', ['candidate-one']),
+      new SummarizationItem('note-1', 'changed', 'Combined factual note.', ['change-1', 'change-2']),
     ]);
 
-    $final = $resolver->finalize($result, $finalEvidence, $index, 'job-1', [
+    $final = $resolver->finalize($result, $evidence, $index, [
       'editor' => ['change-4'],
       'policy' => ['change-5', 'change-6'],
     ]);
@@ -80,40 +73,20 @@ final class SynthesisProvenanceResolverTest extends TestCase {
   }
 
   /**
-   * Unknown, cross-job, broken, and cyclic candidate references are rejected.
+   * Unknown or synthetic source references are rejected.
    */
-  public function testRejectsHostileCandidateReferences(): void {
+  public function testRejectsUnknownSourceReferences(): void {
     $resolver = new SynthesisProvenanceResolver();
     $cases = [
-      'unknown' => [['missing'], []],
-      'cross job' => [['candidate'], [
-        'candidate' => [
-          'kind' => 'synthesis_candidate',
-          'job_id' => 'other',
-          'original_source_ids' => ['change-1'],
-        ],
-      ],
-      ],
-      'broken' => [['candidate'], [
-        'candidate' => [
-          'kind' => 'synthesis_candidate',
-          'job_id' => 'job',
-          'original_source_ids' => [],
-        ],
-      ],
-      ],
-      'cyclic' => [['candidate'], [
-        'candidate' => [
-          'kind' => 'synthesis_candidate',
-          'job_id' => 'job',
-          'original_source_ids' => ['candidate'],
-        ],
+      'unknown' => [['missing'], $this->evidence(1)],
+      'synthetic' => [['candidate'], [
+        'candidate' => ['kind' => 'synthesis_candidate'],
       ],
       ],
     ];
     foreach ($cases as [$sourceIds, $evidence]) {
       try {
-        $resolver->resolveSourceIds($sourceIds, $evidence, 'job');
+        $resolver->resolveSourceIds($sourceIds, $evidence);
         self::fail('Hostile provenance was accepted.');
       }
       catch (\UnexpectedValueException) {

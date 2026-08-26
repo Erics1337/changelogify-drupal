@@ -34,4 +34,3 @@ changelogify_ai.settings:
     organization_guidance: { type: string, label: 'Organization guidance' }
     output_language: { type: string, label: 'Output language' }
     history_retention_days: { type: integer, label: 'History retention days' }
-    queue_threshold: { type: integer, label: 'Queue threshold' }

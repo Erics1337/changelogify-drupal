@@ -18,7 +18,7 @@ release-level synthesis. That path does not require selecting each deterministic
 row: all site-eligible evidence is considered by default. Its separate panel
 shows profile and length controls, optional category/source/evidence exclusions,
 and the exact post-eligibility, post-exclusion, privacy-filtered JSON. Changing
-an exclusion requires updating that preview before the background job is queued.
+an exclusion requires updating that preview before the provider request begins.
 The deterministic commit button and its section assignments remain unchanged.
 
 The preview warns about overlapping draft or published windows, a gap since the

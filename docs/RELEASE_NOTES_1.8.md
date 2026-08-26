@@ -15,24 +15,17 @@ into concise, categorized, evidence-grounded draft notes.
   and one-time category/source/evidence exclusions.
 - Shows the exact post-eligibility, post-exclusion, privacy-filtered evidence
   before processing. Changed exclusions or evidence require a new preview.
-- Adds deterministic hierarchical batching for large inputs, recursive
-  candidate consolidation, bounded retry, cancellation, idempotency, cleanup,
-  and duplicate submission protection.
-- Adds an accessible live job page that updates automatically from waiting
-  through draft creation, pauses in hidden tabs, recovers from temporary
-  network failures, and links directly to the unpublished draft and
-  provenance. Polling never processes queue work or calls a provider.
-- Adds creator-scoped job access and cancellation, a queue-health panel with
-  site-cron, dedicated-runner, and worker heartbeats, 15-minute delay guidance,
-  and a direct AI-settings link for authorized administrators.
-- Adds a bounded, synthesis-only production worker command so hosting
-  schedulers can process AI work every minute without running unrelated Drupal
-  queues. Drupal cron remains a compatible fallback.
+- Sends the entire reviewed evidence boundary in one provider request when the
+  editor presses **Create AI draft release**. Synthesis does not use batching,
+  intermediate candidates, overflow calls, queue workers, or Drupal cron.
+- Adds stable duplicate-submission protection, safe terminal cleanup, and a
+  privacy-bounded job detail/status surface for concurrent requests and
+  troubleshooting. Normal success redirects directly to the unpublished draft.
 - Replaces the wide diagnostic history grid with an indexed, paginated,
   filterable and responsive operation list. Detailed provider, model, token,
   version, coverage, and safe failure information is available on each job.
-- Resolves every final citation through intermediate candidates to original
-  change-set and event IDs. Private coverage reports evidence considered,
+- Resolves every final citation directly to original change-set and event IDs.
+  Private coverage reports evidence considered,
   cited, excluded, and eligible but not surfaced.
 - Revalidates current evidence, policies, exclusions, contract versions,
   output, and provenance before an atomic final commit. Successful jobs create
@@ -76,13 +69,10 @@ credential, or provider account.
 5. Preview a non-sensitive payload, confirm external-processing consent, and
    review `administer changelogify ai`, `use changelogify ai`, and `view
    changelogify ai history` role grants.
-6. Configure the hosting scheduler to run `drush
-   changelogify:ai-worker --time-limit=55` once per minute. Drupal cron remains
-   a fallback. Confirm the AI settings health panel receives runner and worker
-   heartbeats. Test automatic job-page progress, creator and administrator
-   cancellation, duplicate reuse, responsive operation history, unpublished
-   finalization, provenance, and coverage in a staging environment. Editors
-   never run the worker command.
+6. Test that one Generate action makes one provider request, redirects directly
+   to one unpublished draft, reuses an equivalent concurrent submission, and
+   reports responsive operation history, provenance, and coverage. Confirm
+   Drupal cron never contacts the provider.
 7. Complete the cloud/local provider compatibility checks in
    [AI_DRAFTING.md](AI_DRAFTING.md) before production use.
 
@@ -92,9 +82,8 @@ releases use the additive version 2 provenance shape.
 
 ## Rollback
 
-There is no automated database or provenance downgrade. Disable the dedicated
-worker schedule and other queue processing,
-cancel active AI synthesis jobs, and prevent new AI requests. Restore the prior
+There is no automated database or provenance downgrade. Prevent new AI
+requests and allow any in-flight web request to finish. Restore the prior
 code artifact together with its matching pre-upgrade database and active
 configuration backup, then rebuild caches. Do not roll back code alone after
 creating version 2 synthesis provenance: older code can discard or reject the

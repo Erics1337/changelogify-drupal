@@ -12,8 +12,6 @@ use Drupal\Core\Database\Transaction;
 use Drupal\Core\KeyValueStore\KeyValueFactoryInterface;
 use Drupal\Core\KeyValueStore\KeyValueStoreInterface;
 use Drupal\Core\Lock\LockBackendInterface;
-use Drupal\Core\Queue\QueueFactory;
-use Drupal\Core\Queue\QueueInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Drupal\changelogify_ai\AiOperationManager;
@@ -251,9 +249,7 @@ final class ReleaseSuggestionManagerTest extends TestCase {
     $account->method('id')->willReturn(9);
     $time = $this->createMock(TimeInterface::class);
     $time->method('getRequestTime')->willReturn(1000);
-    $queueFactory = $this->createMock(QueueFactory::class);
-    $queueFactory->method('get')->willReturn($this->createMock(QueueInterface::class));
-    $operations = new AiOperationManager(new FakeSummarizer($providerMode), new ResultValidator(), $keyValue, $lock, $account, $time, $this->createMock(LoggerInterface::class), $queueFactory);
+    $operations = new AiOperationManager(new FakeSummarizer($providerMode), new ResultValidator(), $keyValue, $lock, $account, $time, $this->createMock(LoggerInterface::class));
     $config = $this->createMock(ImmutableConfig::class);
     $config->method('get')->willReturnCallback(static fn (string $key): mixed => match ($key) {
       'consent_external_processing' => TRUE,

@@ -33,13 +33,9 @@ final class SynthesisContractTest extends TestCase {
   }
 
   /**
-   * Final presets and intermediate candidates have independent bounds.
+   * Final length presets provide explicit output bounds.
    */
-  public function testReturnsStageSpecificBoundsAndSchemas(): void {
-    self::assertSame(50, SynthesisContract::maxItems(
-      SynthesisContract::STAGE_INTERMEDIATE,
-      SynthesisContract::PRESET_SHORT,
-    ));
+  public function testReturnsPresetBoundsAndSchemas(): void {
     foreach ([
       SynthesisContract::PRESET_SHORT => 5,
       SynthesisContract::PRESET_STANDARD => 12,
@@ -50,7 +46,7 @@ final class SynthesisContractTest extends TestCase {
         SynthesisContract::STAGE_FINAL,
         $preset,
       );
-      self::assertSame('changelogify_synthesis_final_v1', $schema['name']);
+      self::assertSame('changelogify_synthesis_final_v2', $schema['name']);
       self::assertSame($maximum, $schema['schema']['properties']['items']['maxItems']);
       self::assertSame(
         ['added', 'changed', 'fixed', 'removed', 'security', 'other'],

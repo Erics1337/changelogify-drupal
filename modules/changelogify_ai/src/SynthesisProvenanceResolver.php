@@ -8,7 +8,7 @@ use Drupal\changelogify_ai\Summarization\SummarizationItem;
 use Drupal\changelogify_ai\Summarization\SummarizationResult;
 
 /**
- * Resolves hierarchical citations and builds bounded synthesis provenance.
+ * Validates direct citations and builds bounded synthesis provenance.
  */
 final class SynthesisProvenanceResolver {
 
@@ -50,32 +50,18 @@ final class SynthesisProvenanceResolver {
   }
 
   /**
-   * Resolves one round's citations to original source IDs.
+   * Validates citations against the original evidence supplied to the model.
    */
-  public function resolveSourceIds(array $sourceIds, array $evidence, string $jobId): array {
+  public function resolveSourceIds(array $sourceIds, array $evidence): array {
     $resolved = [];
     foreach ($sourceIds as $sourceId) {
-      if (!is_string($sourceId) || !isset($evidence[$sourceId]) || !is_array($evidence[$sourceId])) {
+      if (!is_string($sourceId)
+        || !isset($evidence[$sourceId])
+        || !is_array($evidence[$sourceId])
+        || ($evidence[$sourceId]['kind'] ?? NULL) === 'synthesis_candidate') {
         throw new \UnexpectedValueException('A synthesis citation references unknown evidence.');
       }
-      $source = $evidence[$sourceId];
-      if (($source['kind'] ?? NULL) !== 'synthesis_candidate') {
-        $resolved[] = $sourceId;
-        continue;
-      }
-      if (($source['job_id'] ?? NULL) !== $jobId) {
-        throw new \UnexpectedValueException('A synthesis candidate belongs to another job.');
-      }
-      $originalIds = $source['original_source_ids'] ?? NULL;
-      if (!is_array($originalIds) || $originalIds === []) {
-        throw new \UnexpectedValueException('A synthesis candidate has broken provenance.');
-      }
-      foreach ($originalIds as $originalId) {
-        if (!is_string($originalId) || $originalId === $sourceId) {
-          throw new \UnexpectedValueException('A synthesis candidate has cyclic or invalid provenance.');
-        }
-        $resolved[] = $originalId;
-      }
+      $resolved[] = $sourceId;
     }
     return array_values(array_unique($resolved));
   }
@@ -87,14 +73,13 @@ final class SynthesisProvenanceResolver {
     SummarizationResult $result,
     array $finalEvidence,
     array $sourceIndex,
-    string $jobId,
     array $exclusions = [],
   ): array {
     $items = [];
     $itemProvenance = [];
     $cited = [];
     foreach ($result->items as $item) {
-      $sourceIds = $this->resolveSourceIds($item->sourceIds, $finalEvidence, $jobId);
+      $sourceIds = $this->resolveSourceIds($item->sourceIds, $finalEvidence);
       if ($sourceIds === [] || array_diff($sourceIds, array_keys($sourceIndex)) !== []) {
         throw new \UnexpectedValueException('A final synthesis citation cannot be resolved to original evidence.');
       }

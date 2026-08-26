@@ -8,7 +8,6 @@ use Drupal\Core\Form\ConfirmFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
-use Drupal\changelogify_ai\AiOperationManager;
 use Drupal\changelogify_ai\SynthesisJobManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -23,14 +22,13 @@ final class CancelOperationForm extends ConfirmFormBase {
    */
   protected ?string $synthesisJobId = NULL;
 
-  public function __construct(protected AiOperationManager $operations, protected SynthesisJobManager $synthesisJobs) {}
+  public function __construct(protected SynthesisJobManager $synthesisJobs) {}
 
   /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container): static {
     return new static(
-      $container->get(AiOperationManager::class),
       $container->get(SynthesisJobManager::class),
     );
   }
@@ -53,33 +51,28 @@ final class CancelOperationForm extends ConfirmFormBase {
    * {@inheritdoc}
    */
   public function getCancelUrl(): Url {
-    return $this->synthesisJobId !== NULL
-      ? Url::fromRoute('changelogify_ai.synthesis_job', ['job_id' => $this->synthesisJobId])
-      : Url::fromRoute('changelogify_ai.operation_history');
+    return Url::fromRoute('changelogify_ai.synthesis_job', ['job_id' => $this->synthesisJobId]);
   }
 
   /**
    * {@inheritdoc}
    */
   public function getDescription(): TranslatableMarkup {
-    return $this->t('Cancellation prevents queued work from starting. It cannot undo a completed release change.');
+    return $this->t('Cancellation prevents a prepared request from starting or discards an in-flight result. It cannot undo a completed release change.');
   }
 
   /**
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state, string $operation_id = ''): array {
-    $operation = $this->operations->get($operation_id);
     $synthesisJob = $this->synthesisJobs->get($operation_id);
-    $operationCanCancel = is_array($operation) && ($operation['status'] ?? NULL) === 'queued';
     $synthesisCanCancel = is_array($synthesisJob)
-      && in_array($synthesisJob['status'] ?? NULL, ['queued', 'running'], TRUE);
-    if (!$operationCanCancel && !$synthesisCanCancel) {
+      && in_array($synthesisJob['status'] ?? NULL, ['prepared', 'running'], TRUE);
+    if (!$synthesisCanCancel) {
       throw new NotFoundHttpException();
     }
     $form_state->set('operation_id', $operation_id);
-    $form_state->set('synthesis_job', $synthesisCanCancel);
-    $this->synthesisJobId = $synthesisCanCancel ? $operation_id : NULL;
+    $this->synthesisJobId = $operation_id;
     return parent::buildForm($form, $form_state);
   }
 
@@ -88,25 +81,15 @@ final class CancelOperationForm extends ConfirmFormBase {
    */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     try {
-      if ($form_state->get('synthesis_job')) {
-        $this->synthesisJobs->cancel((string) $form_state->get('operation_id'));
-      }
-      else {
-        $this->operations->cancel((string) $form_state->get('operation_id'));
-      }
-      $this->messenger()->addStatus($this->t('The queued AI operation was cancelled.'));
+      $this->synthesisJobs->cancel((string) $form_state->get('operation_id'));
+      $this->messenger()->addStatus($this->t('The AI synthesis was cancelled.'));
     }
     catch (\UnexpectedValueException) {
       $this->messenger()->addWarning($this->t('The operation already started and cannot be cancelled.'));
     }
-    if ($form_state->get('synthesis_job')) {
-      $form_state->setRedirect('changelogify_ai.synthesis_job', [
-        'job_id' => (string) $form_state->get('operation_id'),
-      ]);
-    }
-    else {
-      $form_state->setRedirect('changelogify_ai.operation_history');
-    }
+    $form_state->setRedirect('changelogify_ai.synthesis_job', [
+      'job_id' => (string) $form_state->get('operation_id'),
+    ]);
   }
 
 }

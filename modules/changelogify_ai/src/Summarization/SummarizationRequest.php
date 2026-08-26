@@ -54,21 +54,21 @@ final class SummarizationRequest {
   }
 
   /**
-   * Returns the synthesis version, including for pre-contract queued objects.
+   * Returns the synthesis version for release-level requests.
    */
   public function getSynthesisVersion(): ?string {
     return $this->synthesisVersion ?? NULL;
   }
 
   /**
-   * Returns the synthesis stage, including for pre-contract queued objects.
+   * Returns the synthesis stage for release-level requests.
    */
   public function getSynthesisStage(): ?string {
     return $this->synthesisStage ?? NULL;
   }
 
   /**
-   * Returns the length preset, including for pre-contract queued objects.
+   * Returns the length preset for release-level requests.
    */
   public function getLengthPreset(): ?string {
     return $this->lengthPreset ?? NULL;

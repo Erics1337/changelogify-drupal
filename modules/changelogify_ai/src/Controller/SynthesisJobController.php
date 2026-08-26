@@ -39,10 +39,9 @@ final class SynthesisJobController extends ControllerBase {
   public function view(string $job_id): array {
     $job = $this->job($job_id);
     $canCancel = $this->access->cancel($this->account, $job_id)->isAllowed();
-    $canConfigureProcessing = $this->account->hasPermission('administer changelogify ai');
     return [
       '#theme' => 'changelogify_ai_job',
-      '#job' => $this->statusBuilder->build($job, $canCancel, $canConfigureProcessing),
+      '#job' => $this->statusBuilder->build($job, $canCancel),
       '#attached' => [
         'library' => ['changelogify_ai/progress'],
         'drupalSettings' => [
@@ -63,8 +62,7 @@ final class SynthesisJobController extends ControllerBase {
   public function status(string $job_id): JsonResponse {
     $job = $this->job($job_id);
     $canCancel = $this->access->cancel($this->account, $job_id)->isAllowed();
-    $canConfigureProcessing = $this->account->hasPermission('administer changelogify ai');
-    $response = new JsonResponse($this->statusBuilder->build($job, $canCancel, $canConfigureProcessing));
+    $response = new JsonResponse($this->statusBuilder->build($job, $canCancel));
     $response->headers->set('Cache-Control', 'no-store, private');
     $response->headers->set('Pragma', 'no-cache');
     return $response;

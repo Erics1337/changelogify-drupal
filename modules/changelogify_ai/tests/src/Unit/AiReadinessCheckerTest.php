@@ -9,7 +9,6 @@ use Drupal\Core\Config\Config;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\KeyValueStore\KeyValueFactoryInterface;
 use Drupal\Core\Lock\LockBackendInterface;
-use Drupal\Core\Queue\QueueFactory;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\changelogify_ai\AiOperationManager;
 use Drupal\changelogify_ai\AiReadinessChecker;
@@ -107,7 +106,6 @@ final class AiReadinessCheckerTest extends TestCase {
       $this->createMock(AccountProxyInterface::class),
       $this->createMock(TimeInterface::class),
       $this->createMock(LoggerInterface::class),
-      $this->createMock(QueueFactory::class),
     );
   }
 

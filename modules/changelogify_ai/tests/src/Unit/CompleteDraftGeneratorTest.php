@@ -14,20 +14,15 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\KeyValueStore\KeyValueFactoryInterface;
 use Drupal\Core\KeyValueStore\KeyValueStoreInterface;
 use Drupal\Core\Lock\LockBackendInterface;
-use Drupal\Core\Queue\QueueFactory;
-use Drupal\Core\Queue\QueueInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\changelogify\ChangeSet\ChangeSet;
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Drupal\changelogify\ReleaseGeneratorInterface;
-use Drupal\changelogify\ReleasePreview;
 use Drupal\changelogify_ai\AiOperationManager;
 use Drupal\changelogify_ai\CompleteDraftGenerator;
 use Drupal\changelogify_ai\OutboundPayloadBuilder;
 use Drupal\changelogify_ai\ResultValidator;
 use Drupal\changelogify_ai\Summarization\FakeSummarizer;
-use Drupal\changelogify_ai\Summarization\SummarizationItem;
-use Drupal\changelogify_ai\Summarization\SummarizationResult;
 use Psr\Log\LoggerInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
@@ -80,20 +75,6 @@ final class CompleteDraftGeneratorTest extends TestCase {
   }
 
   /**
-   * Empty queued drafts require the same explicit confirmation as sync drafts.
-   */
-  public function testQueueRejectsUnconfirmedEmptySelection(): void {
-    $generator = new CompleteDraftGenerator(
-      $this->payloadBuilder(),
-      $this->operations('success'),
-      $this->createMock(ReleaseGeneratorInterface::class),
-      $this->database(),
-    );
-    $this->expectException(\UnexpectedValueException::class);
-    $generator->queue([], new \DateTimeImmutable('@1'), new \DateTimeImmutable('@2'), [], [], 'concise', FALSE, FALSE);
-  }
-
-  /**
    * An empty eligibility result never reaches the configured AI provider.
    */
   public function testIneligibleSelectionDoesNotCreateProviderOperation(): void {
@@ -118,42 +99,6 @@ final class CompleteDraftGeneratorTest extends TestCase {
     catch (\UnexpectedValueException) {
       self::assertNull($operations->lastOperationId());
     }
-  }
-
-  /**
-   * Queued results cannot apply evidence that disappeared after validation.
-   */
-  public function testQueuedResultRejectsStaleEvidence(): void {
-    $changeSet = new ChangeSet('change-1', 'content', 1, 1, [1], 'changed', ['message' => 'Evidence.'], []);
-    $release = $this->createMock(ChangelogifyReleaseInterface::class);
-    $release->expects(self::never())->method('setSections');
-    $releaseGenerator = $this->createMock(ReleaseGeneratorInterface::class);
-    $releaseGenerator->method('previewRange')->willReturn(new ReleasePreview(1, 2, [$changeSet]));
-    $releaseGenerator->method('generateReleaseFromSelection')->willReturn($release);
-    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('success'), $releaseGenerator, $this->database());
-    $result = new SummarizationResult('completed', [
-      new SummarizationItem('item-1', 'changed', 'Generated.', ['missing-source']),
-    ]);
-    $this->expectException(\UnexpectedValueException::class);
-    $generator->finalizeQueued($result, new \DateTimeImmutable('@1'), new \DateTimeImmutable('@2'), ['change-1' => 'changed'], [], FALSE, FALSE);
-  }
-
-  /**
-   * Queued results cannot introduce an unsupported release section.
-   */
-  public function testQueuedResultRejectsUnsupportedSection(): void {
-    $changeSet = new ChangeSet('change-1', 'content', 1, 1, [1], 'changed', ['message' => 'Evidence.'], []);
-    $release = $this->createMock(ChangelogifyReleaseInterface::class);
-    $release->expects(self::never())->method('setSections');
-    $releaseGenerator = $this->createMock(ReleaseGeneratorInterface::class);
-    $releaseGenerator->method('previewRange')->willReturn(new ReleasePreview(1, 2, [$changeSet]));
-    $releaseGenerator->method('generateReleaseFromSelection')->willReturn($release);
-    $generator = new CompleteDraftGenerator($this->payloadBuilder(), $this->operations('success'), $releaseGenerator, $this->database());
-    $result = new SummarizationResult('completed', [
-      new SummarizationItem('item-1', 'unsupported', 'Generated.', ['change-1']),
-    ]);
-    $this->expectException(\UnexpectedValueException::class);
-    $generator->finalizeQueued($result, new \DateTimeImmutable('@1'), new \DateTimeImmutable('@2'), ['change-1' => 'changed'], [], FALSE, FALSE);
   }
 
   /**
@@ -286,9 +231,7 @@ final class CompleteDraftGeneratorTest extends TestCase {
     $account->method('id')->willReturn(1);
     $time = $this->createMock(TimeInterface::class);
     $time->method('getRequestTime')->willReturn(1);
-    $queues = $this->createMock(QueueFactory::class);
-    $queues->method('get')->willReturn($this->createMock(QueueInterface::class));
-    return new AiOperationManager(new FakeSummarizer($mode), new ResultValidator(), $keyValue, $lock, $account, $time, $this->createMock(LoggerInterface::class), $queues);
+    return new AiOperationManager(new FakeSummarizer($mode), new ResultValidator(), $keyValue, $lock, $account, $time, $this->createMock(LoggerInterface::class));
   }
 
 }

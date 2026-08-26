@@ -8,8 +8,6 @@ use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\KeyValueStore\KeyValueFactoryInterface;
 use Drupal\Core\KeyValueStore\KeyValueStoreInterface;
 use Drupal\Core\Lock\LockBackendInterface;
-use Drupal\Core\Queue\QueueFactory;
-use Drupal\Core\Queue\QueueInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\changelogify_ai\AiOperationManager;
 use Drupal\changelogify_ai\ResultValidator;
@@ -69,20 +67,6 @@ final class AiOperationManagerTest extends TestCase {
       'corrupt' => 'not-an-operation',
     ]);
     self::assertSame(['valid'], array_keys($manager->all()));
-  }
-
-  /**
-   * Tests queued diagnostics retain only a hash, never outbound evidence.
-   */
-  public function testQueuedOperationIsCredentialFreeAndCancellable(): void {
-    [$manager, $records] = $this->manager();
-    $manager->enqueue($this->request(), ['change-1']);
-    self::assertSame('queued', $records['test-key']['status']);
-    self::assertArrayHasKey('payload_hash', $records['test-key']);
-    self::assertArrayNotHasKey('evidence', $records['test-key']);
-    self::assertArrayNotHasKey('authorization', $records['test-key']);
-    $manager->cancel('test-key');
-    self::assertSame('cancelled', $records['test-key']['status']);
   }
 
   /**
@@ -183,9 +167,6 @@ final class AiOperationManagerTest extends TestCase {
     $account->method('id')->willReturn(1);
     $time = $this->createMock(TimeInterface::class);
     $time->method('getRequestTime')->willReturn(100000);
-    $queue = $this->createMock(QueueInterface::class);
-    $queueFactory = $this->createMock(QueueFactory::class);
-    $queueFactory->method('get')->willReturn($queue);
     $logger ??= $this->createMock(LoggerInterface::class);
     return [new AiOperationManager(
       new FakeSummarizer($providerMode),
@@ -195,7 +176,6 @@ final class AiOperationManagerTest extends TestCase {
       $account,
       $time,
       $logger,
-      $queueFactory,
       ), $records,
     ];
   }

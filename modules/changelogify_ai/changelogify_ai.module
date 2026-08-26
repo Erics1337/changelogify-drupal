@@ -8,13 +8,12 @@
 use Drupal\changelogify_ai\AiOperationManager;
 use Drupal\changelogify_ai\AiFailureMessage;
 use Drupal\changelogify_ai\AiReadinessChecker;
-use Drupal\changelogify_ai\AiQueueHealth;
 use Drupal\changelogify_ai\OutboundPayloadBuilder;
 use Drupal\changelogify_ai\PromptTemplateRegistry;
 use Drupal\changelogify\ReleaseGeneratorInterface;
 use Drupal\changelogify_ai\ReleaseSuggestionManager;
 use Drupal\changelogify_ai\SynthesisEvidenceSelector;
-use Drupal\changelogify_ai\SynthesisBatcher;
+use Drupal\changelogify_ai\SynthesisDraftFinalizer;
 use Drupal\changelogify_ai\SynthesisJobManager;
 use Drupal\changelogify_ai\Summarization\SynthesisContract;
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
@@ -26,7 +25,6 @@ use Drupal\Core\Url;
  * Implements hook_cron().
  */
 function changelogify_ai_cron(): void {
-  \Drupal::service(AiQueueHealth::class)->recordCron();
   $days = (int) \Drupal::config('changelogify_ai.settings')->get('history_retention_days');
   \Drupal::service(AiOperationManager::class)->purge(min(3650, max(1, $days)));
   \Drupal::service(SynthesisJobManager::class)->purge(min(3650, max(1, $days)));
@@ -661,8 +659,6 @@ function changelogify_ai_form_changelogify_generate_release_form_alter(array &$f
     '#default_value' => $savedExclusions['evidence'] ?? [],
   ];
   $encoded = json_encode($boundary['evidence'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-  $hierarchical = count($boundary['evidence']) > SynthesisBatcher::MAX_ITEMS
-    || strlen($encoded) > SynthesisBatcher::MAX_BYTES;
   $form['ai_synthesis']['evidence_boundary'] = [
     '#type' => 'details',
     '#title' => t('Exact AI evidence preview (@included considered, @excluded excluded for this run, @ineligible excluded by site eligibility)', [
@@ -673,9 +669,7 @@ function changelogify_ai_form_changelogify_generate_release_form_alter(array &$f
     '#open' => FALSE,
     'processing' => [
       '#type' => 'item',
-      '#plain_text' => $hierarchical
-        ? t('This request will run in bounded background batches and recursively consolidate the results.')
-        : t('This request will run as a background synthesis job.'),
+      '#plain_text' => t('All reviewed evidence will be sent in one provider request immediately after you create the AI draft.'),
     ],
     'payload' => [
       '#type' => 'html_tag',
@@ -776,7 +770,8 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
       'eligibility_version' => $boundary['eligibility_version'],
       'draft_metadata' => $options,
     ], JSON_THROW_ON_ERROR));
-    $startResult = \Drupal::service(SynthesisJobManager::class)->startResult(
+    $jobs = \Drupal::service(SynthesisJobManager::class);
+    $startResult = $jobs->startResult(
       $boundary['evidence'],
       $profile,
       $lengthPreset,
@@ -793,10 +788,22 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
       (int) \Drupal::currentUser()->id(),
       $submissionKey,
     );
-    $message = $startResult->reused
-      ? t('Your matching AI synthesis is already in progress. Showing its current status.')
-      : t('Your AI synthesis has started. This page updates automatically while Drupal processes it in the background.');
-    \Drupal::messenger()->addStatus($message);
+    $jobs->process($startResult->jobId);
+    $release = \Drupal::service(SynthesisDraftFinalizer::class)->finalizeIfReady($startResult->jobId);
+    if ($release !== NULL && is_numeric($release->id())) {
+      \Drupal::messenger()->addStatus(t('Your AI-synthesized draft is ready for review. Nothing was published automatically.'));
+      $form_state->setRedirect('entity.changelogify_release.edit_form', [
+        'changelogify_release' => (int) $release->id(),
+      ]);
+      return;
+    }
+    $job = $jobs->get($startResult->jobId);
+    if (($job['status'] ?? NULL) === 'failed') {
+      \Drupal::messenger()->addError(t('No AI draft was created. Review the safe failure guidance before trying again.'));
+    }
+    else {
+      \Drupal::messenger()->addStatus(t('This synthesis is already being processed. Showing its current status.'));
+    }
     $form_state->setRedirect('changelogify_ai.synthesis_job', ['job_id' => $startResult->jobId]);
   }
   catch (\Throwable $exception) {

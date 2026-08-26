@@ -94,11 +94,14 @@ final class OperationHistoryController extends ControllerBase {
     $id = (string) $operation['operation_id'];
     $isSynthesis = ($operation['operation_type'] ?? '') === 'synthesize_release';
     $status = (string) ($operation['status'] ?? 'unknown');
-    $progress = $isSynthesis ? $this->t('@done of @total steps', [
-      '@done' => (int) ($operation['completed_batches'] ?? 0),
-      '@total' => max(1, (int) ($operation['total_batches'] ?? 1)),
-    ]) : $this->t('Not applicable');
-    $result = in_array($status, ['queued', 'running', 'completed'], TRUE)
+    $progress = $isSynthesis ? match ($status) {
+      'prepared' => $this->t('Request prepared'),
+      'running', 'completed', 'finalized' => $this->t('One request sent'),
+      default => (int) ($operation['attempt_count'] ?? 0) > 0
+        ? $this->t('One request sent')
+        : $this->t('Request not sent'),
+    } : $this->t('Not applicable');
+    $result = in_array($status, ['prepared', 'running', 'completed'], TRUE)
       ? $this->t('In progress')
       : $this->t('No draft');
     if ((int) ($operation['release_id'] ?? 0) > 0) {
@@ -113,7 +116,7 @@ final class OperationHistoryController extends ControllerBase {
     if ($isSynthesis) {
       $actions[] = Link::fromTextAndUrl($this->t('View details'), Url::fromRoute('changelogify_ai.synthesis_job', ['job_id' => $id]));
     }
-    if (in_array($status, ['queued', 'running'], TRUE)) {
+    if (in_array($status, ['prepared', 'running'], TRUE)) {
       $actions[] = Link::fromTextAndUrl($this->t('Cancel'), Url::fromRoute('changelogify_ai.cancel_operation', ['operation_id' => $id]));
     }
     $label = [
@@ -145,7 +148,7 @@ final class OperationHistoryController extends ControllerBase {
    */
   private function statusOptions(): array {
     $options = [];
-    foreach (['queued', 'running', 'completed', 'finalized', 'failed', 'cancelled'] as $status) {
+    foreach (['prepared', 'running', 'completed', 'finalized', 'failed', 'cancelled'] as $status) {
       $options[$status] = $this->statusLabel($status);
     }
     return $options;
@@ -167,7 +170,7 @@ final class OperationHistoryController extends ControllerBase {
    */
   private function statusLabel(string $status): string {
     return (string) match ($status) {
-      'queued' => $this->t('Waiting'), 'running' => $this->t('Processing'),
+      'prepared' => $this->t('Prepared'), 'running' => $this->t('Processing'),
       'completed' => $this->t('Creating draft'), 'finalized' => $this->t('Draft ready'),
       'failed' => $this->t('Failed'), 'cancelled' => $this->t('Cancelled'),
       default => $this->t('Unavailable'),

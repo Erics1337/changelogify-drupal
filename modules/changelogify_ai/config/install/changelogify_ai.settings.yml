@@ -26,4 +26,3 @@ policy:
 organization_guidance: ''
 output_language: en
 history_retention_days: 90
-queue_threshold: 25

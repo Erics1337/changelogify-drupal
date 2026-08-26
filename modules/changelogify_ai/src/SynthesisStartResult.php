@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Drupal\changelogify_ai;
 
 /**
- * Describes whether synthesis work was newly queued or safely reused.
+ * Describes whether synthesis work was newly prepared or safely reused.
  */
 final class SynthesisStartResult {
 

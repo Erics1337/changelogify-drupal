@@ -8,7 +8,6 @@ use Drupal\changelogify\ChangeSet\ChangeSet;
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Drupal\changelogify\ReleaseGeneratorInterface;
 use Drupal\changelogify_ai\Summarization\SummarizationRequest;
-use Drupal\changelogify_ai\Summarization\SummarizationResult;
 use Drupal\Core\Database\Connection;
 
 /**
@@ -120,103 +119,6 @@ final class CompleteDraftGenerator {
    */
   public function lastReport(): array {
     return $this->lastReport;
-  }
-
-  /**
-   * Queues a large draft without credentials or a mutable release payload.
-   *
-   * @param \Drupal\changelogify\ChangeSet\ChangeSet[] $changeSets
-   *   Current preview change sets.
-   * @param \DateTimeInterface $start
-   *   Preview start time.
-   * @param \DateTimeInterface $end
-   *   Preview end time.
-   * @param array<string, string> $selection
-   *   Selected change-set IDs keyed to release sections.
-   * @param array<string, mixed> $options
-   *   Release-title and version options.
-   * @param string $profile
-   *   Selected editorial profile.
-   * @param bool $allowEmpty
-   *   Whether an explicitly confirmed empty draft is allowed.
-   * @param bool $allowEvidenceReuse
-   *   Whether explicitly confirmed source reuse is allowed.
-   *
-   * @return string
-   *   Stable queued operation ID.
-   */
-  public function queue(array $changeSets, \DateTimeInterface $start, \DateTimeInterface $end, array $selection, array $options, string $profile, bool $allowEmpty, bool $allowEvidenceReuse): string {
-    $selected = array_values(array_filter(
-      $changeSets,
-      static fn (ChangeSet $changeSet): bool => isset($selection[$changeSet->id]),
-    ));
-    if ($selected === []) {
-      throw new \UnexpectedValueException('Select at least one change to create a draft release.');
-    }
-    $request = $this->request($selected, $start, $end, $selection, $profile);
-    $this->operations->enqueue(
-      $request,
-      array_keys($request->evidence),
-      NULL,
-      NULL,
-      'changelogify_ai_complete_draft',
-      [
-        'start' => $start->getTimestamp(),
-        'end' => $end->getTimestamp(),
-        'selection' => $selection,
-        'options' => $options,
-        'allow_empty' => $allowEmpty,
-        'allow_evidence_reuse' => $allowEvidenceReuse,
-      ],
-    );
-    return $request->idempotencyKey;
-  }
-
-  /**
-   * Revalidates a queued operation's evidence then creates its draft.
-   *
-   * @param \Drupal\changelogify_ai\Summarization\SummarizationResult $result
-   *   Validated queued provider result.
-   * @param \DateTimeInterface $start
-   *   Preview start time.
-   * @param \DateTimeInterface $end
-   *   Preview end time.
-   * @param array<string, string> $selection
-   *   Selected change-set IDs keyed to release sections.
-   * @param array<string, mixed> $options
-   *   Release-title and version options.
-   * @param bool $allowEmpty
-   *   Whether an explicitly confirmed empty draft is allowed.
-   * @param bool $allowEvidenceReuse
-   *   Whether explicitly confirmed source reuse is allowed.
-   */
-  public function finalizeQueued(SummarizationResult $result, \DateTimeInterface $start, \DateTimeInterface $end, array $selection, array $options, bool $allowEmpty, bool $allowEvidenceReuse): ChangelogifyReleaseInterface {
-    if ($result->items === []) {
-      throw new \UnexpectedValueException('The provider did not return any release items.');
-    }
-    $preview = $this->releaseGenerator->previewRange($start, $end);
-    $selected = array_values(array_filter(
-      $preview->changeSets,
-      static fn (ChangeSet $changeSet): bool => isset($selection[$changeSet->id]),
-    ));
-    $transaction = $this->database->startTransaction();
-    try {
-      $release = $this->releaseGenerator->generateReleaseFromSelection(
-        $start,
-        $end,
-        $selection,
-        $options,
-        $allowEmpty,
-        $allowEvidenceReuse,
-      );
-      $release->setUnpublished();
-      $this->applyResult($release, $result->items, $selected);
-      return $release;
-    }
-    catch (\Throwable $exception) {
-      $transaction->rollBack();
-      throw $exception;
-    }
   }
 
   /**

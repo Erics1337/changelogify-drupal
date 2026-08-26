@@ -47,9 +47,7 @@ final class AiOperationHistoryRepository {
       'profile' => $this->nullableString($operation['profile'] ?? NULL, 64),
       'length_preset' => $this->nullableString($operation['length_preset'] ?? NULL, 32),
       'payload_hash' => $this->nullableString($operation['payload_hash'] ?? NULL, 64),
-      'round' => max(0, (int) ($operation['round'] ?? 0)),
-      'total_batches' => max(0, (int) ($operation['total_batches'] ?? 0)),
-      'completed_batches' => max(0, (int) ($operation['completed_batches'] ?? 0)),
+      'attempt_count' => max(0, (int) ($operation['attempt_count'] ?? 0)),
       'retry_count' => max(0, (int) ($operation['retry_count'] ?? 0)),
       'evidence_considered' => max(0, (int) ($coverage['evidence_considered'] ?? 0)),
       'evidence_cited' => max(0, (int) ($coverage['evidence_cited'] ?? 0)),
@@ -87,7 +85,7 @@ final class AiOperationHistoryRepository {
     $record = $this->database->select(self::TABLE, 'o')
       ->fields('o')
       ->condition('submission_key', $submissionKey)
-      ->condition('status', ['queued', 'running', 'completed'], 'IN')
+      ->condition('status', ['prepared', 'running', 'completed'], 'IN')
       ->orderBy('created', 'DESC')
       ->range(0, 1)
       ->execute()
@@ -113,7 +111,7 @@ final class AiOperationHistoryRepository {
     if (is_int($filters['since'] ?? NULL) && $filters['since'] > 0) {
       $query->condition('created', $filters['since'], '>=');
     }
-    $query->addExpression("CASE WHEN o.status IN ('queued', 'running', 'completed') THEN 0 ELSE 1 END", 'active_sort');
+    $query->addExpression("CASE WHEN o.status IN ('prepared', 'running', 'completed') THEN 0 ELSE 1 END", 'active_sort');
     $query->orderBy('active_sort')->orderBy('created', 'DESC');
     $pager = $query->extend(PagerSelectExtender::class)->limit(max(1, min(100, $limit)));
     return array_map(static fn (object $record): array => (array) $record, $pager->execute()->fetchAll());

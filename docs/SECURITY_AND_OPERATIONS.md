@@ -18,10 +18,10 @@ Changelogify uses three distinct states:
    Users with `manage changelogify releases` can view and edit them, but users
    with only the public-view permission cannot view them.
 3. **AI synthesis jobs**, when the optional submodule is enabled, temporarily
-   retain filtered evidence and intermediate candidates in server-side key/value
-   storage. Queue entries contain only job/batch references. Terminal cleanup
-   removes intermediate text and instructions; finalized text and bounded
-   provenance move into an unpublished release revision.
+   retain the exact filtered evidence while one provider request is executed
+   from the editor's Generate action. Terminal cleanup removes evidence and
+   temporary instructions; finalized text and bounded provenance move into an
+   unpublished release revision.
 4. **Published releases** contain editor-approved titles, versions, dates, and
    section text. They become visible to anyone with
    `view changelogify releases`. Raw event metadata is not rendered publicly.
@@ -104,30 +104,15 @@ on subsequent cron runs; it is not an undoable preview.
 
 Optional AI operation history has a separate 1–3,650 day retention setting
 (90 days by default). Cron purges terminal synthesis and humanization records.
-Cancellation immediately makes queued references inert and removes temporary
-evidence. Release provenance retention is also separate: it can remove bounded
+Release provenance retention is separate: it can remove bounded
 event snapshots without changing accepted release text, source IDs, or coverage
 counts.
 
-The optional AI settings page reports the last site-cron, dedicated-runner, and
-synthesis-worker heartbeats, queued synthesis-step count, and oldest wait. A
-job that has waited 15 minutes without relevant worker activity is marked
-delayed. This is an editor-facing diagnostic only: job-status polling is
-read-only and cannot run the queue or contact an AI provider.
-
-Production sites should configure their hosting scheduler to invoke the narrow
-worker once per minute:
-
-```bash
-drush changelogify:ai-worker --time-limit=55
-```
-
-The command processes only the Changelogify synthesis queue and is bounded by
-time, item, and lease limits. It is an operator setup step, not an editor
-workflow. Drupal cron remains a compatible fallback. Request-driven Automated
-Cron is less predictable because work starts only after the configured interval
-is due and Drupal receives a request. Never expose the worker command through a
-web route, and do not make job-status polling mutate queue or provider state.
+AI synthesis does not run in cron or a queue worker. Pressing **Create AI draft
+release** executes one provider request containing the reviewed evidence, then
+revalidates and saves the unpublished draft in the same form workflow. Status
+polling is read-only and cannot contact a provider. Drupal cron remains
+necessary for event and operation-history retention only.
 
 Before enabling external AI processing, distinguish the three controls:
 site-wide evidence eligibility determines which source categories may be
@@ -149,9 +134,8 @@ Before changing code:
 5. Confirm the settings, internal event list, draft releases, published routes,
    and the site's cron schedule.
 6. If `changelogify_ai` is enabled, review eligibility and privacy separately,
-   preview a non-sensitive payload, run the documented provider checks,
-   configure the once-per-minute dedicated worker, and verify its heartbeat,
-   operation-history retention, and queue processing.
+   preview a non-sensitive payload, run the documented one-request provider
+   checks, and verify operation-history retention.
 
 Updates preserve existing settings and event/release JSON payloads while adding
 missing defaults and indexes. They are idempotent and can be rerun after an

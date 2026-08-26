@@ -35,7 +35,7 @@ changelogify_ai.cancel_operation:
   path: '/admin/config/development/changelogify/ai/history/{operation_id}/cancel'
   defaults:
     _form: '\Drupal\changelogify_ai\Form\CancelOperationForm'
-    _title: 'Cancel queued AI operation'
+    _title: 'Cancel AI operation'
   requirements:
     _custom_access: 'Drupal\changelogify_ai\SynthesisOperationAccess::cancel'
     operation_id: '[A-Fa-f0-9]{64}'

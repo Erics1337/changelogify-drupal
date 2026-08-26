@@ -10,14 +10,12 @@ namespace Drupal\changelogify_ai\Summarization;
 final class SynthesisContract {
 
   public const OPERATION = 'synthesize_release';
-  public const VERSION = '1';
-  public const STAGE_INTERMEDIATE = 'intermediate';
+  public const VERSION = '2';
   public const STAGE_FINAL = 'final';
   public const PRESET_SHORT = 'short';
   public const PRESET_STANDARD = 'standard';
   public const PRESET_DETAILED = 'detailed';
 
-  private const INTERMEDIATE_MAX_ITEMS = 50;
   private const FINAL_MAX_ITEMS = [
     self::PRESET_SHORT => 5,
     self::PRESET_STANDARD => 12,
@@ -37,7 +35,7 @@ final class SynthesisContract {
     if ($version !== self::VERSION) {
       throw new \InvalidArgumentException('Unknown release-synthesis contract version.');
     }
-    if (!in_array($stage, [self::STAGE_INTERMEDIATE, self::STAGE_FINAL], TRUE)) {
+    if ($stage !== self::STAGE_FINAL) {
       throw new \InvalidArgumentException('Unknown release-synthesis stage.');
     }
     if (!array_key_exists((string) $lengthPreset, self::FINAL_MAX_ITEMS)) {
@@ -50,9 +48,7 @@ final class SynthesisContract {
    */
   public static function maxItems(string $stage, string $lengthPreset): int {
     self::validateRequest(self::OPERATION, self::VERSION, $stage, $lengthPreset);
-    return $stage === self::STAGE_INTERMEDIATE
-      ? self::INTERMEDIATE_MAX_ITEMS
-      : self::FINAL_MAX_ITEMS[$lengthPreset];
+    return self::FINAL_MAX_ITEMS[$lengthPreset];
   }
 
   /**
@@ -61,10 +57,7 @@ final class SynthesisContract {
   public static function instructions(string $stage, string $lengthPreset): string {
     $maxItems = self::maxItems($stage, $lengthPreset);
     $common = 'You may group related evidence, prioritize significant recorded changes, count supported activity, and identify evidence-grounded themes. Every factual claim must cite its supporting evidence IDs. Do not infer unsupported intent, user impact, fixes, or security implications.';
-    if ($stage === self::STAGE_INTERMEDIATE) {
-      return "Synthesis stage: intermediate. Produce at most {$maxItems} reusable evidence-backed candidates for a later synthesis round. {$common}";
-    }
-    return "Synthesis stage: final. Produce at most {$maxItems} categorized changelog notes for the {$lengthPreset} length preset. {$common}";
+    return "Synthesize all supplied evidence in this single request. Produce at most {$maxItems} categorized changelog notes for the {$lengthPreset} length preset. {$common}";
   }
 
   /**
@@ -74,9 +67,7 @@ final class SynthesisContract {
     self::validateRequest(self::OPERATION, $version, $stage, $lengthPreset);
     return [
       'name' => "changelogify_synthesis_{$stage}_v{$version}",
-      'description' => $stage === self::STAGE_INTERMEDIATE
-        ? 'Evidence-backed intermediate candidates for later Changelogify synthesis.'
-        : 'Evidence-backed categorized notes for a Changelogify release.',
+      'description' => 'Evidence-backed categorized notes for a Changelogify release.',
       'strict' => TRUE,
       'schema' => [
         'type' => 'object',

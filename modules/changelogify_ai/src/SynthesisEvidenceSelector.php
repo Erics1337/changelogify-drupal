@@ -16,7 +16,7 @@ final class SynthesisEvidenceSelector {
   ) {}
 
   /**
-   * Builds the exact synthesis boundary shown to an editor and later queued.
+   * Builds the exact synthesis boundary shown to an editor and then submitted.
    *
    * @param \Drupal\changelogify\ChangeSet\ChangeSet[] $changeSets
    *   Current date-range evidence.

@@ -8,7 +8,6 @@ use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\KeyValueStore\KeyValueFactoryInterface;
 use Drupal\Core\KeyValueStore\KeyValueStoreInterface;
 use Drupal\Core\Lock\LockBackendInterface;
-use Drupal\Core\Queue\QueueFactory;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\changelogify_ai\Summarization\SummarizationRequest;
 use Drupal\changelogify_ai\Summarization\SummarizationResult;
@@ -27,7 +26,7 @@ final class AiOperationManager {
    */
   private ?string $lastOperationId = NULL;
 
-  public function __construct(private readonly SummarizerInterface $summarizer, private readonly ResultValidator $validator, private readonly KeyValueFactoryInterface $keyValue, private readonly LockBackendInterface $lock, private readonly AccountProxyInterface $currentUser, private readonly TimeInterface $time, private readonly LoggerInterface $logger, private readonly QueueFactory $queueFactory, private readonly ?AiOperationHistoryRepository $history = NULL) {}
+  public function __construct(private readonly SummarizerInterface $summarizer, private readonly ResultValidator $validator, private readonly KeyValueFactoryInterface $keyValue, private readonly LockBackendInterface $lock, private readonly AccountProxyInterface $currentUser, private readonly TimeInterface $time, private readonly LoggerInterface $logger, private readonly ?AiOperationHistoryRepository $history = NULL) {}
 
   /**
    * Reports whether the configured adapter can accept a request.
@@ -143,69 +142,6 @@ final class AiOperationManager {
    */
   public function lastOperationId(): ?string {
     return $this->lastOperationId;
-  }
-
-  /**
-   * Queues an operation without persisting a provider credential.
-   *
-   * @param \Drupal\changelogify_ai\Summarization\SummarizationRequest $request
-   *   Redacted generation request.
-   * @param string[] $sourceIds
-   *   Selected evidence IDs.
-   * @param int|null $releaseId
-   *   Target release ID, if one exists.
-   * @param int|null $revisionId
-   *   Target release revision ID, if one exists.
-   * @param string $queueName
-   *   Queue worker plugin ID.
-   * @param array<string, mixed> $context
-   *   Credential-free queue context.
-   */
-  public function enqueue(SummarizationRequest $request, array $sourceIds, ?int $releaseId = NULL, ?int $revisionId = NULL, string $queueName = 'changelogify_ai_draft', array $context = []): void {
-    $store = $this->keyValue->get('changelogify_ai.operations');
-    $existing = $store->get($request->idempotencyKey);
-    if (is_array($existing) && in_array($existing['status'] ?? NULL, ['queued', 'running', 'completed'], TRUE)) {
-      throw new \RuntimeException('An equivalent AI operation is already in progress or complete.');
-    }
-    $operation = [
-      'id' => $request->idempotencyKey,
-      'actor' => (int) $this->currentUser->id(),
-      'release_id' => $releaseId,
-      'revision_id' => $revisionId,
-      'type' => $request->operation,
-      'prompt_version' => $request->promptVersion,
-      'synthesis_version' => $request->getSynthesisVersion(),
-      'synthesis_stage' => $request->getSynthesisStage(),
-      'length_preset' => $request->getLengthPreset(),
-      'policy_version' => $request->policyVersion,
-      'payload_hash' => hash('sha256', json_encode($request->evidence, JSON_THROW_ON_ERROR)),
-      'status' => 'queued',
-      'created' => $this->time->getRequestTime(),
-      'input_tokens' => NULL,
-      'output_tokens' => NULL,
-    ];
-    $this->persist($store, $request->idempotencyKey, $operation);
-    $this->queueFactory->get($queueName)->createItem($context + [
-      'request' => $request,
-      'source_ids' => $sourceIds,
-      'release_id' => $releaseId,
-      'revision_id' => $revisionId,
-      'attempt' => 0,
-    ]);
-  }
-
-  /**
-   * Marks queued work cancelled; a worker checks this before execution.
-   */
-  public function cancel(string $operationId): void {
-    $store = $this->keyValue->get('changelogify_ai.operations');
-    $operation = $store->get($operationId);
-    if (!is_array($operation) || ($operation['status'] ?? NULL) !== 'queued') {
-      throw new \UnexpectedValueException('Only queued operations can be cancelled.');
-    }
-    $operation['status'] = 'cancelled';
-    $operation['completed'] = $this->time->getRequestTime();
-    $this->persist($store, $operationId, $operation);
   }
 
   /**

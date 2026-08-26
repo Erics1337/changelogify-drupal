@@ -27,8 +27,7 @@ confirmation timestamp. This makes reuse attributable without copying release
 titles, event messages, usernames, or raw metadata.
 
 AI-synthesized releases use provenance version 2. Final notes cite one or more
-original change-set IDs; intermediate candidate IDs are resolved before the
-release can be saved. Complete source/event IDs and counts remain available for
+original change-set IDs directly. Complete source/event IDs and counts remain available for
 review, while detailed allowlisted event snapshots are capped at 200 across the
 release and referenced instead of duplicated on every combined note.
 

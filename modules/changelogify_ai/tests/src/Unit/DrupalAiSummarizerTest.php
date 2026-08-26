@@ -124,7 +124,7 @@ final class DrupalAiSummarizerTest extends TestCase {
     self::assertFalse($requests->schema['schema']['additionalProperties']);
     self::assertFalse($requests->schema['schema']['properties']['items']['items']['additionalProperties']);
     $summarizer->summarize($this->synthesisRequest());
-    self::assertSame('changelogify_synthesis_final_v1', $requests->schema['name']);
+    self::assertSame('changelogify_synthesis_final_v2', $requests->schema['name']);
     self::assertSame(5, $requests->schema['schema']['properties']['items']['maxItems']);
     self::assertSame(
       ['added', 'changed', 'fixed', 'removed', 'security', 'other'],
