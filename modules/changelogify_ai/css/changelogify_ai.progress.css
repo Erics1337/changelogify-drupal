@@ -1,31 +1,214 @@
 .changelogify-ai-job {
-  max-width: 48rem;
-  padding: clamp(1rem, 4vw, 2rem);
+  max-width: 64rem;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  color: var(--gin-color-text, #222330);
   border: 1px solid var(--gin-border-color, #d4d4d8);
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   background: var(--gin-bg-layer, #fff);
 }
 
-.changelogify-ai-job__eyebrow,
-.changelogify-ai-job__detail,
-.changelogify-ai-job__support {
-  color: var(--gin-color-text-light, #545560);
+.changelogify-ai-job__status {
+  max-width: 72ch;
 }
 
-.changelogify-ai-job__eyebrow {
-  margin-block-end: 0.25rem;
+.changelogify-ai-job__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block: 0 0.75rem;
+  color: var(--gin-color-text-light, #545560);
+  font-size: 0.875rem;
   font-weight: 700;
 }
 
-.changelogify-ai-job h2 {
-  margin-block: 0 0.75rem;
+.changelogify-ai-job__live span {
+  width: 0.625rem;
+  height: 0.625rem;
+  animation: changelogify-ai-live 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  border-radius: 50%;
+  background: var(--gin-color-green, #168856);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--gin-color-green, #168856) 35%, transparent);
 }
 
-.changelogify-ai-job progress {
-  width: 100%;
+.changelogify-ai-job[data-terminal="true"] .changelogify-ai-job__live span {
+  animation: none;
+}
+
+.changelogify-ai-job h2 {
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  line-height: 1.1;
+  margin-block: 0 0.625rem;
+}
+
+.changelogify-ai-job__status > p:last-child {
+  margin-block-end: 0;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.changelogify-ai-job__stages {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  margin-block: 2rem 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.changelogify-ai-job__stages li {
+  position: relative;
+  min-width: 0;
+  padding-block-start: 1.25rem;
+  padding-inline-end: 0.75rem;
+  color: var(--gin-color-text-light, #545560);
+  border-block-start: 2px solid var(--gin-border-color, #d4d4d8);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.changelogify-ai-job__stages li::before {
+  position: absolute;
+  width: 0.75rem;
   height: 0.75rem;
-  margin-block-start: 1.5rem;
+  content: "";
+  border: 2px solid var(--gin-bg-layer, #fff);
+  border-radius: 50%;
+  background: var(--gin-border-color, #d4d4d8);
+  inset-block-start: -0.4375rem;
+  inset-inline-start: 0;
+}
+
+.changelogify-ai-job__stages li[aria-current="step"] {
+  color: var(--gin-color-text, #222330);
+  border-color: var(--gin-color-primary, #003cc5);
+  font-weight: 800;
+}
+
+.changelogify-ai-job__stages li[aria-current="step"]::before {
+  background: var(--gin-color-primary, #003cc5);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--gin-color-primary, #003cc5) 35%, transparent);
+}
+
+.changelogify-ai-job[data-state="analyzing"] [data-job-stage="queued"],
+.changelogify-ai-job[data-state="consolidating"] [data-job-stage="queued"],
+.changelogify-ai-job[data-state="consolidating"] [data-job-stage="analyzing"],
+.changelogify-ai-job[data-state="finalizing"] [data-job-stage="queued"],
+.changelogify-ai-job[data-state="finalizing"] [data-job-stage="analyzing"],
+.changelogify-ai-job[data-state="finalizing"] [data-job-stage="consolidating"],
+.changelogify-ai-job[data-state="ready"] .changelogify-ai-job__stages li {
+  color: var(--gin-color-text, #222330);
+  border-color: var(--gin-color-green, #168856);
+}
+
+.changelogify-ai-job[data-state="analyzing"] [data-job-stage="queued"]::before,
+.changelogify-ai-job[data-state="consolidating"] [data-job-stage="queued"]::before,
+.changelogify-ai-job[data-state="consolidating"] [data-job-stage="analyzing"]::before,
+.changelogify-ai-job[data-state="finalizing"] [data-job-stage="queued"]::before,
+.changelogify-ai-job[data-state="finalizing"] [data-job-stage="analyzing"]::before,
+.changelogify-ai-job[data-state="finalizing"] [data-job-stage="consolidating"]::before,
+.changelogify-ai-job[data-state="ready"] .changelogify-ai-job__stages li::before {
+  background: var(--gin-color-green, #168856);
+}
+
+.changelogify-ai-job__progress progress {
+  width: 100%;
+  height: 0.625rem;
   accent-color: var(--gin-color-primary, #003cc5);
+}
+
+.changelogify-ai-job__detail,
+.changelogify-ai-job__support,
+.changelogify-ai-job__admin-note {
+  color: var(--gin-color-text-light, #545560);
+}
+
+.changelogify-ai-job__detail {
+  margin-block: 0.5rem 0;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.changelogify-ai-job__queue {
+  margin-block-start: 2rem;
+  padding-block: 1.5rem;
+  border-block: 1px solid var(--gin-border-color, #d4d4d8);
+}
+
+.changelogify-ai-job__queue-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.changelogify-ai-job__queue h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.changelogify-ai-job__queue-state {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.625rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gin-color-text, #222330);
+  border-radius: 999px;
+  background: var(--gin-bg-item-hover, #f0f2f5);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.changelogify-ai-job__queue-state[data-processor-state="active"] {
+  color: var(--gin-color-green, #126b46);
+  background: color-mix(in srgb, var(--gin-color-green, #168856) 14%, transparent);
+}
+
+.changelogify-ai-job__queue-state[data-processor-state="delayed"],
+.changelogify-ai-job__queue-state[data-processor-state="unavailable"] {
+  color: var(--gin-color-danger, #b51515);
+  background: color-mix(in srgb, var(--gin-color-danger, #d72222) 12%, transparent);
+}
+
+.changelogify-ai-job__queue-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-block: 1.25rem;
+}
+
+.changelogify-ai-job__queue-facts div {
+  min-width: 0;
+}
+
+.changelogify-ai-job__queue-facts dt {
+  margin-block-end: 0.25rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gin-color-text-light, #545560);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.changelogify-ai-job__queue-facts dd {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.changelogify-ai-job__processing-link {
+  font-weight: 700;
+  text-underline-offset: 0.2em;
+}
+
+.changelogify-ai-job__processing-link:focus-visible,
+.changelogify-ai-job__diagnostics summary:focus-visible {
+  border-radius: 0.25rem;
+  outline: 3px solid var(--gin-color-focus, #26a769);
+  outline-offset: 0.2rem;
 }
 
 .changelogify-ai-job__actions {
@@ -39,11 +222,16 @@
   margin-block-start: 2rem;
 }
 
+.changelogify-ai-job__diagnostics summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
 .changelogify-ai-job__diagnostics dl > div {
   display: grid;
-  grid-template-columns: minmax(10rem, 1fr) 2fr;
+  grid-template-columns: minmax(11rem, 1fr) 2fr;
   gap: 1rem;
-  padding-block: 0.5rem;
+  padding-block: 0.625rem;
   border-block-end: 1px solid var(--gin-border-color, #d4d4d8);
 }
 
@@ -56,7 +244,54 @@
   overflow-wrap: anywhere;
 }
 
+.changelogify-ai-job__support {
+  margin-block: 1.5rem 0;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes changelogify-ai-live {
+  70%,
+  100% {
+    box-shadow: 0 0 0 0.5rem transparent;
+  }
+}
+
+@media (max-width: 48rem) {
+  .changelogify-ai-job__stages {
+    grid-template-columns: 1fr;
+    margin-block-start: 1.75rem;
+  }
+
+  .changelogify-ai-job__stages li {
+    min-height: 2.75rem;
+    padding-block: 0 0.75rem;
+    padding-inline: 1.5rem 0;
+    border-block-start: 0;
+    border-inline-start: 2px solid var(--gin-border-color, #d4d4d8);
+  }
+
+  .changelogify-ai-job__stages li::before {
+    inset-block-start: 0;
+    inset-inline-start: -0.4375rem;
+  }
+
+  .changelogify-ai-job__stages li[aria-current="step"] {
+    border-color: var(--gin-color-primary, #003cc5);
+  }
+
+  .changelogify-ai-job__queue-facts {
+    grid-template-columns: 1fr;
+    gap: 0.875rem;
+  }
+}
+
 @media (max-width: 36rem) {
+  .changelogify-ai-job__queue-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .changelogify-ai-job__actions .button {
     width: 100%;
     margin: 0;
@@ -69,6 +304,13 @@
   }
 }
 
+@media (forced-colors: active) {
+  .changelogify-ai-job__live span,
+  .changelogify-ai-job__stages li::before {
+    border: 2px solid CanvasText;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .changelogify-ai-job *,
   .changelogify-ai-job *::before,
@@ -76,5 +318,6 @@
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

@@ -109,12 +109,25 @@ evidence. Release provenance retention is also separate: it can remove bounded
 event snapshots without changing accepted release text, source IDs, or coverage
 counts.
 
-The optional AI settings page reports the last site-cron and synthesis-worker
-heartbeats, queued synthesis-step count, and oldest wait. A job that has waited
-15 minutes without relevant worker activity is marked delayed. This is an
-editor-facing diagnostic only: job-status polling is read-only and cannot run
-the queue or contact an AI provider. Authorized site administrators can follow
-the in-product link to Drupal's cron configuration.
+The optional AI settings page reports the last site-cron, dedicated-runner, and
+synthesis-worker heartbeats, queued synthesis-step count, and oldest wait. A
+job that has waited 15 minutes without relevant worker activity is marked
+delayed. This is an editor-facing diagnostic only: job-status polling is
+read-only and cannot run the queue or contact an AI provider.
+
+Production sites should configure their hosting scheduler to invoke the narrow
+worker once per minute:
+
+```bash
+drush changelogify:ai-worker --time-limit=55
+```
+
+The command processes only the Changelogify synthesis queue and is bounded by
+time, item, and lease limits. It is an operator setup step, not an editor
+workflow. Drupal cron remains a compatible fallback. Request-driven Automated
+Cron is less predictable because work starts only after the configured interval
+is due and Drupal receives a request. Never expose the worker command through a
+web route, and do not make job-status polling mutate queue or provider state.
 
 Before enabling external AI processing, distinguish the three controls:
 site-wide evidence eligibility determines which source categories may be
@@ -136,8 +149,9 @@ Before changing code:
 5. Confirm the settings, internal event list, draft releases, published routes,
    and the site's cron schedule.
 6. If `changelogify_ai` is enabled, review eligibility and privacy separately,
-   preview a non-sensitive payload, run the documented provider checks, and
-   verify operation-history retention and queue processing.
+   preview a non-sensitive payload, run the documented provider checks,
+   configure the once-per-minute dedicated worker, and verify its heartbeat,
+   operation-history retention, and queue processing.
 
 Updates preserve existing settings and event/release JSON payloads while adding
 missing defaults and indexes. They are idempotent and can be rerun after an

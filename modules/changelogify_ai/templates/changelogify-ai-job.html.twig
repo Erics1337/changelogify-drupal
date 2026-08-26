@@ -1,16 +1,49 @@
-<div class="changelogify-ai-job" data-changelogify-ai-job data-terminal="{{ job.terminal ? 'true' : 'false' }}">
+<div class="changelogify-ai-job" data-changelogify-ai-job data-state="{{ job.state }}" data-terminal="{{ job.terminal ? 'true' : 'false' }}">
   <div class="changelogify-ai-job__status" aria-live="polite" aria-atomic="true">
-    <p class="changelogify-ai-job__eyebrow">{{ 'AI changelog synthesis'|t }}</p>
+    <p class="changelogify-ai-job__live"><span aria-hidden="true"></span>{{ 'Status updates automatically'|t }}</p>
     <h2 data-job-label>{{ job.label }}</h2>
     <p data-job-message>{{ job.message }}</p>
   </div>
 
-  <progress data-job-progress max="{{ job.progress.total }}" value="{{ job.progress.completed }}">
-    {{ job.progress.completed }} / {{ job.progress.total }}
-  </progress>
-  <p class="changelogify-ai-job__detail" data-job-detail>
-    {% trans %}{{ job.progress.completed }} of {{ job.progress.total }} background steps complete{% endtrans %}
-  </p>
+  <ol class="changelogify-ai-job__stages" aria-label="{{ 'AI changelog stages'|t }}">
+    {% set current_stage = job.state in ['waiting', 'delayed'] ? 'queued' : job.state %}
+    {% for stage, label in {
+      'queued': 'Queued'|t,
+      'analyzing': 'Analyze evidence'|t,
+      'consolidating': 'Consolidate if needed'|t,
+      'finalizing': 'Create draft'|t,
+      'ready': 'Ready for review'|t
+    } %}
+      <li data-job-stage="{{ stage }}"{% if stage == current_stage %} aria-current="step"{% endif %}>{{ label }}</li>
+    {% endfor %}
+  </ol>
+
+  <div class="changelogify-ai-job__progress">
+    <progress data-job-progress max="{{ job.progress.total }}" value="{{ job.progress.completed }}">
+      {{ job.progress.completed }} / {{ job.progress.total }}
+    </progress>
+    <p class="changelogify-ai-job__detail" data-job-detail>
+      {% trans %}{{ job.progress.completed }} of {{ job.progress.total }} background steps complete{% endtrans %}
+    </p>
+  </div>
+
+  <section class="changelogify-ai-job__queue" data-job-queue{% if not job.queue.visible %} hidden{% endif %}>
+    <div class="changelogify-ai-job__queue-heading">
+      <h3 data-job-queue-label>{{ job.queue.label }}</h3>
+      <span class="changelogify-ai-job__queue-state" data-job-queue-state data-processor-state="{{ job.queue.state }}">{{ job.queue.badge }}</span>
+    </div>
+    <p data-job-queue-summary>{{ job.queue.summary }}</p>
+    <dl class="changelogify-ai-job__queue-facts">
+      <div><dt>{{ 'Queued steps'|t }}</dt><dd data-job-queued-steps>{{ job.queue.queued_steps }}</dd></div>
+      <div><dt>{{ 'Last processing activity'|t }}</dt><dd data-job-last-activity>{{ job.queue.last_activity }}</dd></div>
+      <div><dt>{{ 'Next Automated Cron opportunity'|t }}</dt><dd data-job-next-run>{{ job.queue.next_run }}</dd></div>
+    </dl>
+    {% if job.queue.processing_url %}
+      <a class="changelogify-ai-job__processing-link" data-job-processing-link href="{{ job.queue.processing_url }}">{{ 'Configure background processing'|t }}</a>
+    {% else %}
+      <p class="changelogify-ai-job__admin-note">{{ 'A site administrator manages background processing. You can leave this page and return later.'|t }}</p>
+    {% endif %}
+  </section>
 
   <div class="changelogify-ai-job__actions" data-job-actions>
     {% if job.release_url %}

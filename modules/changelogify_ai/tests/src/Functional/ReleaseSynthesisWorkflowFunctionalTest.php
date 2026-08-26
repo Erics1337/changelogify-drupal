@@ -7,6 +7,7 @@ namespace Drupal\Tests\changelogify_ai\Functional;
 use Drupal\changelogify\EventManagerInterface;
 use Drupal\changelogify_ai\SynthesisJobManager;
 use Drupal\changelogify_ai\SynthesisDraftFinalizer;
+use Drupal\changelogify_ai\SynthesisQueueRunner;
 use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -94,6 +95,11 @@ final class ReleaseSynthesisWorkflowFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('Waiting for background processing');
     $this->assertSession()->elementExists('css', '[aria-live="polite"]');
     $this->assertSession()->elementExists('css', 'progress[max][value]');
+    $this->assertSession()->pageTextContains('Status updates automatically');
+    $this->assertSession()->pageTextContains('No recent processor heartbeat');
+    $this->assertSession()->pageTextContains('A site administrator manages background processing');
+    $this->assertSession()->elementExists('css', '[data-job-stage="queued"][aria-current="step"]');
+    $this->assertSession()->elementExists('css', '[data-job-queue]');
     $this->assertSession()->pageTextContains('Automatic updates require JavaScript');
 
     $jobs = $this->container->get(SynthesisJobManager::class)->all();
@@ -200,6 +206,9 @@ final class ReleaseSynthesisWorkflowFunctionalTest extends BrowserTestBase {
     $this->assertSession()->responseHeaderContains('Cache-Control', 'no-store');
     $payload = json_decode($this->getSession()->getPage()->getContent(), TRUE, flags: JSON_THROW_ON_ERROR);
     self::assertSame('waiting', $payload['state']);
+    self::assertSame('unavailable', $payload['queue']['state']);
+    self::assertSame(1, $payload['queue']['queued_steps']);
+    self::assertNull($payload['queue']['processing_url']);
     self::assertArrayNotHasKey('evidence', $payload);
     self::assertArrayNotHasKey('instructions', $payload);
 
@@ -253,15 +262,10 @@ final class ReleaseSynthesisWorkflowFunctionalTest extends BrowserTestBase {
    * Processes all recursively created synthesis queue references.
    */
   private function drainSynthesisQueue(): void {
-    $queue = $this->container->get('queue')->get(SynthesisJobManager::QUEUE_NAME);
-    $worker = $this->container->get('plugin.manager.queue_worker')
-      ->createInstance(SynthesisJobManager::QUEUE_NAME);
-    $iterations = 0;
-    while ($item = $queue->claimItem()) {
-      self::assertLessThan(100, $iterations++);
-      $worker->processItem($item->data);
-      $queue->deleteItem($item);
-    }
+    $summary = $this->container->get(SynthesisQueueRunner::class)->run(10, 100, 30);
+    self::assertSame(0, $summary['failed']);
+    self::assertFalse($summary['suspended']);
+    self::assertSame(0, $summary['remaining']);
   }
 
   /**

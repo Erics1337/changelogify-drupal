@@ -71,29 +71,39 @@ final class SettingsForm extends ConfigFormBase {
     $lastWorker = $health['last_worker'] > 0
       ? $this->dateFormatter->formatTimeDiffSince($health['last_worker']) . ' ' . $this->t('ago')
       : $this->t('No synthesis work recorded');
+    $lastRunner = $health['last_runner'] > 0
+      ? $this->dateFormatter->formatTimeDiffSince($health['last_runner']) . ' ' . $this->t('ago')
+      : $this->t('No dedicated runner heartbeat');
     $oldestWait = $health['oldest_created'] > 0
       ? $this->dateFormatter->formatTimeDiffSince($health['oldest_created'])
       : $this->t('None');
     $form['queue_health'] = [
       '#type' => 'details',
       '#title' => $this->t('Background processing health'),
-      '#description' => $this->t('AI synthesis is processed by Drupal cron. Editors can follow progress in Changelogify without running command-line tools.'),
-      '#open' => (bool) $health['delayed'],
+      '#description' => $this->t('Editors only submit and review work. A production scheduler should run the dedicated Changelogify synthesis worker every minute; Drupal cron remains a compatible fallback.'),
+      '#open' => $health['queued_count'] > 0 || (bool) $health['delayed'],
       '#weight' => -19,
       'summary' => [
         '#theme' => 'item_list',
         '#items' => [
           $this->t('Last site cron: @value', ['@value' => $lastCron]),
+          $this->t('Last dedicated runner: @value', ['@value' => $lastRunner]),
           $this->t('Last synthesis worker: @value', ['@value' => $lastWorker]),
           $this->t('Queued synthesis steps: @count', ['@count' => $health['queued_count']]),
           $this->t('Oldest queued wait: @value', ['@value' => $oldestWait]),
         ],
       ],
     ];
-    if ($health['delayed'] && $this->currentUser()->hasPermission('administer site configuration')) {
+    $form['queue_health']['production'] = [
+      '#type' => 'item',
+      '#title' => $this->t('Recommended production schedule'),
+      '#markup' => '<code>drush changelogify:ai-worker --time-limit=55</code>',
+      '#description' => $this->t('Configure this once in the hosting platform or server scheduler. Editors do not run command-line tools.'),
+    ];
+    if ($health['queued_count'] > 0 && $this->currentUser()->hasPermission('administer site configuration')) {
       $form['queue_health']['cron'] = [
         '#type' => 'link',
-        '#title' => $this->t('Review Drupal cron configuration'),
+        '#title' => $this->t('Review fallback cron configuration'),
         '#url' => Url::fromRoute('system.cron_settings'),
         '#attributes' => ['class' => ['button', 'button--small']],
       ];

@@ -77,8 +77,8 @@ batch ID; credentials and payload text remain outside queue records.
 After submission, the editor is taken to a dedicated job page that updates
 automatically. It reports waiting, evidence analysis, recursive consolidation,
 draft creation, completion, failure, or cancellation in editorial language.
-Polling is read-only: only Drupal cron claims queue work or contacts the
-provider. The page pauses updates while its browser tab is hidden, recovers
+Polling is read-only: only a configured background worker claims queue work or
+contacts the provider. The page pauses updates while its browser tab is hidden, recovers
 from temporary network failures, and includes a manual refresh fallback when
 JavaScript is unavailable. A completed job links directly to its unpublished
 draft and evidence provenance.
@@ -92,12 +92,32 @@ delivery and submission protection, and retention cleanup. Cancellation,
 refusal, stale evidence, malformed output, or terminal failure cannot create a
 release.
 
-AI settings include background-processing health: the last site-cron and
-synthesis-worker heartbeats, queued count, and oldest wait. A queued job is
+AI settings include background-processing health: the last site-cron,
+dedicated-runner, and synthesis-worker heartbeats, queued count, and oldest
+wait. A queued job is
 reported as delayed after 15 minutes without relevant worker activity. An
-authorized site administrator receives a direct link to Drupal's cron
-configuration; editors never need a Drush command to follow or complete their
+authorized AI administrator receives a direct link to the in-product health
+panel; editors never need a command-line tool to follow or complete their
 workflow.
+
+For production, schedule the narrow worker command once per minute through the
+hosting platform or server scheduler:
+
+```bash
+drush changelogify:ai-worker --time-limit=55
+```
+
+This command processes only Changelogify synthesis references and records a
+runner heartbeat. Drupal cron remains a compatible fallback, but request-driven
+Automated Cron can leave jobs waiting until both its interval is due and the
+site receives another request. Do not schedule generic `queue:run` for this
+workflow. Status polling never invokes either command, claims queue items, or
+makes provider requests.
+
+A request that fits the evidence and payload bounds normally uses one provider
+call. Larger requests use deterministic batches and, only when needed,
+additional consolidation calls. Queue rows represent bounded synthesis work;
+they are not one humanization request per tracked event.
 
 Immediately before persistence, Changelogify re-previews the date range and
 revalidates eligibility, exclusions, policy and prompt versions, source
@@ -136,9 +156,11 @@ retention remain separate controls.
   or exclusions changed after the prior fingerprint.
 - **Invalid response:** use a model with native structured output or one that
   reliably returns strict JSON. Provider prose and fenced JSON are not accepted.
-- **Delayed or failed job:** leave the job page open for automatic status
-  updates. Administrators can review the background-processing health panel in
-  AI settings. Retry with a new preview after a terminal failure; do not copy
+- **Delayed job:** administrators should confirm that the dedicated worker
+  heartbeat is current and that the hosting scheduler runs once per minute.
+  Drupal cron can be used as a fallback, but status polling cannot process work.
+- **Failed job:** review the safe failure guidance and Drupal logs, then retry
+  with a new preview after the terminal failure. Do not copy
   credentials or private payload text into support tickets.
 
 Provider output quality and availability remain provider/model limitations.

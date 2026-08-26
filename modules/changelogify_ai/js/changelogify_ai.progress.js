@@ -14,6 +14,15 @@
         const progress = root.querySelector('[data-job-progress]');
         const detail = root.querySelector('[data-job-detail]');
         const actions = root.querySelector('[data-job-actions]');
+        const stages = [...root.querySelectorAll('[data-job-stage]')];
+        const queue = root.querySelector('[data-job-queue]');
+        const queueLabel = root.querySelector('[data-job-queue-label]');
+        const queueState = root.querySelector('[data-job-queue-state]');
+        const queueSummary = root.querySelector('[data-job-queue-summary]');
+        const queuedSteps = root.querySelector('[data-job-queued-steps]');
+        const lastActivity = root.querySelector('[data-job-last-activity]');
+        const nextRun = root.querySelector('[data-job-next-run]');
+        const processingLink = root.querySelector('[data-job-processing-link]');
         const delays = [2000, 5000, 15000];
         let attempt = 0;
         let timer;
@@ -48,6 +57,28 @@
               '@total': data.progress.total,
             },
           );
+          root.dataset.state = data.state;
+          const currentStage = ['waiting', 'delayed'].includes(data.state)
+            ? 'queued'
+            : data.state;
+          stages.forEach((stage) => {
+            if (stage.dataset.jobStage === currentStage) {
+              stage.setAttribute('aria-current', 'step');
+            } else {
+              stage.removeAttribute('aria-current');
+            }
+          });
+          queue.hidden = !data.queue.visible;
+          queueLabel.textContent = data.queue.label;
+          queueState.textContent = data.queue.badge;
+          queueState.dataset.processorState = data.queue.state;
+          queueSummary.textContent = data.queue.summary;
+          queuedSteps.textContent = data.queue.queued_steps;
+          lastActivity.textContent = data.queue.last_activity;
+          nextRun.textContent = data.queue.next_run;
+          if (processingLink && data.queue.processing_url) {
+            processingLink.href = data.queue.processing_url;
+          }
           actions.replaceChildren();
           if (data.release_url)
             addAction(

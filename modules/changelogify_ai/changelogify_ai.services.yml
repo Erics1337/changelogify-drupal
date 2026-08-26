@@ -11,7 +11,9 @@ services:
   Drupal\changelogify_ai\AiOperationHistoryRepository:
     arguments: ['@database', '@datetime.time']
   Drupal\changelogify_ai\AiQueueHealth:
-    arguments: ['@state', '@database', '@datetime.time']
+    arguments: ['@state', '@database', '@datetime.time', '@config.factory', '@module_handler']
+  Drupal\changelogify_ai\SynthesisQueueRunner:
+    arguments: ['@queue', '@plugin.manager.queue_worker', '@Drupal\changelogify_ai\AiQueueHealth', '@datetime.time', '@logger.channel.changelogify_ai']
   Drupal\changelogify_ai\SynthesisOperationAccess:
     arguments: ['@Drupal\changelogify_ai\SynthesisJobManager']
     tags:
