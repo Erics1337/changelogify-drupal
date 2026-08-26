@@ -8,6 +8,7 @@ use Drupal\Core\Config\Config;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\changelogify_ai\PromptTemplateRegistry;
 use Drupal\changelogify_ai\Summarization\SummarizationRequest;
+use Drupal\changelogify_ai\Summarization\SynthesisContract;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
@@ -93,6 +94,30 @@ final class PromptTemplateRegistryTest extends TestCase {
    */
   public function testKnownTemplateVersionRemainsAvailable(): void {
     self::assertArrayHasKey('profiles', $this->registry('en', '')->template('1'));
+  }
+
+  /**
+   * Synthesis prompts declare their stage, bound, and inference boundary.
+   */
+  public function testBuildsEvidenceGroundedFinalSynthesisPrompt(): void {
+    $request = new SummarizationRequest(
+      SynthesisContract::OPERATION,
+      'public_product',
+      ['change-1' => ['summary' => 'Recorded fact']],
+      PromptTemplateRegistry::VERSION,
+      '1',
+      'synthesis-key',
+      '',
+      SynthesisContract::VERSION,
+      SynthesisContract::STAGE_FINAL,
+      SynthesisContract::PRESET_SHORT,
+    );
+    $prompt = $this->registry('en', '')->build($request);
+    self::assertStringContainsString('Synthesis stage: final.', $prompt['user']);
+    self::assertStringContainsString('at most 5 categorized changelog notes', $prompt['user']);
+    self::assertStringContainsString('identify evidence-grounded themes', $prompt['user']);
+    self::assertStringContainsString('Do not infer unsupported intent, user impact, fixes, or security implications.', $prompt['user']);
+    self::assertSame(SynthesisContract::VERSION, $prompt['synthesis_version']);
   }
 
   /**

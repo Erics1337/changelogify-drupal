@@ -6,7 +6,9 @@ namespace Drupal\Tests\changelogify_ai\Unit;
 
 use Drupal\changelogify_ai\ResultValidator;
 use Drupal\changelogify_ai\Summarization\SummarizationItem;
+use Drupal\changelogify_ai\Summarization\SummarizationRequest;
 use Drupal\changelogify_ai\Summarization\SummarizationResult;
+use Drupal\changelogify_ai\Summarization\SynthesisContract;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
@@ -65,6 +67,38 @@ final class ResultValidatorTest extends TestCase {
   }
 
   /**
+   * Final synthesis output cannot exceed its selected length preset.
+   */
+  public function testEnforcesFinalSynthesisLengthPreset(): void {
+    $items = [];
+    for ($index = 1; $index <= 6; $index++) {
+      $items[] = new SummarizationItem("item-{$index}", 'changed', "Change {$index}.", ['change-1']);
+    }
+    $this->expectException(\LengthException::class);
+    (new ResultValidator())->validate(
+      new SummarizationResult('completed', $items),
+      ['change-1'],
+      $this->synthesisRequest(SynthesisContract::STAGE_FINAL, SynthesisContract::PRESET_SHORT),
+    );
+  }
+
+  /**
+   * Intermediate candidates use their separate contract bound.
+   */
+  public function testEnforcesIntermediateCandidateBound(): void {
+    $items = [];
+    for ($index = 1; $index <= 51; $index++) {
+      $items[] = new SummarizationItem("candidate-{$index}", 'other', "Candidate {$index}.", ['change-1']);
+    }
+    $this->expectException(\LengthException::class);
+    (new ResultValidator())->validate(
+      new SummarizationResult('completed', $items),
+      ['change-1'],
+      $this->synthesisRequest(SynthesisContract::STAGE_INTERMEDIATE, SynthesisContract::PRESET_DETAILED),
+    );
+  }
+
+  /**
    * Provides hostile and invalid provider-result fixtures.
    */
   public static function invalidResultProvider(): array {
@@ -101,6 +135,24 @@ final class ResultValidatorTest extends TestCase {
         ),
       ],
     ];
+  }
+
+  /**
+   * Creates one valid versioned synthesis request.
+   */
+  private function synthesisRequest(string $stage, string $preset): SummarizationRequest {
+    return new SummarizationRequest(
+      SynthesisContract::OPERATION,
+      'concise',
+      ['change-1' => ['summary' => 'Evidence.']],
+      '1',
+      '1',
+      "{$stage}-{$preset}",
+      '',
+      SynthesisContract::VERSION,
+      $stage,
+      $preset,
+    );
   }
 
 }

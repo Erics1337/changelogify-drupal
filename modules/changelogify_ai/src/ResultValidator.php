@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Drupal\changelogify_ai;
 
 use Drupal\changelogify_ai\Summarization\SummarizationResult;
+use Drupal\changelogify_ai\Summarization\SummarizationRequest;
+use Drupal\changelogify_ai\Summarization\SynthesisContract;
 
 /**
  * Enforces provider-neutral, evidence-aware output bounds.
@@ -20,12 +22,17 @@ final class ResultValidator {
    *   Normalized provider result.
    * @param string[] $allowedSourceIds
    *   Evidence IDs selected for this operation.
+   * @param \Drupal\changelogify_ai\Summarization\SummarizationRequest|null $request
+   *   Request contract supplying synthesis-specific bounds, when applicable.
    */
-  public function validate(SummarizationResult $result, array $allowedSourceIds): void {
+  public function validate(SummarizationResult $result, array $allowedSourceIds, ?SummarizationRequest $request = NULL): void {
     if (!in_array($result->status, ['completed', 'refused', 'partial'], TRUE)) {
       throw new \UnexpectedValueException('Unknown AI result state.');
     }
-    if (count($result->items) > 200 || count($result->warnings) > 50) {
+    $maxItems = $request !== NULL && $request->operation === SynthesisContract::OPERATION
+      ? SynthesisContract::maxItems((string) $request->getSynthesisStage(), (string) $request->getLengthPreset())
+      : 200;
+    if (count($result->items) > $maxItems || count($result->warnings) > 50) {
       throw new \LengthException('AI response exceeds configured bounds.');
     }
     $responseBytes = strlen(json_encode([

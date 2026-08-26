@@ -15,6 +15,7 @@ use Drupal\changelogify_ai\AiOperationManager;
 use Drupal\changelogify_ai\ResultValidator;
 use Drupal\changelogify_ai\Summarization\FakeSummarizer;
 use Drupal\changelogify_ai\Summarization\SummarizationRequest;
+use Drupal\changelogify_ai\Summarization\SynthesisContract;
 use Psr\Log\LoggerInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
@@ -82,6 +83,18 @@ final class AiOperationManagerTest extends TestCase {
     self::assertArrayNotHasKey('authorization', $records['test-key']);
     $manager->cancel('test-key');
     self::assertSame('cancelled', $records['test-key']['status']);
+  }
+
+  /**
+   * Synthesis diagnostics retain the contract without retaining evidence.
+   */
+  public function testSynthesisOperationRetainsContractIdentity(): void {
+    [$manager, $records] = $this->manager();
+    $manager->execute($this->synthesisRequest(), ['change-1']);
+    self::assertSame(SynthesisContract::VERSION, $records['synthesis-key']['synthesis_version']);
+    self::assertSame(SynthesisContract::STAGE_FINAL, $records['synthesis-key']['synthesis_stage']);
+    self::assertSame(SynthesisContract::PRESET_SHORT, $records['synthesis-key']['length_preset']);
+    self::assertArrayNotHasKey('evidence', $records['synthesis-key']);
   }
 
   /**
@@ -198,6 +211,24 @@ final class AiOperationManagerTest extends TestCase {
       '1',
       '1',
       'test-key',
+    );
+  }
+
+  /**
+   * Creates a minimum versioned synthesis request.
+   */
+  private function synthesisRequest(): SummarizationRequest {
+    return new SummarizationRequest(
+      SynthesisContract::OPERATION,
+      'concise',
+      ['change-1' => ['section' => 'changed', 'summary' => 'Safe evidence.']],
+      '1',
+      '1',
+      'synthesis-key',
+      '',
+      SynthesisContract::VERSION,
+      SynthesisContract::STAGE_FINAL,
+      SynthesisContract::PRESET_SHORT,
     );
   }
 

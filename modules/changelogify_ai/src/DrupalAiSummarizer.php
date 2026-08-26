@@ -11,6 +11,7 @@ use Drupal\changelogify_ai\Summarization\SummarizationItem;
 use Drupal\changelogify_ai\Summarization\SummarizationRequest;
 use Drupal\changelogify_ai\Summarization\SummarizationResult;
 use Drupal\changelogify_ai\Summarization\SummarizerInterface;
+use Drupal\changelogify_ai\Summarization\SynthesisContract;
 use Drupal\changelogify_ai\Summarization\TransientSummarizationException;
 
 /**
@@ -76,7 +77,7 @@ final class DrupalAiSummarizer implements SummarizerInterface {
       $input = $this->chatRequests->create(
         $prompt['system'],
         $prompt['user'],
-        $this->supportsStructuredOutput($provider, $modelId) ? $this->responseSchema() : NULL,
+        $this->supportsStructuredOutput($provider, $modelId) ? $this->responseSchema($request) : NULL,
       );
       $output = $provider->chat($input, $modelId)->getNormalized()->getText();
     }
@@ -133,7 +134,14 @@ final class DrupalAiSummarizer implements SummarizerInterface {
   /**
    * Returns the provider-neutral schema for a validated summary response.
    */
-  private function responseSchema(): array {
+  private function responseSchema(SummarizationRequest $request): array {
+    if ($request->operation === SynthesisContract::OPERATION) {
+      return SynthesisContract::responseSchema(
+        (string) $request->getSynthesisVersion(),
+        (string) $request->getSynthesisStage(),
+        (string) $request->getLengthPreset(),
+      );
+    }
     return [
       'name' => 'changelogify_summary',
       'description' => 'Evidence-backed Changelogify release-item suggestions.',

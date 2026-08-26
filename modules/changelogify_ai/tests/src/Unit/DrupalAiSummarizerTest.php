@@ -13,6 +13,7 @@ use Drupal\changelogify_ai\DrupalAiSummarizer;
 use Drupal\changelogify_ai\PromptTemplateRegistry;
 use Drupal\changelogify_ai\Summarization\SummarizationRequest;
 use Drupal\changelogify_ai\Summarization\ProviderUnavailableException;
+use Drupal\changelogify_ai\Summarization\SynthesisContract;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
@@ -121,6 +122,13 @@ final class DrupalAiSummarizerTest extends TestCase {
     self::assertSame('changelogify_summary', $requests->schema['name']);
     self::assertFalse($requests->schema['schema']['additionalProperties']);
     self::assertFalse($requests->schema['schema']['properties']['items']['items']['additionalProperties']);
+    $summarizer->summarize($this->synthesisRequest());
+    self::assertSame('changelogify_synthesis_final_v1', $requests->schema['name']);
+    self::assertSame(5, $requests->schema['schema']['properties']['items']['maxItems']);
+    self::assertSame(
+      ['added', 'changed', 'fixed', 'removed', 'security', 'other'],
+      $requests->schema['schema']['properties']['items']['items']['properties']['section']['enum'],
+    );
     $provider->structuredOutput = FALSE;
     $summarizer->summarize($this->request());
     self::assertNull($requests->schema);
@@ -252,6 +260,24 @@ final class DrupalAiSummarizerTest extends TestCase {
     return new SummarizationRequest('complete_draft', 'concise', [
       'change-1' => ['id' => 'change-1', 'section' => 'changed', 'summary' => 'Evidence.'],
     ], '1', '1', 'operation-1');
+  }
+
+  /**
+   * Returns one versioned final-synthesis request.
+   */
+  private function synthesisRequest(): SummarizationRequest {
+    return new SummarizationRequest(
+      SynthesisContract::OPERATION,
+      'concise',
+      ['change-1' => ['id' => 'change-1', 'section' => 'changed', 'summary' => 'Evidence.']],
+      '1',
+      '1',
+      'synthesis-operation-1',
+      '',
+      SynthesisContract::VERSION,
+      SynthesisContract::STAGE_FINAL,
+      SynthesisContract::PRESET_SHORT,
+    );
   }
 
 }

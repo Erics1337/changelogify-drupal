@@ -83,6 +83,9 @@ final class AiOperationManager {
       'revision_id' => $revisionId,
       'type' => $request->operation,
       'prompt_version' => $request->promptVersion,
+      'synthesis_version' => $request->getSynthesisVersion(),
+      'synthesis_stage' => $request->getSynthesisStage(),
+      'length_preset' => $request->getLengthPreset(),
       'policy_version' => $request->policyVersion,
       'payload_hash' => hash('sha256', json_encode($request->evidence, JSON_THROW_ON_ERROR)),
       'status' => 'running',
@@ -93,7 +96,7 @@ final class AiOperationManager {
     $store->set($request->idempotencyKey, $operation);
     try {
       $result = $this->summarizer->summarize($request);
-      $this->validator->validate($result, $sourceIds);
+      $this->validator->validate($result, $sourceIds, $request);
       $operation = array_replace($operation, [
         'status' => $result->status,
         'provider_id' => $result->providerId,
@@ -170,6 +173,9 @@ final class AiOperationManager {
       'revision_id' => $revisionId,
       'type' => $request->operation,
       'prompt_version' => $request->promptVersion,
+      'synthesis_version' => $request->getSynthesisVersion(),
+      'synthesis_stage' => $request->getSynthesisStage(),
+      'length_preset' => $request->getLengthPreset(),
       'policy_version' => $request->policyVersion,
       'payload_hash' => hash('sha256', json_encode($request->evidence, JSON_THROW_ON_ERROR)),
       'status' => 'queued',
