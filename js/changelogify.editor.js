@@ -132,9 +132,14 @@
         form.addEventListener('submit', (event) => {
           const submitter = event.submitter;
           if (submitter !== aiCommit) return;
-          aiCommit.value = Drupal.t('Starting…');
-          aiCommit.disabled = true;
-          aiCommit.setAttribute('aria-disabled', 'true');
+          aiCommit.setAttribute('aria-busy', 'true');
+          // Defer changes to this successful form control until the browser has
+          // serialized the triggering button for Drupal's form API.
+          window.setTimeout(() => {
+            aiCommit.value = Drupal.t('Starting…');
+            aiCommit.disabled = true;
+            aiCommit.setAttribute('aria-disabled', 'true');
+          }, 0);
         });
 
         const updateActions = () => {
