@@ -69,6 +69,13 @@ lane installs the real dependency and runs that group.
 - [ ] Review the [security and operations guide](SECURITY_AND_OPERATIONS.md)
       against settings defaults, captured metadata, permissions, routes, cron
       behavior, and uninstall behavior.
+- [ ] For a release containing Enhanced AI Summaries, run the documented
+      non-sensitive cloud and local provider checks in [AI_DRAFTING.md](AI_DRAFTING.md).
+      Record provider/model versions and results without recording credentials
+      or payload text. Automated fake-provider tests do not replace this check.
+- [ ] Confirm AI synthesis queues contain only job/batch references; test
+      recursive progress, cancellation, stale-evidence rollback, exactly-once
+      unpublished finalization, private coverage, and terminal cleanup.
 - [ ] Confirm the release-specific notes contain current upgrade and rollback
       steps. Describe optional AI drafting only when the release includes the
       `changelogify_ai` submodule, and do not claim semantic deduplication.

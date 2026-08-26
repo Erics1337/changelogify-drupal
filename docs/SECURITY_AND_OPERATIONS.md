@@ -1,6 +1,6 @@
 # Changelogify security, privacy, and operations
 
-This guide describes the behavior of the core Changelogify 1.7 module. Core
+This guide describes the behavior of the core Changelogify 1.8 module. Core
 release generation is deterministic and rule-based. Optional AI drafting is
 provided by `changelogify_ai`; Changelogify does not provide semantic
 deduplication.
@@ -17,7 +17,12 @@ Changelogify uses three distinct states:
    of internal events. Draft section items retain event IDs as provenance.
    Users with `manage changelogify releases` can view and edit them, but users
    with only the public-view permission cannot view them.
-3. **Published releases** contain editor-approved titles, versions, dates, and
+3. **AI synthesis jobs**, when the optional submodule is enabled, temporarily
+   retain filtered evidence and intermediate candidates in server-side key/value
+   storage. Queue entries contain only job/batch references. Terminal cleanup
+   removes intermediate text and instructions; finalized text and bounded
+   provenance move into an unpublished release revision.
+4. **Published releases** contain editor-approved titles, versions, dates, and
    section text. They become visible to anyone with
    `view changelogify releases`. Raw event metadata is not rendered publicly.
 
@@ -46,7 +51,7 @@ IDs, usernames, and role assignments are personal or security-relevant data in
 many organizations. Decide whether there is a lawful and operational need to
 store them before enabling user or unpublished-content tracking.
 
-Changelogify 1.7 supports Drupal 10.3 and later Drupal 10 releases, Drupal 11,
+Changelogify 1.8 supports Drupal 10.3 and later Drupal 10 releases, Drupal 11,
 and PHP 8.1 or newer within those Drupal versions' PHP support ranges. The
 upgrade and rollback procedures below apply across that supported matrix.
 
@@ -59,6 +64,9 @@ upgrade and rollback procedures below apply across that supported matrix.
 | `view changelogify releases` | Allows viewing published release list/detail pages. Does not grant access to drafts or raw events. Granting it to Anonymous user makes all published release titles, versions, dates, and section text public. |
 | `publish changelogify releases` | Allows release managers to publish and unpublish releases. Restricted access. |
 | `revert changelogify release revisions` | Allows restoring private historical release content and state as a new revision. Restricted access. |
+| `administer changelogify ai` | Configures provider selection, consent, eligibility, privacy, history retention, and cancellation. Restricted access. |
+| `use changelogify ai` | Creates AI synthesis jobs and reviewable humanization suggestions from evidence the user can already edit. |
+| `view changelogify ai history` | Displays non-secret provider/model, progress, usage, failure, and coverage metadata. Does not expose payload text. |
 
 Ready-for-review and archived releases are unpublished and follow the same
 public access denial as drafts. Revision history and evidence remain private
@@ -94,9 +102,24 @@ Use `0` only when indefinite storage is intentional and covered by the site's
 privacy, database-growth, and backup policies. Lowering retention takes effect
 on subsequent cron runs; it is not an undoable preview.
 
+Optional AI operation history has a separate 1–3,650 day retention setting
+(90 days by default). Cron purges terminal synthesis and humanization records.
+Cancellation immediately makes queued references inert and removes temporary
+evidence. Release provenance retention is also separate: it can remove bounded
+event snapshots without changing accepted release text, source IDs, or coverage
+counts.
+
+Before enabling external AI processing, distinguish the three controls:
+site-wide evidence eligibility determines which source categories may be
+considered; the privacy policy determines which fields may leave Drupal; and
+one-time editor exclusions only narrow a reviewed job. Review the exact payload
+preview and the provider's own data-processing terms. See [optional BYOK AI
+drafting](AI_DRAFTING.md).
+
 ## Upgrade and rollback preparation
 
-Supported upgrade origins are 1.1, 1.2, and 1.3 beta. Before changing code:
+Supported upgrade origins include the maintained 1.x releases through 1.7.
+Before changing code:
 
 1. Put the site in an appropriate maintenance/deployment state.
 2. Back up the database, including both Changelogify entity tables.
@@ -105,6 +128,9 @@ Supported upgrade origins are 1.1, 1.2, and 1.3 beta. Before changing code:
 4. Deploy the new code, run `drush updb -y`, then run `drush cr`.
 5. Confirm the settings, internal event list, draft releases, published routes,
    and the site's cron schedule.
+6. If `changelogify_ai` is enabled, review eligibility and privacy separately,
+   preview a non-sensitive payload, run the documented provider checks, and
+   verify operation-history retention and queue processing.
 
 Updates preserve existing settings and event/release JSON payloads while adding
 missing defaults and indexes. They are idempotent and can be rerun after an

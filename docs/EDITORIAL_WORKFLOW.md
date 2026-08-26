@@ -29,3 +29,9 @@ draft/published/archived, published to draft/archived, and archived to draft.
 Saving in the same state is always allowed for release managers. Publication,
 unpublication, archive, restoration, generated drafts, and intentional evidence
 reuse receive revision log entries.
+
+AI release synthesis always creates a new unpublished Draft after evidence,
+settings, output, and provenance are revalidated. It cannot create a Ready,
+Published, or Archived release. Existing per-item and whole-release AI
+suggestions remain staged until an editor accepts them; accepting suggestions
+creates a revision but never grants or bypasses publication authority.

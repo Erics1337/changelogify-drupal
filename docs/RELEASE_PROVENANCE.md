@@ -25,3 +25,15 @@ When an editor explicitly confirms reuse of evidence from another release, the
 affected item records only the referenced release IDs, confirming user ID, and
 confirmation timestamp. This makes reuse attributable without copying release
 titles, event messages, usernames, or raw metadata.
+
+AI-synthesized releases use provenance version 2. Final notes cite one or more
+original change-set IDs; intermediate candidate IDs are resolved before the
+release can be saved. Complete source/event IDs and counts remain available for
+review, while detailed allowlisted event snapshots are capped at 200 across the
+release and referenced instead of duplicated on every combined note.
+
+Version 2 also stores server-computed coverage: evidence considered and cited,
+evidence excluded by site eligibility, privacy policy, or the editor, and
+eligible evidence not surfaced in the final notes. Coverage and synthesis job
+metadata remain private. Public release rendering and API normalization keep
+the existing public item shape and never expose these fields.

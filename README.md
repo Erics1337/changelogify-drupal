@@ -13,6 +13,8 @@ Changelogify captures events from your Drupal site (content changes, module inst
 - **Public Changelog** — Publish releases at `/changelog` with a clean, themeable UI
 - **Admin Dashboard** — Quick stats and one-click release generation
 - **Event Log** — Review captured changes before generating a release
+- **Optional AI Synthesis** — Turn large eligible evidence sets into bounded,
+  categorized, evidence-cited draft summaries with coverage reporting
 - **Drupal 10.3/11 Compatible** — Attribute-based hooks with Drupal 10 compatibility shims
 
 ---
@@ -82,6 +84,13 @@ Here you'll see:
 3. Preview the bounded candidate change sets without creating a release
 4. Include, exclude, or reassign candidates and optionally set a title/version
 5. Confirm the selection to create a draft release
+
+When the optional AI submodule is ready, the preview also offers an AI-first
+path that considers all eligible evidence by default. Editors review the exact
+privacy-filtered boundary, choose a profile and Short/Standard/Detailed length,
+and may add one-time exclusions. Processing runs in durable background batches
+and always finalizes as an unpublished draft. See [optional BYOK AI
+drafting](docs/AI_DRAFTING.md).
 
 The commit step revalidates the selected evidence; see the
 [release preview guide](docs/RELEASE_PREVIEW.md).
@@ -162,6 +171,9 @@ event detail views; see the [event explorer guide](docs/EVENT_EXPLORER.md).
 | `administer changelogify`      | Access settings and dashboard          |
 | `manage changelogify releases` | Create, edit, delete, publish releases |
 | `view changelogify releases`   | View public changelog pages            |
+| `use changelogify ai`          | Create optional AI drafts and suggestions |
+| `view changelogify ai history` | View non-secret AI progress and coverage |
+| `administer changelogify ai`   | Configure and cancel optional AI operations |
 
 Grant `view changelogify releases` to the anonymous role when the changelog should be public. The DDEV development setup above grants it to both anonymous and authenticated users.
 
@@ -196,7 +208,7 @@ declared Drupal 10.3/PHP 8.1 floor, rolling Drupal 10 and 11 releases, and the
 maximum supported PHP version; PHPUnit, PHPStan, PHPCS, and applicable frontend
 lint jobs must all pass.
 
-See the [Changelogify 1.3 release notes](docs/RELEASE_NOTES_1.3.md) for
+See the [Changelogify 1.8 release notes](docs/RELEASE_NOTES_1.8.md) for
 user-visible changes and upgrade instructions.
 
 ### Upgrades and uninstall
