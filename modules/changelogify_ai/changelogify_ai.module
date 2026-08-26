@@ -8,9 +8,14 @@
 use Drupal\changelogify_ai\AiOperationManager;
 use Drupal\changelogify_ai\AiFailureMessage;
 use Drupal\changelogify_ai\AiReadinessChecker;
+use Drupal\changelogify_ai\OutboundPayloadBuilder;
+use Drupal\changelogify_ai\PromptTemplateRegistry;
 use Drupal\changelogify\ReleaseGeneratorInterface;
-use Drupal\changelogify_ai\CompleteDraftGenerator;
 use Drupal\changelogify_ai\ReleaseSuggestionManager;
+use Drupal\changelogify_ai\SynthesisEvidenceSelector;
+use Drupal\changelogify_ai\SynthesisBatcher;
+use Drupal\changelogify_ai\SynthesisJobManager;
+use Drupal\changelogify_ai\Summarization\SynthesisContract;
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Drupal\Core\Entity\EntityFormInterface;
 use Drupal\Core\Form\FormStateInterface;
@@ -22,6 +27,7 @@ use Drupal\Core\Url;
 function changelogify_ai_cron(): void {
   $days = (int) \Drupal::config('changelogify_ai.settings')->get('history_retention_days');
   \Drupal::service(AiOperationManager::class)->purge(min(3650, max(1, $days)));
+  \Drupal::service(SynthesisJobManager::class)->purge(min(3650, max(1, $days)));
 }
 
 /**
@@ -544,46 +550,154 @@ function changelogify_ai_form_changelogify_generate_release_form_alter(array &$f
   if ($form_state->get('preview') === NULL || !\Drupal::currentUser()->hasPermission('use changelogify ai')) {
     return;
   }
-  $form['ai_profile'] = [
-    '#type' => 'select',
-    '#title' => t('AI editorial profile'),
-    '#options' => [
-      'public_product' => t('Public product'),
-      'client_report' => t('Client report'),
-      'internal_technical' => t('Internal technical'),
-      'concise' => t('Concise'),
-    ],
-    '#default_value' => 'public_product',
-    '#weight' => 20,
-  ];
+  $preview = $form_state->get('preview');
+  $start = new \DateTimeImmutable('@' . $preview['start']);
+  $end = new \DateTimeImmutable('@' . $preview['end']);
+  $currentPreview = \Drupal::service(ReleaseGeneratorInterface::class)->previewRange($start, $end);
+  $savedExclusions = $form_state->get('changelogify_ai_synthesis_exclusions') ?: [];
+  try {
+    $boundary = \Drupal::service(SynthesisEvidenceSelector::class)
+      ->select($currentPreview->changeSets, $savedExclusions);
+  }
+  catch (\UnexpectedValueException) {
+    $savedExclusions = [];
+    $boundary = \Drupal::service(SynthesisEvidenceSelector::class)
+      ->select($currentPreview->changeSets);
+  }
   $readiness = \Drupal::service(AiReadinessChecker::class)->status();
-  $form['ai_readiness'] = [
+  $form['ai_synthesis'] = [
+    '#type' => 'details',
+    '#tree' => TRUE,
+    '#title' => t('Create an AI-synthesized release'),
+    '#description' => t('AI considers every site-eligible change in this window by default and produces a concise categorized summary. Deterministic draft creation remains available below.'),
+    '#open' => TRUE,
+    '#weight' => 18,
+  ];
+  $form['ai_synthesis']['readiness'] = [
     '#type' => 'container',
-    '#weight' => 19,
-    '#attributes' => [
-      'class' => [
-        'messages',
-        $readiness['ready'] ? 'messages--status' : 'messages--warning',
-      ],
-    ],
+    '#attributes' => ['class' => ['messages', $readiness['ready'] ? 'messages--status' : 'messages--warning']],
     'message' => ['#plain_text' => $readiness['message']],
   ];
   if (!$readiness['ready']) {
-    $form['ai_readiness']['configure'] = [
+    $form['ai_synthesis']['readiness']['configure'] = [
       '#type' => 'link',
       '#title' => t('Configure Changelogify AI'),
       '#url' => Url::fromRoute('changelogify_ai.settings'),
       '#attributes' => ['class' => ['button', 'button--small']],
     ];
   }
-  $form['actions']['ai_commit'] = [
+  $form['ai_synthesis']['profile'] = [
+    '#type' => 'select',
+    '#title' => t('Editorial profile'),
+    '#options' => changelogify_ai_editorial_profiles(),
+    '#default_value' => $form_state->getValue(['ai_synthesis', 'profile'], 'public_product'),
+  ];
+  $form['ai_synthesis']['length_preset'] = [
+    '#type' => 'radios',
+    '#title' => t('Summary length'),
+    '#options' => [
+      SynthesisContract::PRESET_SHORT => t('Short — up to 5 notes'),
+      SynthesisContract::PRESET_STANDARD => t('Standard — up to 12 notes'),
+      SynthesisContract::PRESET_DETAILED => t('Detailed — up to 25 notes'),
+    ],
+    '#default_value' => $form_state->getValue(['ai_synthesis', 'length_preset'], SynthesisContract::PRESET_STANDARD),
+  ];
+  $form['ai_synthesis']['instructions'] = [
+    '#type' => 'textarea',
+    '#title' => t('One-time synthesis instructions (optional)'),
+    '#description' => t('Temporary for this request and not saved as site configuration.'),
+    '#maxlength' => 1000,
+    '#rows' => 2,
+    '#default_value' => $form_state->getValue(['ai_synthesis', 'instructions'], ''),
+  ];
+  $categoryLabels = [];
+  foreach ($boundary['available_categories'] as $category) {
+    $categoryLabels[$category] = ucfirst(str_replace('_', ' ', $category));
+  }
+  $evidenceLabels = [];
+  foreach ($boundary['evidence'] + array_intersect_key(
+    \Drupal::service(OutboundPayloadBuilder::class)->build($currentPreview->changeSets),
+    array_flip($boundary['excluded_editor_ids']),
+  ) as $sourceId => $document) {
+    $evidenceLabels[$sourceId] = (string) ($document['summary'] ?: $sourceId);
+  }
+  $form['ai_synthesis']['exclusions'] = [
+    '#type' => 'details',
+    '#title' => t('Optional one-time exclusions'),
+    '#description' => t('Site-wide eligibility decides what may be considered. Privacy policy independently decides which fields may leave this site. These controls only exclude evidence from this run.'),
+    '#open' => $savedExclusions !== [],
+  ];
+  $form['ai_synthesis']['exclusions']['categories'] = [
+    '#type' => 'checkboxes',
+    '#title' => t('Exclude categories'),
+    '#options' => $categoryLabels,
+    '#default_value' => $savedExclusions['categories'] ?? [],
+  ];
+  $form['ai_synthesis']['exclusions']['sources'] = [
+    '#type' => 'checkboxes',
+    '#title' => t('Exclude event sources'),
+    '#options' => array_combine($boundary['available_sources'], $boundary['available_sources']) ?: [],
+    '#default_value' => $savedExclusions['sources'] ?? [],
+  ];
+  $form['ai_synthesis']['exclusions']['evidence'] = [
+    '#type' => 'checkboxes',
+    '#title' => t('Exclude individual evidence'),
+    '#options' => $evidenceLabels,
+    '#default_value' => $savedExclusions['evidence'] ?? [],
+  ];
+  $encoded = json_encode($boundary['evidence'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+  $hierarchical = count($boundary['evidence']) > SynthesisBatcher::MAX_ITEMS
+    || strlen($encoded) > SynthesisBatcher::MAX_BYTES;
+  $form['ai_synthesis']['evidence_boundary'] = [
+    '#type' => 'details',
+    '#title' => t('Exact AI evidence preview (@included considered, @excluded excluded for this run, @ineligible excluded by site eligibility)', [
+      '@included' => count($boundary['evidence']),
+      '@excluded' => count($boundary['excluded_editor_ids']),
+      '@ineligible' => count($boundary['ineligible_ids']),
+    ]),
+    '#open' => FALSE,
+    'processing' => [
+      '#type' => 'item',
+      '#plain_text' => $hierarchical
+        ? t('This request will run in bounded background batches and recursively consolidate the results.')
+        : t('This request will run as a background synthesis job.'),
+    ],
+    'payload' => [
+      '#type' => 'html_tag',
+      '#tag' => 'pre',
+      '#plain_text' => $encoded,
+    ],
+  ];
+  $form['ai_synthesis']['evidence_fingerprint'] = [
+    '#type' => 'hidden',
+    '#value' => $boundary['fingerprint'],
+  ];
+  $form['ai_synthesis']['actions'] = ['#type' => 'actions'];
+  $form['ai_synthesis']['actions']['refresh'] = [
+    '#type' => 'submit',
+    '#value' => t('Update AI evidence preview'),
+    '#submit' => ['changelogify_ai_synthesis_preview_submit'],
+    '#limit_validation_errors' => [['ai_synthesis']],
+  ];
+  $form['ai_synthesis']['actions']['commit'] = [
     '#type' => 'submit',
     '#value' => t('Create AI draft release'),
     '#submit' => ['changelogify_ai_generate_draft_submit'],
     '#button_type' => 'primary',
-    '#disabled' => !$readiness['ready'] || empty($form_state->get('preview')['change_sets']),
+    '#disabled' => !$readiness['ready'] || $boundary['evidence'] === [],
     '#attributes' => ['class' => ['changelogify-create-ai-draft']],
+    '#limit_validation_errors' => [['ai_synthesis'], ['title'], ['version']],
   ];
+}
+
+/**
+ * Rebuilds the exact no-network evidence boundary after exclusions change.
+ */
+function changelogify_ai_synthesis_preview_submit(array &$form, FormStateInterface $form_state): void {
+  $form_state->set(
+    'changelogify_ai_synthesis_exclusions',
+    changelogify_ai_synthesis_exclusions($form_state),
+  )->setRebuild();
 }
 
 /**
@@ -591,69 +705,44 @@ function changelogify_ai_form_changelogify_generate_release_form_alter(array &$f
  */
 function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface $form_state): void {
   $preview = $form_state->get('preview');
-  $selection = [];
-  foreach ($form_state->getValue('change_sets', []) as $changeSetId => $value) {
-    if (!empty($value['include'])) {
-      $selection[$changeSetId] = (string) $value['section'];
-    }
-  }
-  $options = [];
-  $title = trim((string) $form_state->getValue('title'));
-  if ($title !== '') {
-    $options['title'] = $title;
-  }
-  $version = trim((string) $form_state->getValue('version'));
-  if ($version !== '') {
-    $options['version'] = $version;
-    $options['label_type'] = 'semantic_version';
-  }
   $start = new \DateTimeImmutable('@' . $preview['start']);
   $end = new \DateTimeImmutable('@' . $preview['end']);
   try {
     $generator = \Drupal::service(ReleaseGeneratorInterface::class);
     $currentPreview = $generator->previewRange($start, $end);
-    $reused = array_intersect_key(
-      $currentPreview->coverage['reused_change_sets'] ?? [],
-      $selection,
-    ) !== [];
-    $drafts = \Drupal::service(CompleteDraftGenerator::class);
-    $threshold = max(1, (int) \Drupal::config('changelogify_ai.settings')->get('queue_threshold'));
-    if (count($selection) >= $threshold) {
-      $operationId = $drafts->queue(
-        $currentPreview->changeSets,
-        $start,
-        $end,
-        $selection,
-        $options,
-        (string) $form_state->getValue('ai_profile'),
-        FALSE,
-        $reused,
-      );
-      \Drupal::messenger()->addStatus(t('AI draft operation @id was queued. Review the operation history for completion.', ['@id' => substr($operationId, 0, 16)]));
-      $form_state->setRedirect('changelogify_ai.operation_history');
+    $boundary = \Drupal::service(SynthesisEvidenceSelector::class)->select(
+      $currentPreview->changeSets,
+      changelogify_ai_synthesis_exclusions($form_state),
+    );
+    if ($boundary['evidence'] === []) {
+      throw new \UnexpectedValueException('No evidence remains after eligibility and one-time exclusions.');
+    }
+    if (!hash_equals($boundary['fingerprint'], (string) $form_state->getValue(['ai_synthesis', 'evidence_fingerprint']))) {
+      \Drupal::messenger()->addError(t('The one-time exclusions changed after the evidence preview. Update the AI evidence preview before creating the job.'));
+      $form_state->setRebuild();
       return;
     }
-    $release = $drafts->generate(
-      $currentPreview->changeSets,
-      $start,
-      $end,
-      $selection,
-      $options,
-      (string) $form_state->getValue('ai_profile'),
-      FALSE,
-      $reused,
+    $profile = (string) $form_state->getValue(['ai_synthesis', 'profile']);
+    if (!array_key_exists($profile, changelogify_ai_editorial_profiles())) {
+      throw new \UnexpectedValueException('The selected editorial profile is invalid.');
+    }
+    $lengthPreset = (string) $form_state->getValue(['ai_synthesis', 'length_preset']);
+    $jobId = \Drupal::service(SynthesisJobManager::class)->start(
+      $boundary['evidence'],
+      $profile,
+      $lengthPreset,
+      PromptTemplateRegistry::VERSION,
+      $boundary['policy_version'],
+      $boundary['eligibility_version'],
+      trim((string) $form_state->getValue(['ai_synthesis', 'instructions'])),
+      $boundary['provenance'],
+      [
+        'editor' => $boundary['excluded_editor_ids'],
+        'eligibility' => $boundary['ineligible_ids'],
+      ],
     );
-    $report = $drafts->lastReport();
-    if ($report['omitted_source_ids'] !== []) {
-      \Drupal::messenger()->addWarning(t('The provider omitted selected change sets: @ids.', [
-        '@ids' => implode(', ', $report['omitted_source_ids']),
-      ]));
-    }
-    foreach ($report['warnings'] as $warning) {
-      \Drupal::messenger()->addWarning(t('Provider warning: @warning', ['@warning' => $warning]));
-    }
-    \Drupal::messenger()->addStatus(t('AI draft release created. Review it before publication.'));
-    $form_state->setRedirectUrl($release->toUrl('edit-form'));
+    \Drupal::messenger()->addStatus(t('AI release synthesis @id was queued. Review background progress and coverage in the operation history.', ['@id' => substr($jobId, 0, 16)]));
+    $form_state->setRedirect('changelogify_ai.operation_history');
   }
   catch (\Throwable $exception) {
     \Drupal::logger('changelogify_ai')->error('AI complete-draft generation failed with @exception.', ['@exception' => $exception::class]);
@@ -676,4 +765,19 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
     }
     $form_state->setRebuild();
   }
+}
+
+/**
+ * Returns only selected one-time exclusion values from the AI workspace.
+ */
+function changelogify_ai_synthesis_exclusions(FormStateInterface $form_state): array {
+  $values = $form_state->getValue(['ai_synthesis', 'exclusions'], []);
+  $selected = static fn (mixed $items): array => is_array($items)
+    ? array_values(array_filter($items, static fn (mixed $item): bool => is_string($item) && $item !== '' && $item !== '0'))
+    : [];
+  return [
+    'categories' => $selected($values['categories'] ?? []),
+    'sources' => $selected($values['sources'] ?? []),
+    'evidence' => $selected($values['evidence'] ?? []),
+  ];
 }

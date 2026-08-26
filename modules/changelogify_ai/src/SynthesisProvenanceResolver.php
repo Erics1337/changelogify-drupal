@@ -107,16 +107,19 @@ final class SynthesisProvenanceResolver {
     $notSurfaced = array_values(array_diff($considered, $cited));
     $editorExcluded = $this->scalarIds($exclusions['editor'] ?? []);
     $policyExcluded = $this->scalarIds($exclusions['policy'] ?? []);
+    $eligibilityExcluded = $this->scalarIds($exclusions['eligibility'] ?? []);
     $coverage = [
       'evidence_considered' => count($considered),
       'evidence_cited' => count($cited),
       'excluded_by_editor' => count($editorExcluded),
       'excluded_by_policy' => count($policyExcluded),
+      'excluded_by_eligibility' => count($eligibilityExcluded),
       'eligible_not_surfaced' => count($notSurfaced),
       'considered_source_ids' => $considered,
       'cited_source_ids' => $cited,
       'editor_excluded_source_ids' => $editorExcluded,
       'policy_excluded_source_ids' => $policyExcluded,
+      'eligibility_excluded_source_ids' => $eligibilityExcluded,
       'not_surfaced_source_ids' => $notSurfaced,
     ];
     return [

@@ -7,6 +7,7 @@ services:
   Drupal\changelogify_ai\PromptTemplateRegistry: ~
   Drupal\changelogify_ai\ResultValidator: ~
   Drupal\changelogify_ai\SynthesisBatcher: ~
+  Drupal\changelogify_ai\SynthesisEvidenceSelector: ~
   Drupal\changelogify_ai\SynthesisProvenanceResolver: ~
   Drupal\changelogify_ai\AiReadinessChecker: ~
   Drupal\changelogify_ai\AiFailureMessage: ~

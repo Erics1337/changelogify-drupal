@@ -59,7 +59,7 @@ final class SynthesisJobManager {
    *   Bounded temporary instructions for this job.
    * @param array<string, array<string, mixed>> $sourceProvenance
    *   Trusted original evidence metadata, never sent to the provider.
-   * @param array{editor?: array, policy?: array} $coverageExclusions
+   * @param array{editor?: array, policy?: array, eligibility?: array} $coverageExclusions
    *   Source IDs excluded before eligible evidence was considered.
    */
   public function start(
