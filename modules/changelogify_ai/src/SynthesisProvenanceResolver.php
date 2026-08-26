@@ -200,8 +200,9 @@ final class SynthesisProvenanceResolver {
    */
   private function eventSnapshot(array $event): array {
     return array_intersect_key($event, array_flip([
-      'event_id', 'event_uuid', 'event_type', 'source', 'occurred_at',
-      'evidence_status', 'summary',
+      'event_id', 'event_uuid', 'event_type', 'source', 'timestamp',
+      'schema_version', 'correlation_id', 'entity_type_id', 'entity_id',
+      'bundle', 'evidence_status',
     ]));
   }
 

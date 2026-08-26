@@ -6,6 +6,7 @@ namespace Drupal\Tests\changelogify_ai\Functional;
 
 use Drupal\changelogify\EventManagerInterface;
 use Drupal\changelogify_ai\SynthesisJobManager;
+use Drupal\changelogify_ai\SynthesisDraftFinalizer;
 use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -100,6 +101,165 @@ final class ReleaseSynthesisWorkflowFunctionalTest extends BrowserTestBase {
     $internal = $this->container->get(SynthesisJobManager::class)->get($job['id']);
     self::assertCount(1, $internal['source_index']);
     self::assertCount(1, $internal['coverage_exclusions']['editor']);
+
+    $this->drainSynthesisQueue();
+    $finalized = $this->container->get(SynthesisJobManager::class)->get($job['id']);
+    self::assertSame('finalized', $finalized['status']);
+    self::assertIsInt($finalized['release_id']);
+    self::assertArrayNotHasKey('final_result', $finalized);
+    self::assertArrayNotHasKey('finalization_context', $finalized);
+    $release = $this->container->get('entity_type.manager')
+      ->getStorage('changelogify_release')
+      ->load($finalized['release_id']);
+    self::assertFalse($release->isPublished());
+    self::assertSame('draft', $release->getEditorialState());
+    self::assertSame($job['id'], $release->getProvenance()['synthesis']['job_id']);
+    self::assertSame(1, $release->getProvenance()['coverage']['evidence_considered']);
+    self::assertSame(1, $release->getProvenance()['coverage']['excluded_by_editor']);
+    $releaseCount = $this->releaseCount();
+    self::assertNull($this->container->get(SynthesisDraftFinalizer::class)->finalizeIfReady($job['id']));
+    self::assertSame($releaseCount, $this->releaseCount());
+  }
+
+  /**
+   * Evidence added after the reviewed preview fails without a partial release.
+   */
+  public function testStaleEvidenceFailsFinalizationSafely(): void {
+    $this->prepareSynthesisEditor();
+    $events = $this->container->get(EventManagerInterface::class);
+    $events->logEvent([
+      'event_type' => 'content_updated',
+      'source' => 'content_entity',
+      'message' => 'Reviewed evidence.',
+      'section_hint' => 'changed',
+    ]);
+    $jobId = $this->queueDefaultSynthesis();
+    $events->logEvent([
+      'event_type' => 'content_created',
+      'source' => 'content_entity',
+      'message' => 'Evidence added after preview.',
+      'section_hint' => 'added',
+    ]);
+
+    $this->drainSynthesisQueue();
+    $job = $this->container->get(SynthesisJobManager::class)->get($jobId);
+    self::assertSame('failed', $job['status']);
+    self::assertSame('stale_evidence', $job['error_code']);
+    self::assertSame(0, $this->releaseCount());
+    self::assertArrayNotHasKey('final_result', $job);
+    self::assertArrayNotHasKey('finalization_context', $job);
+  }
+
+  /**
+   * Cancellation makes queued references inert and creates no release.
+   */
+  public function testCancelledSynthesisCreatesNoRelease(): void {
+    $this->prepareSynthesisEditor();
+    $this->container->get(EventManagerInterface::class)->logEvent([
+      'event_type' => 'content_updated',
+      'source' => 'content_entity',
+      'message' => 'Cancelled evidence.',
+      'section_hint' => 'changed',
+    ]);
+    $jobId = $this->queueDefaultSynthesis();
+    $this->container->get(SynthesisJobManager::class)->cancel($jobId);
+
+    $this->drainSynthesisQueue();
+    self::assertSame('cancelled', $this->container->get(SynthesisJobManager::class)->get($jobId)['status']);
+    self::assertSame(0, $this->releaseCount());
+  }
+
+  /**
+   * A prohibited provenance mutation rolls back the deterministic shell.
+   */
+  public function testInvalidProvenanceRollsBackReleaseAndFailsJob(): void {
+    $this->prepareSynthesisEditor();
+    $this->container->get(EventManagerInterface::class)->logEvent([
+      'event_type' => 'content_updated',
+      'source' => 'content_entity',
+      'message' => 'Rollback evidence.',
+      'section_hint' => 'changed',
+    ]);
+    $jobId = $this->queueDefaultSynthesis();
+    $queue = $this->container->get('queue')->get(SynthesisJobManager::QUEUE_NAME);
+    $reference = $queue->claimItem();
+    self::assertNotFalse($reference);
+    $this->container->get(SynthesisJobManager::class)->process(
+      $reference->data['job_id'],
+      $reference->data['batch_id'],
+    );
+    $queue->deleteItem($reference);
+    $store = $this->container->get('keyvalue')->get('changelogify_ai.synthesis_jobs');
+    $job = $store->get($jobId);
+    self::assertSame('completed', $job['status']);
+    $job['provenance']['provider_payload'] = ['secret' => 'must-not-persist'];
+    $store->set($jobId, $job);
+
+    self::assertNull($this->container->get(SynthesisDraftFinalizer::class)->finalizeIfReady($jobId));
+    $failed = $this->container->get(SynthesisJobManager::class)->get($jobId);
+    self::assertSame('failed', $failed['status']);
+    self::assertSame(0, $this->releaseCount());
+    self::assertArrayNotHasKey('provider_payload', $failed);
+    self::assertArrayNotHasKey('provenance', $failed);
+  }
+
+  /**
+   * Processes all recursively created synthesis queue references.
+   */
+  private function drainSynthesisQueue(): void {
+    $queue = $this->container->get('queue')->get(SynthesisJobManager::QUEUE_NAME);
+    $worker = $this->container->get('plugin.manager.queue_worker')
+      ->createInstance(SynthesisJobManager::QUEUE_NAME);
+    $iterations = 0;
+    while ($item = $queue->claimItem()) {
+      self::assertLessThan(100, $iterations++);
+      $worker->processItem($item->data);
+      $queue->deleteItem($item);
+    }
+  }
+
+  /**
+   * Creates and signs in an editor with a ready deterministic test provider.
+   */
+  private function prepareSynthesisEditor(): void {
+    $user = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'use changelogify ai',
+      'view changelogify ai history',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+    $this->config('changelogify_ai.settings')
+      ->set('consent_external_processing', TRUE)
+      ->set('eligibility.categories', ['content'])
+      ->save();
+  }
+
+  /**
+   * Queues the current exact default synthesis boundary through the editor UI.
+   */
+  private function queueDefaultSynthesis(): string {
+    $this->drupalGet('/admin/config/development/changelogify/generate');
+    $this->submitForm(['mode' => 'since_last'], 'Preview changes');
+    $this->submitForm([
+      'ai_synthesis[profile]' => 'public_product',
+      'ai_synthesis[length_preset]' => 'standard',
+    ], 'Create AI draft release');
+    $jobs = $this->container->get(SynthesisJobManager::class)->all();
+    self::assertCount(1, $jobs);
+    return (string) array_key_first($jobs);
+  }
+
+  /**
+   * Counts all draft and published release entities without access filtering.
+   */
+  private function releaseCount(): int {
+    return (int) $this->container->get('entity_type.manager')
+      ->getStorage('changelogify_release')
+      ->getQuery()
+      ->accessCheck(FALSE)
+      ->count()
+      ->execute();
   }
 
 }

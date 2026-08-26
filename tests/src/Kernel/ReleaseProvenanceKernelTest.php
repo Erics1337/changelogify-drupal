@@ -229,4 +229,101 @@ final class ReleaseProvenanceKernelTest extends ChangelogifyKernelTestBase {
     );
   }
 
+  /**
+   * Version 2 synthesis coverage and bounded source snapshots persist safely.
+   */
+  public function testSynthesisProvenanceAndCoverageRoundTrip(): void {
+    $storage = $this->container->get('entity_type.manager')
+      ->getStorage('changelogify_release');
+    /** @var \Drupal\changelogify\Entity\ChangelogifyReleaseInterface $release */
+    $release = $storage->create(['title' => 'Synthesized evidence']);
+    $coverage = [
+      'evidence_considered' => 1,
+      'evidence_cited' => 1,
+      'excluded_by_editor' => 0,
+      'excluded_by_policy' => 0,
+      'excluded_by_eligibility' => 0,
+      'eligible_not_surfaced' => 0,
+      'considered_source_ids' => ['change-1'],
+      'cited_source_ids' => ['change-1'],
+      'editor_excluded_source_ids' => [],
+      'policy_excluded_source_ids' => [],
+      'eligibility_excluded_source_ids' => [],
+      'not_surfaced_source_ids' => [],
+    ];
+    $release->setProvenance([
+      'version' => 2,
+      'items' => [
+        'note-1' => [
+          'change_set_ids' => ['change-1'],
+          'kind' => 'ai_synthesized',
+          'section' => 'changed',
+          'event_ids' => [1],
+          'event_count' => 1,
+          'evidence_status' => 'available',
+          'event_snapshot_ids' => ['1'],
+          'snapshots_truncated' => FALSE,
+        ],
+      ],
+      'sources' => [
+        'change-1' => [
+          'change_set_id' => 'change-1',
+          'event_ids' => [1],
+          'event_count' => 1,
+          'evidence_status' => 'available',
+          'events' => [['event_id' => 1, 'evidence_status' => 'available']],
+          'snapshots_truncated' => FALSE,
+        ],
+      ],
+      'coverage' => $coverage,
+      'synthesis' => [
+        'job_id' => str_repeat('a', 64),
+        'prompt_version' => '1',
+        'synthesis_version' => '1',
+        'policy_version' => 'policy',
+        'eligibility_version' => 'eligibility',
+      ],
+    ])->save();
+
+    $storage->resetCache([(int) $release->id()]);
+    $stored = $storage->load($release->id())->getProvenance();
+    self::assertSame(2, $stored['version']);
+    self::assertSame($coverage, $stored['coverage']);
+    self::assertSame(str_repeat('a', 64), $stored['synthesis']['job_id']);
+    self::assertSame(['change-1'], $stored['items']['note-1']['change_set_ids']);
+    self::assertSame([], $stored['items']['note-1']['events']);
+    $resolved = $this->container->get(ReleaseProvenanceManagerInterface::class)
+      ->getResolvedProvenance($storage->load($release->id()));
+    self::assertSame('missing', $resolved['sources']['change-1']['evidence_status']);
+    self::assertSame('missing', $resolved['items']['note-1']['evidence_status']);
+  }
+
+  /**
+   * Inconsistent synthesis coverage is rejected before entity storage.
+   */
+  public function testSynthesisCoverageRejectsInconsistentCounts(): void {
+    $storage = $this->container->get('entity_type.manager')
+      ->getStorage('changelogify_release');
+    $release = $storage->create(['title' => 'Invalid synthesis coverage']);
+    $this->expectException(\InvalidArgumentException::class);
+    $release->setProvenance([
+      'version' => 2,
+      'items' => [],
+      'coverage' => [
+        'evidence_considered' => 1,
+        'evidence_cited' => 0,
+        'excluded_by_editor' => 0,
+        'excluded_by_policy' => 0,
+        'excluded_by_eligibility' => 0,
+        'eligible_not_surfaced' => 0,
+        'considered_source_ids' => [],
+        'cited_source_ids' => [],
+        'editor_excluded_source_ids' => [],
+        'policy_excluded_source_ids' => [],
+        'eligibility_excluded_source_ids' => [],
+        'not_surfaced_source_ids' => [],
+      ],
+    ]);
+  }
+
 }

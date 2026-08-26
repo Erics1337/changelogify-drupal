@@ -562,7 +562,7 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
     if (!is_array($decoded) || !is_array($decoded['items'] ?? NULL)) {
       throw new \UnexpectedValueException('Release provenance must contain versioned items.');
     }
-    return ['version' => (int) ($decoded['version'] ?? 1), 'items' => $decoded['items']];
+    return $decoded;
   }
 
   /**
@@ -572,8 +572,13 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
     if (!is_array($provenance['items'] ?? NULL)) {
       throw new \InvalidArgumentException('Release provenance must contain an items array.');
     }
-    if (array_diff(array_keys($provenance), ['version', 'items']) !== []) {
+    if (array_diff(array_keys($provenance), ['version', 'items', 'sources', 'coverage', 'synthesis']) !== []) {
       throw new \InvalidArgumentException('Release provenance contains unsupported top-level data.');
+    }
+    $version = (int) ($provenance['version'] ?? 1);
+    if (!in_array($version, [1, 2], TRUE)
+      || ($version !== 2 && array_intersect(array_keys($provenance), ['sources', 'coverage', 'synthesis']) !== [])) {
+      throw new \InvalidArgumentException('Release provenance uses an unsupported version.');
     }
     $items = [];
     foreach ($provenance['items'] as $itemId => $item) {
@@ -582,10 +587,34 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       }
       $items[$itemId] = $this->normalizeProvenanceItem($item);
     }
-    $this->set('provenance', json_encode([
-      'version' => (int) ($provenance['version'] ?? 1),
+    $normalized = [
+      'version' => $version,
       'items' => $items,
-    ], JSON_THROW_ON_ERROR));
+    ];
+    if (isset($provenance['sources'])) {
+      if (!is_array($provenance['sources'])) {
+        throw new \InvalidArgumentException('Release provenance sources must be an array.');
+      }
+      $normalized['sources'] = [];
+      $snapshotCount = 0;
+      foreach ($provenance['sources'] as $sourceId => $source) {
+        if (!is_string($sourceId) || $sourceId === '' || !is_array($source)) {
+          throw new \InvalidArgumentException('Release provenance contains an invalid source.');
+        }
+        $normalized['sources'][$sourceId] = $this->normalizeProvenanceSource($sourceId, $source);
+        $snapshotCount += count($normalized['sources'][$sourceId]['events']);
+      }
+      if ($snapshotCount > 200) {
+        throw new \InvalidArgumentException('Release provenance contains too many detailed event snapshots.');
+      }
+    }
+    if (isset($provenance['coverage'])) {
+      $normalized['coverage'] = $this->normalizeSynthesisCoverage($provenance['coverage']);
+    }
+    if (isset($provenance['synthesis'])) {
+      $normalized['synthesis'] = $this->normalizeSynthesisMetadata($provenance['synthesis']);
+    }
+    $this->set('provenance', json_encode($normalized, JSON_THROW_ON_ERROR));
     return $this;
   }
 
@@ -603,12 +632,22 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
       'evidence_status',
       'events',
       'evidence_reuse',
+      'event_snapshot_ids',
+      'snapshots_truncated',
     ];
     if (array_diff(array_keys($item), $allowed) !== []) {
       throw new \InvalidArgumentException('Release provenance item contains unsupported data.');
     }
-    if (!is_array($item['event_ids'] ?? NULL) || !is_array($item['events'] ?? NULL)) {
+    $item['events'] ??= [];
+    if (!is_array($item['event_ids'] ?? NULL) || !is_array($item['events'])) {
       throw new \InvalidArgumentException('Release provenance event references must be arrays.');
+    }
+    if (isset($item['event_snapshot_ids'])
+      && (!$this->validStringIds($item['event_snapshot_ids']) || count($item['event_snapshot_ids']) > 200)) {
+      throw new \InvalidArgumentException('Release provenance contains invalid event snapshot references.');
+    }
+    if (isset($item['snapshots_truncated']) && !is_bool($item['snapshots_truncated'])) {
+      throw new \InvalidArgumentException('Release provenance contains invalid snapshot truncation metadata.');
     }
     if (isset($item['change_set_ids'])) {
       if (!is_array($item['change_set_ids']) || $item['change_set_ids'] === []) {
@@ -646,6 +685,135 @@ class ChangelogifyRelease extends ContentEntityBase implements ChangelogifyRelea
     }
     $this->validateEvidenceStatus($item['evidence_status'] ?? NULL);
     return $item;
+  }
+
+  /**
+   * Validates one original source record in version 2 provenance.
+   */
+  private function normalizeProvenanceSource(string $sourceId, array $source): array {
+    $allowed = [
+      'change_set_id',
+      'event_ids',
+      'event_count',
+      'evidence_status',
+      'events',
+      'snapshots_truncated',
+    ];
+    if (array_diff(array_keys($source), $allowed) !== []
+      || ($source['change_set_id'] ?? NULL) !== $sourceId
+      || !is_array($source['event_ids'] ?? NULL)
+      || !is_int($source['event_count'] ?? NULL)
+      || $source['event_count'] < count($source['event_ids'])
+      || !is_array($source['events'] ?? NULL)
+      || !is_bool($source['snapshots_truncated'] ?? NULL)) {
+      throw new \InvalidArgumentException('Release provenance contains invalid source metadata.');
+    }
+    foreach ($source['events'] as $event) {
+      if (!is_array($event)) {
+        throw new \InvalidArgumentException('Release provenance source contains invalid event evidence.');
+      }
+      $this->validateProvenanceEvent($event);
+    }
+    $this->validateEvidenceStatus($source['evidence_status'] ?? NULL);
+    return $source;
+  }
+
+  /**
+   * Validates internally consistent server-computed synthesis coverage.
+   */
+  private function normalizeSynthesisCoverage(mixed $coverage): array {
+    $countKeys = [
+      'evidence_considered',
+      'evidence_cited',
+      'excluded_by_editor',
+      'excluded_by_policy',
+      'excluded_by_eligibility',
+      'eligible_not_surfaced',
+    ];
+    $idKeys = [
+      'considered_source_ids',
+      'cited_source_ids',
+      'editor_excluded_source_ids',
+      'policy_excluded_source_ids',
+      'eligibility_excluded_source_ids',
+      'not_surfaced_source_ids',
+    ];
+    if (!is_array($coverage)
+      || array_diff(array_keys($coverage), array_merge($countKeys, $idKeys)) !== []) {
+      throw new \InvalidArgumentException('Release provenance contains unsupported synthesis coverage.');
+    }
+    foreach ($countKeys as $key) {
+      if (!is_int($coverage[$key] ?? NULL) || $coverage[$key] < 0) {
+        throw new \InvalidArgumentException('Release provenance contains invalid synthesis coverage counts.');
+      }
+    }
+    foreach ($idKeys as $key) {
+      if (!$this->validStringIds($coverage[$key] ?? NULL)) {
+        throw new \InvalidArgumentException('Release provenance contains invalid synthesis coverage IDs.');
+      }
+    }
+    $mappings = [
+      'evidence_considered' => 'considered_source_ids',
+      'evidence_cited' => 'cited_source_ids',
+      'excluded_by_editor' => 'editor_excluded_source_ids',
+      'excluded_by_policy' => 'policy_excluded_source_ids',
+      'excluded_by_eligibility' => 'eligibility_excluded_source_ids',
+      'eligible_not_surfaced' => 'not_surfaced_source_ids',
+    ];
+    foreach ($mappings as $countKey => $idsKey) {
+      if ($coverage[$countKey] !== count($coverage[$idsKey])) {
+        throw new \InvalidArgumentException('Release provenance synthesis coverage is inconsistent.');
+      }
+    }
+    if (array_values(array_diff($coverage['considered_source_ids'], $coverage['cited_source_ids'])) !== $coverage['not_surfaced_source_ids']) {
+      throw new \InvalidArgumentException('Release provenance synthesis coverage is incomplete.');
+    }
+    if (array_diff($coverage['cited_source_ids'], $coverage['considered_source_ids']) !== []) {
+      throw new \InvalidArgumentException('Release provenance synthesis citations are unknown.');
+    }
+    return $coverage;
+  }
+
+  /**
+   * Validates versioned, credential-free synthesis metadata.
+   */
+  private function normalizeSynthesisMetadata(mixed $metadata): array {
+    $keys = [
+      'job_id',
+      'prompt_version',
+      'synthesis_version',
+      'policy_version',
+      'eligibility_version',
+    ];
+    if (!is_array($metadata)
+      || array_diff(array_keys($metadata), $keys) !== []
+      || array_diff($keys, array_keys($metadata)) !== []) {
+      throw new \InvalidArgumentException('Release provenance contains invalid synthesis metadata.');
+    }
+    foreach ($keys as $key) {
+      if (!is_string($metadata[$key]) || $metadata[$key] === '') {
+        throw new \InvalidArgumentException('Release provenance contains invalid synthesis metadata.');
+      }
+    }
+    if (strlen($metadata['job_id']) !== 64 || !ctype_xdigit($metadata['job_id'])) {
+      throw new \InvalidArgumentException('Release provenance contains an invalid synthesis job reference.');
+    }
+    return $metadata;
+  }
+
+  /**
+   * Returns whether a list contains only unique, non-empty string IDs.
+   */
+  private function validStringIds(mixed $ids): bool {
+    if (!is_array($ids)) {
+      return FALSE;
+    }
+    foreach ($ids as $id) {
+      if (!is_string($id) || $id === '') {
+        return FALSE;
+      }
+    }
+    return count($ids) === count(array_unique($ids));
   }
 
   /**

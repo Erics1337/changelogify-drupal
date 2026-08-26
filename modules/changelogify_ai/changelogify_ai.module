@@ -727,6 +727,20 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
       throw new \UnexpectedValueException('The selected editorial profile is invalid.');
     }
     $lengthPreset = (string) $form_state->getValue(['ai_synthesis', 'length_preset']);
+    $options = [];
+    $title = trim((string) $form_state->getValue('title'));
+    if ($title !== '') {
+      $options['title'] = $title;
+    }
+    $version = trim((string) $form_state->getValue('version'));
+    if ($version !== '') {
+      $options['version'] = $version;
+      $options['label_type'] = 'semantic_version';
+    }
+    $allowEvidenceReuse = array_intersect_key(
+      $currentPreview->coverage['reused_change_sets'] ?? [],
+      $boundary['evidence'],
+    ) !== [];
     $jobId = \Drupal::service(SynthesisJobManager::class)->start(
       $boundary['evidence'],
       $profile,
@@ -739,6 +753,14 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
       [
         'editor' => $boundary['excluded_editor_ids'],
         'eligibility' => $boundary['ineligible_ids'],
+      ],
+      [
+        'start' => $start->getTimestamp(),
+        'end' => $end->getTimestamp(),
+        'options' => $options,
+        'exclusions' => $boundary['exclusions'],
+        'evidence_fingerprint' => $boundary['fingerprint'],
+        'allow_evidence_reuse' => $allowEvidenceReuse,
       ],
     );
     \Drupal::messenger()->addStatus(t('AI release synthesis @id was queued. Review background progress and coverage in the operation history.', ['@id' => substr($jobId, 0, 16)]));

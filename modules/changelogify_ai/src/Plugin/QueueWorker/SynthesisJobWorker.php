@@ -7,6 +7,7 @@ namespace Drupal\changelogify_ai\Plugin\QueueWorker;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
 use Drupal\changelogify_ai\SynthesisJobManager;
+use Drupal\changelogify_ai\SynthesisDraftFinalizer;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -20,7 +21,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 final class SynthesisJobWorker extends QueueWorkerBase implements ContainerFactoryPluginInterface {
 
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, protected SynthesisJobManager $jobs) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, protected SynthesisJobManager $jobs, protected SynthesisDraftFinalizer $finalizer) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
 
@@ -33,6 +34,7 @@ final class SynthesisJobWorker extends QueueWorkerBase implements ContainerFacto
       $plugin_id,
       $plugin_definition,
       $container->get(SynthesisJobManager::class),
+      $container->get(SynthesisDraftFinalizer::class),
     );
   }
 
@@ -47,6 +49,7 @@ final class SynthesisJobWorker extends QueueWorkerBase implements ContainerFacto
       throw new \UnexpectedValueException('Invalid Changelogify synthesis queue reference.');
     }
     $this->jobs->process($data['job_id'], $data['batch_id']);
+    $this->finalizer->finalizeIfReady($data['job_id']);
   }
 
 }

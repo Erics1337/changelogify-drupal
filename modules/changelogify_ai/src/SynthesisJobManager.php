@@ -61,6 +61,8 @@ final class SynthesisJobManager {
    *   Trusted original evidence metadata, never sent to the provider.
    * @param array{editor?: array, policy?: array, eligibility?: array} $coverageExclusions
    *   Source IDs excluded before eligible evidence was considered.
+   * @param array<string, mixed> $finalizationContext
+   *   Credential-free server context required to create the draft.
    */
   public function start(
     array $evidence,
@@ -72,6 +74,7 @@ final class SynthesisJobManager {
     string $instructions = '',
     array $sourceProvenance = [],
     array $coverageExclusions = [],
+    array $finalizationContext = [],
   ): string {
     if ($evidence === []) {
       throw new \UnexpectedValueException('Release synthesis requires eligible evidence.');
@@ -95,11 +98,12 @@ final class SynthesisJobManager {
       'instructions' => $instructions,
       'source_provenance' => $sourceProvenance,
       'coverage_exclusions' => $coverageExclusions,
+      'finalization_context' => $finalizationContext,
       'synthesis_version' => SynthesisContract::VERSION,
     ], JSON_THROW_ON_ERROR));
     $store = $this->store();
     $existing = $store->get($jobId);
-    if (is_array($existing) && in_array($existing['status'] ?? NULL, ['queued', 'running', 'completed'], TRUE)) {
+    if (is_array($existing) && in_array($existing['status'] ?? NULL, ['queued', 'running', 'completed', 'finalized'], TRUE)) {
       throw new \RuntimeException('An equivalent synthesis job is already in progress or complete.');
     }
 
@@ -117,6 +121,7 @@ final class SynthesisJobManager {
       'instructions' => $instructions,
       'source_index' => $this->provenanceResolver->sourceIndex($evidence, $sourceProvenance),
       'coverage_exclusions' => $coverageExclusions,
+      'finalization_context' => $finalizationContext,
       'payload_hash' => hash('sha256', json_encode($evidence, JSON_THROW_ON_ERROR)),
       'round' => 0,
       'total_batches' => 0,
@@ -143,7 +148,7 @@ final class SynthesisJobManager {
     try {
       $store = $this->store();
       $job = $store->get($jobId);
-      if (!is_array($job) || in_array($job['status'] ?? NULL, ['completed', 'failed', 'cancelled'], TRUE)) {
+      if (!is_array($job) || in_array($job['status'] ?? NULL, ['completed', 'finalized', 'failed', 'cancelled'], TRUE)) {
         return;
       }
       $round = (int) ($job['round'] ?? 0);
@@ -278,11 +283,12 @@ final class SynthesisJobManager {
         continue;
       }
       $summaries[$id] = array_intersect_key($job, array_flip([
-        'id', 'type', 'status', 'created', 'completed', 'profile',
+        'id', 'type', 'status', 'created', 'completed', 'finalized', 'profile',
         'length_preset', 'prompt_version', 'synthesis_version',
         'policy_version', 'eligibility_version', 'payload_hash', 'round',
         'total_batches', 'completed_batches', 'retry_count', 'input_tokens',
         'output_tokens', 'provider_id', 'model_id', 'error_code', 'error_class',
+        'release_id',
         'coverage',
       ]));
     }
@@ -299,7 +305,7 @@ final class SynthesisJobManager {
     $store = $this->store();
     foreach ($store->getAll() as $id => $job) {
       if (is_array($job)
-        && in_array($job['status'] ?? NULL, ['completed', 'failed', 'cancelled'], TRUE)
+        && in_array($job['status'] ?? NULL, ['completed', 'finalized', 'failed', 'cancelled'], TRUE)
         && ($job['created'] ?? 0) < $cutoff) {
         $store->delete($id);
       }
@@ -315,6 +321,33 @@ final class SynthesisJobManager {
       throw new \UnexpectedValueException('The synthesis job has no completed provenance.');
     }
     return $job['provenance'];
+  }
+
+  /**
+   * Marks a completed job finalized inside the caller's release transaction.
+   */
+  public function markFinalized(string $jobId, int $releaseId): void {
+    $job = $this->get($jobId);
+    if (!is_array($job) || ($job['status'] ?? NULL) !== 'completed') {
+      throw new \UnexpectedValueException('Only a completed synthesis job can be finalized.');
+    }
+    $job['status'] = 'finalized';
+    $job['release_id'] = $releaseId;
+    $job['finalized'] = $this->time->getRequestTime();
+    unset($job['finalization_context'], $job['final_result'], $job['provenance']);
+    $this->store()->set($jobId, $job);
+  }
+
+  /**
+   * Records a safe terminal finalization failure and removes generated text.
+   */
+  public function failFinalization(string $jobId, \Throwable $exception): void {
+    $job = $this->get($jobId);
+    if (!is_array($job) || ($job['status'] ?? NULL) !== 'completed') {
+      return;
+    }
+    unset($job['final_result'], $job['provenance']);
+    $this->fail($job, $exception);
   }
 
   /**
@@ -466,6 +499,9 @@ final class SynthesisJobManager {
       $job['source_index'],
       $job['coverage_exclusions'],
     );
+    if (($job['status'] ?? NULL) !== 'completed' || ($job['finalization_context'] ?? []) === []) {
+      unset($job['finalization_context']);
+    }
   }
 
   /**

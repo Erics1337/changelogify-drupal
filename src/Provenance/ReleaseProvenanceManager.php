@@ -28,8 +28,8 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
   public function getResolvedProvenance(ChangelogifyReleaseInterface $release): array {
     $provenance = $release->getProvenance();
     $availableIds = [];
-    foreach ($provenance['items'] as $item) {
-      foreach ($item['events'] ?? [] as $event) {
+    foreach (array_merge($provenance['items'], $provenance['sources'] ?? []) as $evidence) {
+      foreach ($evidence['events'] ?? [] as $event) {
         if (($event['evidence_status'] ?? NULL) === 'available') {
           $availableIds[] = (int) ($event['event_id'] ?? 0);
         }
@@ -38,21 +38,29 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
     $loaded = $availableIds === [] ? [] : $this->entityTypeManager
       ->getStorage('changelogify_event')
       ->loadMultiple(array_unique($availableIds));
-    foreach ($provenance['items'] as &$item) {
-      $item['events'] ??= [];
-      foreach ($item['events'] as &$event) {
-        $eventId = (int) ($event['event_id'] ?? 0);
-        if (($event['evidence_status'] ?? NULL) === 'available' && !isset($loaded[$eventId])) {
-          $event['evidence_status'] = 'missing';
+    foreach (['sources', 'items'] as $collection) {
+      if (!isset($provenance[$collection])) {
+        continue;
+      }
+      foreach ($provenance[$collection] as &$evidence) {
+        $evidence['events'] ??= [];
+        foreach ($evidence['events'] as &$event) {
+          $eventId = (int) ($event['event_id'] ?? 0);
+          if (($event['evidence_status'] ?? NULL) === 'available' && !isset($loaded[$eventId])) {
+            $event['evidence_status'] = 'missing';
+          }
+        }
+        unset($event);
+        if ($evidence['events'] !== [] || ($collection === 'items' && !isset($provenance['sources']))) {
+          $evidence['evidence_status'] = $this->itemStatus(
+            $evidence['events'],
+            (int) ($evidence['event_count'] ?? count($evidence['events'])),
+          );
         }
       }
-      unset($event);
-      $item['evidence_status'] = $this->itemStatus(
-        $item['events'] ?? [],
-        (int) ($item['event_count'] ?? count($item['events'] ?? [])),
-      );
+      unset($evidence);
     }
-    unset($item);
+    $this->resolveItemStatuses($provenance);
     return $provenance;
   }
 
@@ -65,21 +73,29 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
       foreach ($releases as $release) {
         $provenance = $release->getProvenance();
         $changed = FALSE;
-        foreach ($provenance['items'] as &$item) {
-          $item['events'] ??= [];
-          foreach ($item['events'] as &$event) {
-            if (isset($eventIds[(int) ($event['event_id'] ?? 0)])) {
-              $event['evidence_status'] = 'expired';
-              $changed = TRUE;
+        foreach (['sources', 'items'] as $collection) {
+          if (!isset($provenance[$collection])) {
+            continue;
+          }
+          foreach ($provenance[$collection] as &$evidence) {
+            $evidence['events'] ??= [];
+            foreach ($evidence['events'] as &$event) {
+              if (isset($eventIds[(int) ($event['event_id'] ?? 0)])) {
+                $event['evidence_status'] = 'expired';
+                $changed = TRUE;
+              }
+            }
+            unset($event);
+            if ($evidence['events'] !== [] || ($collection === 'items' && !isset($provenance['sources']))) {
+              $evidence['evidence_status'] = $this->itemStatus(
+                $evidence['events'],
+                (int) ($evidence['event_count'] ?? count($evidence['events'])),
+              );
             }
           }
-          unset($event);
-          $item['evidence_status'] = $this->itemStatus(
-            $item['events'] ?? [],
-            (int) ($item['event_count'] ?? count($item['events'] ?? [])),
-          );
+          unset($evidence);
         }
-        unset($item);
+        $this->resolveItemStatuses($provenance);
         if ($changed) {
           $release->setProvenance($provenance)->save();
         }
@@ -100,18 +116,23 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
       foreach ($releases as $release) {
         $provenance = $release->getProvenance();
         $changed = FALSE;
-        foreach ($provenance['items'] as &$item) {
-          if (($item['event_ids'] ?? []) === []
-            && ($item['events'] ?? []) === []
-            && ($item['evidence_status'] ?? NULL) === 'removed') {
+        foreach (['sources', 'items'] as $collection) {
+          if (!isset($provenance[$collection])) {
             continue;
           }
-          $item['event_ids'] = [];
-          $item['events'] = [];
-          $item['evidence_status'] = 'removed';
-          $changed = TRUE;
+          foreach ($provenance[$collection] as &$evidence) {
+            if (($evidence['event_ids'] ?? []) === []
+              && ($evidence['events'] ?? []) === []
+              && ($evidence['evidence_status'] ?? NULL) === 'removed') {
+              continue;
+            }
+            $evidence['event_ids'] = [];
+            $evidence['events'] = [];
+            $evidence['evidence_status'] = 'removed';
+            $changed = TRUE;
+          }
+          unset($evidence);
         }
-        unset($item);
         if ($changed) {
           $release->setProvenance($provenance)->save();
           $count++;
@@ -258,6 +279,28 @@ final class ReleaseProvenanceManager implements ReleaseProvenanceManagerInterfac
       return 'partial';
     }
     return (string) reset($statuses);
+  }
+
+  /**
+   * Derives version 2 item status from its original source records.
+   */
+  private function resolveItemStatuses(array &$provenance): void {
+    if (!isset($provenance['sources'])) {
+      return;
+    }
+    foreach ($provenance['items'] as &$item) {
+      if (($item['events'] ?? []) !== []) {
+        continue;
+      }
+      $statuses = [];
+      foreach ($item['change_set_ids'] ?? [] as $sourceId) {
+        $statuses[] = $provenance['sources'][$sourceId]['evidence_status'] ?? 'missing';
+      }
+      $item['evidence_status'] = $statuses !== [] && count(array_unique($statuses)) === 1
+        ? reset($statuses)
+        : 'partial';
+    }
+    unset($item);
   }
 
 }

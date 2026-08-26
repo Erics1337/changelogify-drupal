@@ -8,6 +8,8 @@ services:
   Drupal\changelogify_ai\ResultValidator: ~
   Drupal\changelogify_ai\SynthesisBatcher: ~
   Drupal\changelogify_ai\SynthesisEvidenceSelector: ~
+  Drupal\changelogify_ai\SynthesisDraftFinalizer:
+    arguments: ['@Drupal\changelogify_ai\SynthesisJobManager', '@Drupal\changelogify_ai\SynthesisEvidenceSelector', '@Drupal\changelogify\ReleaseGeneratorInterface', '@Drupal\changelogify_ai\ResultValidator', '@database', '@lock', '@logger.channel.changelogify_ai']
   Drupal\changelogify_ai\SynthesisProvenanceResolver: ~
   Drupal\changelogify_ai\AiReadinessChecker: ~
   Drupal\changelogify_ai\AiFailureMessage: ~
