@@ -14,6 +14,7 @@ use Drupal\changelogify_ai\PromptTemplateRegistry;
 use Drupal\changelogify_ai\ResultValidator;
 use Drupal\changelogify_ai\SynthesisBatcher;
 use Drupal\changelogify_ai\SynthesisJobManager;
+use Drupal\changelogify_ai\SynthesisProvenanceResolver;
 use Drupal\changelogify_ai\Summarization\FakeSummarizer;
 use Drupal\changelogify_ai\Summarization\SummarizationRequest;
 use Drupal\changelogify_ai\Summarization\SummarizationResult;
@@ -58,11 +59,19 @@ final class SynthesisJobManagerTest extends TestCase {
     self::assertArrayNotHasKey('rounds', $job);
     self::assertArrayNotHasKey('instructions', $job);
     self::assertLessThanOrEqual(5, count($manager->result($jobId)->items));
+    foreach ($manager->result($jobId)->items as $item) {
+      self::assertSame([], array_filter($item->sourceIds, static fn (string $id): bool => str_starts_with($id, 'candidate-')));
+    }
+    $coverage = $manager->provenance($jobId)['coverage'];
+    self::assertSame(250, $coverage['evidence_considered']);
+    self::assertSame(250, $coverage['evidence_cited']);
+    self::assertSame(0, $coverage['eligible_not_surfaced']);
     self::assertContains(SynthesisContract::STAGE_INTERMEDIATE, array_column($summarizer->calls, 'stage'));
     self::assertContains(SynthesisContract::STAGE_FINAL, array_column($summarizer->calls, 'stage'));
     foreach ($summarizer->calls as $call) {
       self::assertLessThanOrEqual(SynthesisBatcher::MAX_ITEMS, $call['count']);
       self::assertLessThanOrEqual(SynthesisBatcher::MAX_BYTES, $call['bytes']);
+      self::assertFalse($call['internal_metadata']);
     }
     $summaries = $manager->all();
     self::assertArrayNotHasKey('final_result', $summaries[$jobId]);
@@ -173,6 +182,10 @@ final class SynthesisJobManagerTest extends TestCase {
           'count' => count($request->evidence),
           'bytes' => strlen(json_encode($request->evidence, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
           'ids' => array_keys($request->evidence),
+          'internal_metadata' => array_filter(
+            $request->evidence,
+            static fn (array $document): bool => isset($document['job_id']) || isset($document['original_source_ids']),
+          ) !== [],
         ];
         if ($this->failures > 0) {
           $this->failures--;
@@ -219,6 +232,7 @@ final class SynthesisJobManagerTest extends TestCase {
       $summarizer,
       new ResultValidator(),
       new SynthesisBatcher(),
+      new SynthesisProvenanceResolver(),
       $keyValue,
       $lock,
       $queueFactory,

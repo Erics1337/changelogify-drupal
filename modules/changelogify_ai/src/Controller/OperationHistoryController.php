@@ -41,6 +41,14 @@ final class OperationHistoryController extends ControllerBase {
       $progress = isset($operation['total_batches'])
         ? sprintf('%d / %d (round %d)', $operation['completed_batches'], $operation['total_batches'], $operation['round'])
         : '-';
+      $coverage = isset($operation['coverage'])
+        ? sprintf(
+          '%d / %d cited; %d not surfaced',
+          $operation['coverage']['evidence_cited'],
+          $operation['coverage']['evidence_considered'],
+          $operation['coverage']['eligible_not_surfaced'],
+        )
+        : '-';
       $cancellable = ($operation['status'] ?? NULL) === 'queued'
         || (isset($operation['total_batches']) && ($operation['status'] ?? NULL) === 'running');
       $rows[] = [
@@ -48,6 +56,7 @@ final class OperationHistoryController extends ControllerBase {
         'status' => $operation['status'] ?? 'unknown',
         'type' => $operation['type'] ?? 'unknown',
         'progress' => $progress,
+        'coverage' => $coverage,
         'release' => $operation['release_id'] ?? '-',
         'revision' => $operation['accepted_revision_id'] ?? $operation['revision_id'] ?? '-',
         'provider' => $operation['provider_id'] ?? 'unavailable',
@@ -63,7 +72,7 @@ final class OperationHistoryController extends ControllerBase {
     return [
       '#type' => 'table',
       '#header' => [
-        $this->t('Operation'), $this->t('Status'), $this->t('Type'), $this->t('Progress'), $this->t('Release'), $this->t('Revision'),
+        $this->t('Operation'), $this->t('Status'), $this->t('Type'), $this->t('Progress'), $this->t('Coverage'), $this->t('Release'), $this->t('Revision'),
         $this->t('Provider'), $this->t('Model'), $this->t('Input / output tokens'), $this->t('Created'), $this->t('Failure category'), $this->t('Actions'),
       ],
       '#rows' => $rows,

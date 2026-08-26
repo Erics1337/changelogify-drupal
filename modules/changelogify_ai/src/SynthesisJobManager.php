@@ -32,6 +32,7 @@ final class SynthesisJobManager {
     private readonly SummarizerInterface $summarizer,
     private readonly ResultValidator $validator,
     private readonly SynthesisBatcher $batcher,
+    private readonly SynthesisProvenanceResolver $provenanceResolver,
     private readonly KeyValueFactoryInterface $keyValue,
     private readonly LockBackendInterface $lock,
     private readonly QueueFactory $queueFactory,
@@ -56,6 +57,10 @@ final class SynthesisJobManager {
    *   Effective evidence-eligibility version.
    * @param string $instructions
    *   Bounded temporary instructions for this job.
+   * @param array<string, array<string, mixed>> $sourceProvenance
+   *   Trusted original evidence metadata, never sent to the provider.
+   * @param array{editor?: array, policy?: array} $coverageExclusions
+   *   Source IDs excluded before eligible evidence was considered.
    */
   public function start(
     array $evidence,
@@ -65,6 +70,8 @@ final class SynthesisJobManager {
     string $policyVersion,
     string $eligibilityVersion,
     string $instructions = '',
+    array $sourceProvenance = [],
+    array $coverageExclusions = [],
   ): string {
     if ($evidence === []) {
       throw new \UnexpectedValueException('Release synthesis requires eligible evidence.');
@@ -86,6 +93,8 @@ final class SynthesisJobManager {
       'policy_version' => $policyVersion,
       'eligibility_version' => $eligibilityVersion,
       'instructions' => $instructions,
+      'source_provenance' => $sourceProvenance,
+      'coverage_exclusions' => $coverageExclusions,
       'synthesis_version' => SynthesisContract::VERSION,
     ], JSON_THROW_ON_ERROR));
     $store = $this->store();
@@ -106,6 +115,8 @@ final class SynthesisJobManager {
       'policy_version' => $policyVersion,
       'eligibility_version' => $eligibilityVersion,
       'instructions' => $instructions,
+      'source_index' => $this->provenanceResolver->sourceIndex($evidence, $sourceProvenance),
+      'coverage_exclusions' => $coverageExclusions,
       'payload_hash' => hash('sha256', json_encode($evidence, JSON_THROW_ON_ERROR)),
       'round' => 0,
       'total_batches' => 0,
@@ -183,16 +194,30 @@ final class SynthesisJobManager {
         return;
       }
       if (($job['rounds'][$round]['stage'] ?? NULL) === SynthesisContract::STAGE_FINAL) {
-        $job['final_result'] = $job['rounds'][$round]['batches'][$batchId]['result'];
-        $job['status'] = 'completed';
-        $job['completed'] = $this->time->getRequestTime();
-        $this->cleanup($job);
-        $store->set($jobId, $job);
+        try {
+          $resolved = $this->provenanceResolver->finalize(
+            $result,
+            $batch['evidence'],
+            $job['source_index'],
+            $jobId,
+            $job['coverage_exclusions'],
+          );
+          $job['final_result'] = $this->normalizeResult($resolved['result']);
+          $job['provenance'] = $resolved['provenance'];
+          $job['coverage'] = $resolved['coverage'];
+          $job['status'] = 'completed';
+          $job['completed'] = $this->time->getRequestTime();
+          $this->cleanup($job);
+          $store->set($jobId, $job);
+        }
+        catch (\Throwable $exception) {
+          $this->fail($job, $exception);
+        }
         return;
       }
 
       try {
-        $candidates = $this->candidateEvidence($job['rounds'][$round], $round);
+        $candidates = $this->candidateEvidence($job['rounds'][$round], $round, $jobId);
         unset($job['rounds'][$round]);
         $nextRound = $round + 1;
         $job['round'] = $nextRound;
@@ -258,6 +283,7 @@ final class SynthesisJobManager {
         'policy_version', 'eligibility_version', 'payload_hash', 'round',
         'total_batches', 'completed_batches', 'retry_count', 'input_tokens',
         'output_tokens', 'provider_id', 'model_id', 'error_code', 'error_class',
+        'coverage',
       ]));
     }
     uasort($summaries, static fn (array $left, array $right): int => ($right['created'] ?? 0) <=> ($left['created'] ?? 0));
@@ -278,6 +304,17 @@ final class SynthesisJobManager {
         $store->delete($id);
       }
     }
+  }
+
+  /**
+   * Returns resolved, bounded provenance for a completed job.
+   */
+  public function provenance(string $jobId): array {
+    $job = $this->get($jobId);
+    if (!is_array($job) || ($job['status'] ?? NULL) !== 'completed' || !is_array($job['provenance'] ?? NULL)) {
+      throw new \UnexpectedValueException('The synthesis job has no completed provenance.');
+    }
+    return $job['provenance'];
   }
 
   /**
@@ -320,10 +357,18 @@ final class SynthesisJobManager {
    * Creates one immutable request from server-held batch state.
    */
   private function request(array $job, int $round, string $batchId, array $batch): SummarizationRequest {
+    $providerEvidence = [];
+    foreach ($batch['evidence'] as $sourceId => $document) {
+      $providerEvidence[$sourceId] = $document;
+      unset(
+        $providerEvidence[$sourceId]['job_id'],
+        $providerEvidence[$sourceId]['original_source_ids'],
+      );
+    }
     return new SummarizationRequest(
       SynthesisContract::OPERATION,
       $job['profile'],
-      $batch['evidence'],
+      $providerEvidence,
       $job['prompt_version'],
       $job['policy_version'],
       hash('sha256', implode(':', [$job['id'], (string) $round, $batchId, (string) $batch['attempts']])),
@@ -337,10 +382,15 @@ final class SynthesisJobManager {
   /**
    * Converts completed intermediate results into next-round evidence.
    */
-  private function candidateEvidence(array $round, int $roundNumber): array {
+  private function candidateEvidence(array $round, int $roundNumber, string $jobId): array {
     $evidence = [];
     foreach ($round['batches'] as $batchIndex => $batch) {
       foreach (($batch['result']['items'] ?? []) as $itemIndex => $item) {
+        $originalSourceIds = $this->provenanceResolver->resolveSourceIds(
+          $item['source_ids'],
+          $batch['evidence'],
+          $jobId,
+        );
         $id = 'candidate-' . substr(hash('sha256', json_encode([
           $roundNumber, $batchIndex, $itemIndex, $item,
         ], JSON_THROW_ON_ERROR)), 0, 24);
@@ -351,7 +401,9 @@ final class SynthesisJobManager {
           'summary' => $item['text'],
           'messages' => [$item['text']],
           'source_ids' => $item['source_ids'],
+          'original_source_ids' => $originalSourceIds,
           'source_candidate_id' => $item['id'],
+          'job_id' => $jobId,
         ];
       }
     }
@@ -408,7 +460,12 @@ final class SynthesisJobManager {
    * Removes intermediate evidence and requests at every terminal state.
    */
   private function cleanup(array &$job): void {
-    unset($job['rounds'], $job['instructions']);
+    unset(
+      $job['rounds'],
+      $job['instructions'],
+      $job['source_index'],
+      $job['coverage_exclusions'],
+    );
   }
 
   /**
