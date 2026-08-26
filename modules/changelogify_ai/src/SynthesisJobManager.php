@@ -1,0 +1,474 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Drupal\changelogify_ai;
+
+use Drupal\Component\Datetime\TimeInterface;
+use Drupal\Core\KeyValueStore\KeyValueFactoryInterface;
+use Drupal\Core\KeyValueStore\KeyValueStoreInterface;
+use Drupal\Core\Lock\LockBackendInterface;
+use Drupal\Core\Queue\QueueFactory;
+use Drupal\changelogify_ai\Summarization\SummarizationItem;
+use Drupal\changelogify_ai\Summarization\SummarizationRequest;
+use Drupal\changelogify_ai\Summarization\SummarizationResult;
+use Drupal\changelogify_ai\Summarization\SummarizerInterface;
+use Drupal\changelogify_ai\Summarization\SynthesisContract;
+use Drupal\changelogify_ai\Summarization\TransientSummarizationException;
+use Psr\Log\LoggerInterface;
+
+/**
+ * Orchestrates durable, idempotent, hierarchical release synthesis jobs.
+ */
+final class SynthesisJobManager {
+
+  public const QUEUE_NAME = 'changelogify_ai_synthesis';
+
+  private const STORE = 'changelogify_ai.synthesis_jobs';
+  private const LOCK_TIMEOUT = 300;
+  private const MAX_ATTEMPTS = 3;
+
+  public function __construct(
+    private readonly SummarizerInterface $summarizer,
+    private readonly ResultValidator $validator,
+    private readonly SynthesisBatcher $batcher,
+    private readonly KeyValueFactoryInterface $keyValue,
+    private readonly LockBackendInterface $lock,
+    private readonly QueueFactory $queueFactory,
+    private readonly TimeInterface $time,
+    private readonly LoggerInterface $logger,
+  ) {}
+
+  /**
+   * Creates and queues a deterministic synthesis job.
+   *
+   * @param array<string, array<string, mixed>> $evidence
+   *   Eligible, policy-filtered source evidence.
+   * @param string $profile
+   *   Built-in editorial profile.
+   * @param string $lengthPreset
+   *   Final synthesis length preset.
+   * @param string $promptVersion
+   *   Versioned prompt template.
+   * @param string $policyVersion
+   *   Effective outbound-data policy version.
+   * @param string $eligibilityVersion
+   *   Effective evidence-eligibility version.
+   * @param string $instructions
+   *   Bounded temporary instructions for this job.
+   */
+  public function start(
+    array $evidence,
+    string $profile,
+    string $lengthPreset,
+    string $promptVersion,
+    string $policyVersion,
+    string $eligibilityVersion,
+    string $instructions = '',
+  ): string {
+    if ($evidence === []) {
+      throw new \UnexpectedValueException('Release synthesis requires eligible evidence.');
+    }
+    SynthesisContract::validateRequest(
+      SynthesisContract::OPERATION,
+      SynthesisContract::VERSION,
+      SynthesisContract::STAGE_FINAL,
+      $lengthPreset,
+    );
+    if (!$this->summarizer->isAvailable()) {
+      throw new \RuntimeException('The configured summarizer is unavailable.');
+    }
+    $jobId = hash('sha256', json_encode([
+      'evidence' => $evidence,
+      'profile' => $profile,
+      'length_preset' => $lengthPreset,
+      'prompt_version' => $promptVersion,
+      'policy_version' => $policyVersion,
+      'eligibility_version' => $eligibilityVersion,
+      'instructions' => $instructions,
+      'synthesis_version' => SynthesisContract::VERSION,
+    ], JSON_THROW_ON_ERROR));
+    $store = $this->store();
+    $existing = $store->get($jobId);
+    if (is_array($existing) && in_array($existing['status'] ?? NULL, ['queued', 'running', 'completed'], TRUE)) {
+      throw new \RuntimeException('An equivalent synthesis job is already in progress or complete.');
+    }
+
+    $job = [
+      'id' => $jobId,
+      'type' => SynthesisContract::OPERATION,
+      'status' => 'queued',
+      'created' => $this->time->getRequestTime(),
+      'profile' => $profile,
+      'length_preset' => $lengthPreset,
+      'prompt_version' => $promptVersion,
+      'synthesis_version' => SynthesisContract::VERSION,
+      'policy_version' => $policyVersion,
+      'eligibility_version' => $eligibilityVersion,
+      'instructions' => $instructions,
+      'payload_hash' => hash('sha256', json_encode($evidence, JSON_THROW_ON_ERROR)),
+      'round' => 0,
+      'total_batches' => 0,
+      'completed_batches' => 0,
+      'retry_count' => 0,
+      'input_tokens' => 0,
+      'output_tokens' => 0,
+      'rounds' => [],
+    ];
+    $references = $this->prepareRound($job, $evidence, 0);
+    $store->set($jobId, $job);
+    $this->enqueue($references);
+    return $jobId;
+  }
+
+  /**
+   * Processes one credential-free queue reference.
+   */
+  public function process(string $jobId, string $batchId): void {
+    $lockName = "changelogify_ai:synthesis:{$jobId}";
+    if (!$this->lock->acquire($lockName, self::LOCK_TIMEOUT)) {
+      return;
+    }
+    try {
+      $store = $this->store();
+      $job = $store->get($jobId);
+      if (!is_array($job) || in_array($job['status'] ?? NULL, ['completed', 'failed', 'cancelled'], TRUE)) {
+        return;
+      }
+      $round = (int) ($job['round'] ?? 0);
+      if (!isset($job['rounds'][$round]['batches'][$batchId])) {
+        return;
+      }
+      $batch = $job['rounds'][$round]['batches'][$batchId];
+      if (($batch['status'] ?? NULL) === 'completed') {
+        return;
+      }
+      $batch['status'] = 'running';
+      $job['status'] = 'running';
+      $job['rounds'][$round]['batches'][$batchId] = $batch;
+      $store->set($jobId, $job);
+
+      $request = $this->request($job, $round, $batchId, $batch);
+      try {
+        $result = $this->summarizer->summarize($request);
+        $this->validator->validate($result, array_keys($batch['evidence']), $request);
+      }
+      catch (TransientSummarizationException $exception) {
+        $this->retryOrFail($job, $round, $batchId, $exception);
+        return;
+      }
+      catch (\Throwable $exception) {
+        $this->fail($job, $exception);
+        return;
+      }
+      if ($result->status !== 'completed') {
+        $this->fail($job, new \UnexpectedValueException('The provider did not complete a synthesis batch.'));
+        return;
+      }
+      $current = $store->get($jobId);
+      if (is_array($current) && ($current['status'] ?? NULL) === 'cancelled') {
+        return;
+      }
+
+      $job['rounds'][$round]['batches'][$batchId]['status'] = 'completed';
+      $job['rounds'][$round]['batches'][$batchId]['result'] = $this->normalizeResult($result);
+      $job['completed_batches']++;
+      $job['input_tokens'] += $result->inputTokens ?? 0;
+      $job['output_tokens'] += $result->outputTokens ?? 0;
+      $job['provider_id'] = $result->providerId;
+      $job['model_id'] = $result->modelId;
+
+      if (!$this->roundComplete($job['rounds'][$round])) {
+        $store->set($jobId, $job);
+        return;
+      }
+      if (($job['rounds'][$round]['stage'] ?? NULL) === SynthesisContract::STAGE_FINAL) {
+        $job['final_result'] = $job['rounds'][$round]['batches'][$batchId]['result'];
+        $job['status'] = 'completed';
+        $job['completed'] = $this->time->getRequestTime();
+        $this->cleanup($job);
+        $store->set($jobId, $job);
+        return;
+      }
+
+      try {
+        $candidates = $this->candidateEvidence($job['rounds'][$round], $round);
+        unset($job['rounds'][$round]);
+        $nextRound = $round + 1;
+        $job['round'] = $nextRound;
+        $references = $this->prepareRound($job, $candidates, $nextRound);
+        $store->set($jobId, $job);
+        $this->enqueue($references);
+      }
+      catch (\Throwable $exception) {
+        $this->fail($job, $exception);
+      }
+    }
+    finally {
+      $this->lock->release($lockName);
+    }
+  }
+
+  /**
+   * Cancels queued or running work; workers observe the terminal state.
+   */
+  public function cancel(string $jobId): void {
+    $store = $this->store();
+    $job = $store->get($jobId);
+    if (!is_array($job) || !in_array($job['status'] ?? NULL, ['queued', 'running'], TRUE)) {
+      throw new \UnexpectedValueException('Only queued or running synthesis jobs can be cancelled.');
+    }
+    $job['status'] = 'cancelled';
+    $job['completed'] = $this->time->getRequestTime();
+    $this->cleanup($job);
+    $store->set($jobId, $job);
+  }
+
+  /**
+   * Returns complete internal state for a trusted worker or finalizer.
+   */
+  public function get(string $jobId): ?array {
+    $job = $this->store()->get($jobId);
+    return is_array($job) ? $job : NULL;
+  }
+
+  /**
+   * Returns a completed final result without intermediate evidence.
+   */
+  public function result(string $jobId): SummarizationResult {
+    $job = $this->get($jobId);
+    if (!is_array($job) || ($job['status'] ?? NULL) !== 'completed' || !is_array($job['final_result'] ?? NULL)) {
+      throw new \UnexpectedValueException('The synthesis job has no completed result.');
+    }
+    return $this->denormalizeResult($job['final_result']);
+  }
+
+  /**
+   * Returns privacy-bounded job summaries, newest first.
+   */
+  public function all(): array {
+    $summaries = [];
+    foreach ($this->store()->getAll() as $id => $job) {
+      if (!is_array($job)) {
+        continue;
+      }
+      $summaries[$id] = array_intersect_key($job, array_flip([
+        'id', 'type', 'status', 'created', 'completed', 'profile',
+        'length_preset', 'prompt_version', 'synthesis_version',
+        'policy_version', 'eligibility_version', 'payload_hash', 'round',
+        'total_batches', 'completed_batches', 'retry_count', 'input_tokens',
+        'output_tokens', 'provider_id', 'model_id', 'error_code', 'error_class',
+      ]));
+    }
+    uasort($summaries, static fn (array $left, array $right): int => ($right['created'] ?? 0) <=> ($left['created'] ?? 0));
+    return $summaries;
+  }
+
+  /**
+   * Removes expired terminal job metadata and completed results.
+   */
+  public function purge(int $retentionDays): void {
+    $retentionDays = min(3650, max(1, $retentionDays));
+    $cutoff = $this->time->getRequestTime() - ($retentionDays * 86400);
+    $store = $this->store();
+    foreach ($store->getAll() as $id => $job) {
+      if (is_array($job)
+        && in_array($job['status'] ?? NULL, ['completed', 'failed', 'cancelled'], TRUE)
+        && ($job['created'] ?? 0) < $cutoff) {
+        $store->delete($id);
+      }
+    }
+  }
+
+  /**
+   * Creates the current round and returns its safe queue references.
+   */
+  private function prepareRound(array &$job, array $evidence, int $round): array {
+    $partitions = $this->batcher->partition($evidence);
+    if ($partitions === []) {
+      throw new \UnexpectedValueException('A synthesis round cannot be empty.');
+    }
+    $stage = count($partitions) === 1
+      ? SynthesisContract::STAGE_FINAL
+      : SynthesisContract::STAGE_INTERMEDIATE;
+    $batches = [];
+    $references = [];
+    foreach ($partitions as $index => $partition) {
+      $batchId = substr(hash('sha256', json_encode([
+        'job' => $job['id'],
+        'round' => $round,
+        'index' => $index,
+        'evidence' => array_keys($partition),
+      ], JSON_THROW_ON_ERROR)), 0, 32);
+      $batches[$batchId] = [
+        'id' => $batchId,
+        'status' => 'queued',
+        'attempts' => 0,
+        'evidence' => $partition,
+      ];
+      $references[] = ['job_id' => $job['id'], 'batch_id' => $batchId];
+    }
+    $job['rounds'][$round] = [
+      'stage' => $stage,
+      'batches' => $batches,
+    ];
+    $job['total_batches'] += count($batches);
+    return $references;
+  }
+
+  /**
+   * Creates one immutable request from server-held batch state.
+   */
+  private function request(array $job, int $round, string $batchId, array $batch): SummarizationRequest {
+    return new SummarizationRequest(
+      SynthesisContract::OPERATION,
+      $job['profile'],
+      $batch['evidence'],
+      $job['prompt_version'],
+      $job['policy_version'],
+      hash('sha256', implode(':', [$job['id'], (string) $round, $batchId, (string) $batch['attempts']])),
+      $job['instructions'],
+      SynthesisContract::VERSION,
+      $job['rounds'][$round]['stage'],
+      $job['length_preset'],
+    );
+  }
+
+  /**
+   * Converts completed intermediate results into next-round evidence.
+   */
+  private function candidateEvidence(array $round, int $roundNumber): array {
+    $evidence = [];
+    foreach ($round['batches'] as $batchIndex => $batch) {
+      foreach (($batch['result']['items'] ?? []) as $itemIndex => $item) {
+        $id = 'candidate-' . substr(hash('sha256', json_encode([
+          $roundNumber, $batchIndex, $itemIndex, $item,
+        ], JSON_THROW_ON_ERROR)), 0, 24);
+        $evidence[$id] = [
+          'id' => $id,
+          'kind' => 'synthesis_candidate',
+          'section' => $item['section'],
+          'summary' => $item['text'],
+          'messages' => [$item['text']],
+          'source_ids' => $item['source_ids'],
+          'source_candidate_id' => $item['id'],
+        ];
+      }
+    }
+    if ($evidence === []) {
+      throw new \UnexpectedValueException('Intermediate synthesis produced no candidates.');
+    }
+    return $evidence;
+  }
+
+  /**
+   * Determines whether every batch in the current round completed.
+   */
+  private function roundComplete(array $round): bool {
+    foreach ($round['batches'] as $batch) {
+      if (($batch['status'] ?? NULL) !== 'completed') {
+        return FALSE;
+      }
+    }
+    return TRUE;
+  }
+
+  /**
+   * Requeues transient failures up to the bounded attempt limit.
+   */
+  private function retryOrFail(array $job, int $round, string $batchId, \Throwable $exception): void {
+    $job['rounds'][$round]['batches'][$batchId]['attempts']++;
+    $job['retry_count']++;
+    if ($job['rounds'][$round]['batches'][$batchId]['attempts'] >= self::MAX_ATTEMPTS) {
+      $this->fail($job, $exception);
+      return;
+    }
+    $job['rounds'][$round]['batches'][$batchId]['status'] = 'queued';
+    $this->store()->set($job['id'], $job);
+    $this->enqueue([['job_id' => $job['id'], 'batch_id' => $batchId]]);
+  }
+
+  /**
+   * Records a terminal failure without provider text or temporary evidence.
+   */
+  private function fail(array $job, \Throwable $exception): void {
+    $job['status'] = 'failed';
+    $job['completed'] = $this->time->getRequestTime();
+    $job['error_class'] = $exception::class;
+    $job['error_code'] = (new AiFailureMessage())->code($exception);
+    $this->cleanup($job);
+    $this->store()->set($job['id'], $job);
+    $this->logger->error('AI synthesis job @id failed with @exception.', [
+      '@id' => $job['id'],
+      '@exception' => $exception::class,
+    ]);
+  }
+
+  /**
+   * Removes intermediate evidence and requests at every terminal state.
+   */
+  private function cleanup(array &$job): void {
+    unset($job['rounds'], $job['instructions']);
+  }
+
+  /**
+   * Adds credential-free references to the synthesis queue.
+   */
+  private function enqueue(array $references): void {
+    $queue = $this->queueFactory->get(self::QUEUE_NAME);
+    foreach ($references as $reference) {
+      $queue->createItem($reference);
+    }
+  }
+
+  /**
+   * Converts a value result into key-value-safe scalar arrays.
+   */
+  private function normalizeResult(SummarizationResult $result): array {
+    return [
+      'status' => $result->status,
+      'items' => array_map(static fn (SummarizationItem $item): array => [
+        'id' => $item->id,
+        'section' => $item->section,
+        'text' => $item->text,
+        'source_ids' => $item->sourceIds,
+      ], $result->items),
+      'omitted_source_ids' => $result->omittedSourceIds,
+      'warnings' => $result->warnings,
+      'provider_id' => $result->providerId,
+      'model_id' => $result->modelId,
+      'input_tokens' => $result->inputTokens,
+      'output_tokens' => $result->outputTokens,
+    ];
+  }
+
+  /**
+   * Restores the provider-neutral result used by a later finalizer.
+   */
+  private function denormalizeResult(array $result): SummarizationResult {
+    $items = array_map(static fn (array $item): SummarizationItem => new SummarizationItem(
+      $item['id'],
+      $item['section'],
+      $item['text'],
+      $item['source_ids'],
+    ), $result['items']);
+    return new SummarizationResult(
+      $result['status'],
+      $items,
+      $result['omitted_source_ids'],
+      $result['warnings'],
+      $result['provider_id'],
+      $result['model_id'],
+      $result['input_tokens'],
+      $result['output_tokens'],
+    );
+  }
+
+  /**
+   * Returns the synthesis job key-value collection.
+   */
+  private function store(): KeyValueStoreInterface {
+    return $this->keyValue->get(self::STORE);
+  }
+
+}

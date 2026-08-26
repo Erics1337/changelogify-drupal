@@ -46,12 +46,38 @@ final class FakeSummarizer implements SummarizerInterface {
     if ($this->mode === 'empty') {
       return new SummarizationResult('completed', [], [], [], 'fake', 'deterministic');
     }
+    if ($request->operation === SynthesisContract::OPERATION) {
+      return $this->synthesize($request);
+    }
     $items = [];
     foreach ($request->evidence as $id => $evidence) {
       $items[] = new SummarizationItem($id, (string) ($evidence['section'] ?? 'other'), (string) ($evidence['summary'] ?? ''), [$id]);
     }
     if ($this->mode === 'completed_with_report') {
       return new SummarizationResult('completed', $items, array_keys($request->evidence), ['Deterministic provider warning.'], 'fake', 'deterministic');
+    }
+    return new SummarizationResult('completed', $items, [], [], 'fake', 'deterministic');
+  }
+
+  /**
+   * Deterministically condenses evidence within the synthesis-stage bound.
+   */
+  private function synthesize(SummarizationRequest $request): SummarizationResult {
+    $sourceIds = array_keys($request->evidence);
+    $maximum = SynthesisContract::maxItems(
+      (string) $request->getSynthesisStage(),
+      (string) $request->getLengthPreset(),
+    );
+    $chunkSize = max(1, (int) ceil(count($sourceIds) / $maximum));
+    $items = [];
+    foreach (array_chunk($sourceIds, $chunkSize) as $index => $chunk) {
+      $first = $request->evidence[$chunk[0]];
+      $items[] = new SummarizationItem(
+        'synthesis-' . $index,
+        (string) ($first['section'] ?? 'other'),
+        (string) ($first['summary'] ?? 'Evidence-backed change.'),
+        $chunk,
+      );
     }
     return new SummarizationResult('completed', $items, [], [], 'fake', 'deterministic');
   }

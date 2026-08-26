@@ -6,6 +6,7 @@ services:
   Drupal\changelogify_ai\OutboundPayloadBuilder: ~
   Drupal\changelogify_ai\PromptTemplateRegistry: ~
   Drupal\changelogify_ai\ResultValidator: ~
+  Drupal\changelogify_ai\SynthesisBatcher: ~
   Drupal\changelogify_ai\AiReadinessChecker: ~
   Drupal\changelogify_ai\AiFailureMessage: ~
   Drupal\changelogify_ai\DrupalAiChatRequestFactory: ~
@@ -15,6 +16,8 @@ services:
   Drupal\changelogify_ai\CompleteDraftGenerator: ~
   Drupal\changelogify_ai\AiOperationManager:
     arguments: ['@Drupal\changelogify_ai\Summarization\SummarizerInterface', '@Drupal\changelogify_ai\ResultValidator', '@keyvalue', '@lock', '@current_user', '@datetime.time', '@logger.channel.changelogify_ai', '@queue']
+  Drupal\changelogify_ai\SynthesisJobManager:
+    arguments: ['@Drupal\changelogify_ai\Summarization\SummarizerInterface', '@Drupal\changelogify_ai\ResultValidator', '@Drupal\changelogify_ai\SynthesisBatcher', '@keyvalue', '@lock', '@queue', '@datetime.time', '@logger.channel.changelogify_ai']
   Drupal\changelogify_ai\DrupalAiSummarizer:
     arguments: ['@ai.provider', '@config.factory', '@Drupal\changelogify_ai\PromptTemplateRegistry', '@Drupal\changelogify_ai\ChatRequestFactoryInterface']
   Drupal\changelogify_ai\Summarization\SummarizerInterface:

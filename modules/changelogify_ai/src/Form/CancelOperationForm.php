@@ -9,6 +9,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
 use Drupal\changelogify_ai\AiOperationManager;
+use Drupal\changelogify_ai\SynthesisJobManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -17,13 +18,16 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  */
 final class CancelOperationForm extends ConfirmFormBase {
 
-  public function __construct(protected AiOperationManager $operations) {}
+  public function __construct(protected AiOperationManager $operations, protected SynthesisJobManager $synthesisJobs) {}
 
   /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container): static {
-    return new static($container->get(AiOperationManager::class));
+    return new static(
+      $container->get(AiOperationManager::class),
+      $container->get(SynthesisJobManager::class),
+    );
   }
 
   /**
@@ -59,10 +63,15 @@ final class CancelOperationForm extends ConfirmFormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state, string $operation_id = ''): array {
     $operation = $this->operations->get($operation_id);
-    if (!is_array($operation) || ($operation['status'] ?? NULL) !== 'queued') {
+    $synthesisJob = $this->synthesisJobs->get($operation_id);
+    $operationCanCancel = is_array($operation) && ($operation['status'] ?? NULL) === 'queued';
+    $synthesisCanCancel = is_array($synthesisJob)
+      && in_array($synthesisJob['status'] ?? NULL, ['queued', 'running'], TRUE);
+    if (!$operationCanCancel && !$synthesisCanCancel) {
       throw new NotFoundHttpException();
     }
     $form_state->set('operation_id', $operation_id);
+    $form_state->set('synthesis_job', $synthesisCanCancel);
     return parent::buildForm($form, $form_state);
   }
 
@@ -71,7 +80,12 @@ final class CancelOperationForm extends ConfirmFormBase {
    */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     try {
-      $this->operations->cancel((string) $form_state->get('operation_id'));
+      if ($form_state->get('synthesis_job')) {
+        $this->synthesisJobs->cancel((string) $form_state->get('operation_id'));
+      }
+      else {
+        $this->operations->cancel((string) $form_state->get('operation_id'));
+      }
       $this->messenger()->addStatus($this->t('The queued AI operation was cancelled.'));
     }
     catch (\UnexpectedValueException) {
