@@ -541,7 +541,7 @@ function changelogify_ai_release_item_text(ChangelogifyReleaseInterface $release
  * Implements hook_form_changelogify_generate_release_form_alter().
  */
 function changelogify_ai_form_changelogify_generate_release_form_alter(array &$form, FormStateInterface $form_state): void {
-  if (!$form_state->has('preview') || !\Drupal::currentUser()->hasPermission('use changelogify ai')) {
+  if ($form_state->get('preview') === NULL || !\Drupal::currentUser()->hasPermission('use changelogify ai')) {
     return;
   }
   $form['ai_profile'] = [
@@ -581,7 +581,8 @@ function changelogify_ai_form_changelogify_generate_release_form_alter(array &$f
     '#value' => t('Create AI draft release'),
     '#submit' => ['changelogify_ai_generate_draft_submit'],
     '#button_type' => 'primary',
-    '#disabled' => !$readiness['ready'],
+    '#disabled' => !$readiness['ready'] || empty($form_state->get('preview')['change_sets']),
+    '#attributes' => ['class' => ['changelogify-create-ai-draft']],
   ];
 }
 
@@ -611,6 +612,10 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
   try {
     $generator = \Drupal::service(ReleaseGeneratorInterface::class);
     $currentPreview = $generator->previewRange($start, $end);
+    $reused = array_intersect_key(
+      $currentPreview->coverage['reused_change_sets'] ?? [],
+      $selection,
+    ) !== [];
     $drafts = \Drupal::service(CompleteDraftGenerator::class);
     $threshold = max(1, (int) \Drupal::config('changelogify_ai.settings')->get('queue_threshold'));
     if (count($selection) >= $threshold) {
@@ -621,8 +626,8 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
         $selection,
         $options,
         (string) $form_state->getValue('ai_profile'),
-        (bool) $form_state->getValue('confirm_empty'),
-        (bool) $form_state->getValue('confirm_reuse'),
+        FALSE,
+        $reused,
       );
       \Drupal::messenger()->addStatus(t('AI draft operation @id was queued. Review the operation history for completion.', ['@id' => substr($operationId, 0, 16)]));
       $form_state->setRedirect('changelogify_ai.operation_history');
@@ -635,8 +640,8 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
       $selection,
       $options,
       (string) $form_state->getValue('ai_profile'),
-      (bool) $form_state->getValue('confirm_empty'),
-      (bool) $form_state->getValue('confirm_reuse'),
+      FALSE,
+      $reused,
     );
     $report = $drafts->lastReport();
     if ($report['omitted_source_ids'] !== []) {

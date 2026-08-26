@@ -38,10 +38,10 @@
 
 .changelogify-release-item__toolbar {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  align-items: center;
   margin-block-end: 0.75rem;
+  gap: 0.25rem;
 }
 
 .changelogify-release-item__toolbar .button {
@@ -88,6 +88,77 @@
   outline-offset: 0.2rem;
 }
 
+.changelogify-candidate-filters {
+  display: grid;
+  grid-template-columns: minmax(16rem, 2fr) minmax(12rem, 1fr);
+  gap: 1rem;
+  align-items: end;
+  margin-block: 1rem;
+}
+
+.changelogify-change-set-groups {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.changelogify-change-set-group {
+  margin-block: 0;
+}
+
+.changelogify-group-actions {
+  margin-block: 0 0.5rem;
+}
+
+.changelogify-group-actions .button {
+  margin-block: 0;
+  padding: 0.25rem 0.5rem;
+  min-block-size: auto;
+}
+
+.changelogify-change-set-list {
+  display: grid;
+  gap: 0;
+  border-block-start: 1px solid var(--color-gray-300, #d3d4d9);
+}
+
+.changelogify-change-set-row {
+  display: grid;
+  grid-template-columns: auto minmax(12rem, 1fr) minmax(9rem, 12rem);
+  gap: 0.75rem;
+  align-items: center;
+  padding-block: 0.65rem;
+  border-block-end: 1px solid var(--color-gray-300, #d3d4d9);
+}
+
+.changelogify-change-set-row[hidden],
+.changelogify-change-set-group[hidden] {
+  display: none;
+}
+
+.changelogify-change-set-row .form-item {
+  margin-block: 0;
+}
+
+.changelogify-change-set-summary {
+  display: grid;
+  gap: 0.15rem;
+  min-inline-size: 0;
+}
+
+.changelogify-change-set-summary span {
+  color: var(--color-text-neutral-medium, #545560);
+  font-size: 0.875rem;
+}
+
+.changelogify-change-set-summary .changelogify-change-set-reuse {
+  color: var(--color-warning, #9c6500);
+}
+
+.changelogify-coverage-summary {
+  margin-block: 1rem;
+  border-inline-start: 0.25rem solid var(--color-warning, #e0a106);
+}
+
 @media (max-width: 48rem) {
   .changelogify-release-item {
     padding: 0.75rem;
@@ -100,5 +171,10 @@
 
   .changelogify-ai-inline-editor .form-actions .button {
     inline-size: 100%;
+  }
+
+  .changelogify-candidate-filters,
+  .changelogify-change-set-row {
+    grid-template-columns: 1fr;
   }
 }

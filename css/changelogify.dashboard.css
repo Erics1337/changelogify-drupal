@@ -14,12 +14,19 @@
 .changelogify-stats .stat-card {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
   padding: 1.25rem;
+  text-decoration: none;
   border: 1px solid var(--changelogify-border);
   border-radius: 0.5rem;
   background: var(--changelogify-surface);
   box-shadow: 0 1px 2px rgb(20, 35, 50, 0.08);
+  gap: 0.25rem;
+}
+
+.changelogify-stats .stat-card:hover,
+.changelogify-stats .stat-card:focus {
+  border-color: var(--gin-color-primary, #1d4f91);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--gin-color-primary, #1d4f91) 20%, transparent);
 }
 
 .changelogify-stats .stat-card strong {

@@ -64,8 +64,8 @@ final class CompleteDraftGenerator {
       $changeSets,
       static fn (ChangeSet $changeSet): bool => isset($selection[$changeSet->id]),
     ));
-    if ($selected === [] && !$allowEmpty) {
-      throw new \UnexpectedValueException('Creating an empty release requires explicit confirmation.');
+    if ($selected === []) {
+      throw new \UnexpectedValueException('Select at least one change to create a draft release.');
     }
     $payload = $this->payloadBuilder->build($selected);
     $request = new SummarizationRequest(
@@ -84,7 +84,7 @@ final class CompleteDraftGenerator {
     if ($result->status !== 'completed') {
       throw new \UnexpectedValueException('The provider did not complete the draft.');
     }
-    if ($result->items === [] && !$allowEmpty) {
+    if ($result->items === []) {
       throw new \UnexpectedValueException('The provider did not return any release items.');
     }
 
@@ -147,8 +147,8 @@ final class CompleteDraftGenerator {
       $changeSets,
       static fn (ChangeSet $changeSet): bool => isset($selection[$changeSet->id]),
     ));
-    if ($selected === [] && !$allowEmpty) {
-      throw new \UnexpectedValueException('Creating an empty release requires explicit confirmation.');
+    if ($selected === []) {
+      throw new \UnexpectedValueException('Select at least one change to create a draft release.');
     }
     $request = $this->request($selected, $start, $end, $selection, $profile);
     $this->operations->enqueue(
@@ -188,7 +188,7 @@ final class CompleteDraftGenerator {
    *   Whether explicitly confirmed source reuse is allowed.
    */
   public function finalizeQueued(SummarizationResult $result, \DateTimeInterface $start, \DateTimeInterface $end, array $selection, array $options, bool $allowEmpty, bool $allowEvidenceReuse): ChangelogifyReleaseInterface {
-    if ($result->items === [] && !$allowEmpty) {
+    if ($result->items === []) {
       throw new \UnexpectedValueException('The provider did not return any release items.');
     }
     $preview = $this->releaseGenerator->previewRange($start, $end);

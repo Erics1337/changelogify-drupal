@@ -20,9 +20,13 @@
           controls.className = 'changelogify-release-item__toolbar';
           const drag = document.createElement('button');
           drag.type = 'button';
-          drag.className = 'button button--small changelogify-release-item__drag';
+          drag.className =
+            'button button--small changelogify-release-item__drag';
           drag.textContent = Drupal.t('Drag to reorder');
-          drag.setAttribute('aria-label', Drupal.t('Drag this release note to reorder it'));
+          drag.setAttribute(
+            'aria-label',
+            Drupal.t('Drag this release note to reorder it'),
+          );
           controls.append(drag);
           item.draggable = true;
           let dragAllowed = false;
@@ -63,7 +67,10 @@
             button.type = 'button';
             button.className = 'button button--small';
             button.textContent = label;
-            button.setAttribute('aria-label', Drupal.t('@action this release note', { '@action': label }));
+            button.setAttribute(
+              'aria-label',
+              Drupal.t('@action this release note', { '@action': label }),
+            );
             button.addEventListener('click', () => {
               const siblings = items();
               const current = siblings.indexOf(item);
@@ -84,7 +91,9 @@
             const renderRemovalState = () => {
               const removed = removeInput.checked;
               item.classList.toggle('is-pending-removal', removed);
-              remove.textContent = removed ? Drupal.t('Undo remove') : Drupal.t('Remove');
+              remove.textContent = removed
+                ? Drupal.t('Undo remove')
+                : Drupal.t('Remove');
               remove.setAttribute('aria-pressed', removed ? 'true' : 'false');
             };
             remove.addEventListener('click', () => {
@@ -98,6 +107,64 @@
           item.prepend(controls);
           item.tabIndex = -1;
         });
+      });
+    },
+  };
+
+  Drupal.behaviors.changelogifyReleaseGenerator = {
+    attach(context) {
+      once(
+        'changelogify-release-generator',
+        '.changelogify-release-generator',
+        context,
+      ).forEach((form) => {
+        const search = form.querySelector('.changelogify-candidate-search');
+        const source = form.querySelector(
+          '.changelogify-candidate-source-filter',
+        );
+        const rows = [...form.querySelectorAll('.changelogify-change-set-row')];
+        const groups = [
+          ...form.querySelectorAll('.changelogify-change-set-group'),
+        ];
+        const commit = form.querySelector('.changelogify-create-draft');
+        const aiCommit = form.querySelector('.changelogify-create-ai-draft');
+
+        const updateActions = () => {
+          const selected = rows.some((row) => {
+            const checkbox = row.querySelector('input[type="checkbox"]');
+            return checkbox?.checked;
+          });
+          [commit, aiCommit].forEach((button) => {
+            if (button) button.disabled = !selected;
+          });
+        };
+
+        const filter = () => {
+          const term = (search?.value || '').trim().toLocaleLowerCase();
+          const sourceValue = source?.value || '';
+          rows.forEach((row) => {
+            const matchesTerm =
+              !term || (row.dataset.changelogifySearch || '').includes(term);
+            const matchesSource =
+              !sourceValue || row.dataset.changelogifySource === sourceValue;
+            row.hidden = !(matchesTerm && matchesSource);
+          });
+          groups.forEach((group) => {
+            group.hidden = !group.querySelector(
+              '.changelogify-change-set-row:not([hidden])',
+            );
+          });
+        };
+
+        search?.addEventListener('input', filter);
+        source?.addEventListener('change', filter);
+        rows.forEach((row) => {
+          row
+            .querySelector('input[type="checkbox"]')
+            ?.addEventListener('change', updateActions);
+        });
+        filter();
+        updateActions();
       });
     },
   };

@@ -455,6 +455,10 @@ class ReleaseForm extends ContentEntityForm {
         $form_state->getValue(['sections_wrapper', 'items'], []),
         $release->getSections(),
       );
+      if ($release->isNew() && array_sum(array_map('count', $normalized)) === 0) {
+        $form_state->setErrorByName('sections_wrapper', $this->t('Add at least one release note before creating a release.'));
+        return;
+      }
       $form_state->set('normalized_release_sections', $normalized);
     }
     catch (\InvalidArgumentException $exception) {

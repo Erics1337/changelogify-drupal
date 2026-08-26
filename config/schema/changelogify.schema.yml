@@ -14,6 +14,9 @@ changelogify.settings:
     track_unpublished_content:
       type: boolean
       label: Track unpublished content
+    auto_track_new_safe_content:
+      type: boolean
+      label: Automatically track new privacy-safe content types and bundles
     track_modules:
       type: boolean
       label: Track module changes

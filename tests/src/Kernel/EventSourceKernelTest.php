@@ -63,13 +63,26 @@ final class EventSourceKernelTest extends ChangelogifyKernelTestBase {
   }
 
   /**
-   * Tests newly discovered entity types require explicit opt-in.
+   * Tests safe discovery defaults and explicit policy overrides.
    */
-  public function testNewEntityTypesAreDisabledByDefault(): void {
+  public function testNewSafeEntityTypesAreEnabledByDefault(): void {
     $policy = $this->container->get(ContentCapturePolicyInterface::class);
     self::assertArrayHasKey('file', $policy->getEligibleEntityTypes());
+    self::assertTrue($policy->isEntityTypeEnabled('file'));
+    self::assertTrue($policy->isBundleEnabled('file', 'file'));
+
+    $this->config('changelogify.settings')
+      ->set('auto_track_new_safe_content', FALSE)
+      ->save();
     self::assertFalse($policy->isEntityTypeEnabled('file'));
     self::assertFalse($policy->isBundleEnabled('file', 'file'));
+
+    $this->config('changelogify.settings')
+      ->set('content_capture.entity_types.file.enabled', TRUE)
+      ->set('content_capture.entity_types.file.default_bundle_enabled', TRUE)
+      ->save();
+    self::assertTrue($policy->isEntityTypeEnabled('file'));
+    self::assertTrue($policy->isBundleEnabled('file', 'file'));
   }
 
   /**

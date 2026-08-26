@@ -30,6 +30,7 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
       'translation_fallback' => 'fallback',
       'track_content' => TRUE,
       'track_unpublished_content' => FALSE,
+      'auto_track_new_safe_content' => TRUE,
       'track_modules' => TRUE,
       'track_users' => FALSE,
       'content_capture' => [
@@ -50,6 +51,7 @@ final class CleanInstallKernelTest extends ChangelogifyKernelTestBase {
     self::assertSame('/changelog', $typedConfig->get('changelog_path')->getValue());
     self::assertTrue($typedConfig->get('track_content')->getValue());
     self::assertFalse($typedConfig->get('track_unpublished_content')->getValue());
+    self::assertTrue($typedConfig->get('auto_track_new_safe_content')->getValue());
     self::assertSame(90, $typedConfig->get('event_retention_days')->getValue());
 
     $fieldManager = $this->container->get('entity_field.manager');

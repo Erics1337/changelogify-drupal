@@ -35,7 +35,7 @@ interface ReleaseGeneratorInterface {
    * @param array $options
    *   Release title, version, and label options.
    * @param bool $allowEmpty
-   *   Whether an explicitly confirmed empty draft may be created.
+   *   Deprecated compatibility argument. Empty drafts are no longer created.
    * @param bool $allowEvidenceReuse
    *   Whether evidence already referenced by another release may be reused.
    */

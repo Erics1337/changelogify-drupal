@@ -117,8 +117,8 @@ class ReleaseGenerator implements ReleaseGeneratorInterface {
         provenance: $candidate->provenance,
       );
     }
-    if ($selected === [] && !$allowEmpty) {
-      throw new \UnexpectedValueException('Creating an empty release requires explicit confirmation.');
+    if ($selected === []) {
+      throw new \UnexpectedValueException('Select at least one change to create a draft release.');
     }
     $coverage = $this->coverageAnalyzer->analyze(
       $start->getTimestamp(),

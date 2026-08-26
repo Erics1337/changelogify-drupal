@@ -110,3 +110,14 @@ function changelogify_update_17001(): string {
   }
   return 'Enabled source-language fallback for existing releases.';
 }
+
+/**
+ * Preserves existing capture behavior while adding safe automatic discovery.
+ */
+function changelogify_update_17002(): string {
+  $config = \Drupal::configFactory()->getEditable('changelogify.settings');
+  if ($config->get('auto_track_new_safe_content') === NULL) {
+    $config->set('auto_track_new_safe_content', FALSE)->save();
+  }
+  return 'Added opt-in automatic tracking for newly discovered privacy-safe content.';
+}

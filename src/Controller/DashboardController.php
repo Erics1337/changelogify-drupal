@@ -52,6 +52,7 @@ class DashboardController extends ControllerBase {
     $events_7d = $this->eventManager->getEventCountSince($seven_days_ago);
     $events_30d = $this->eventManager->getEventCountSince($thirty_days_ago);
     $events_since_last = $this->eventManager->getEventCountSinceLastRelease();
+    $lastReleaseBoundary = $this->eventManager->getNextReleaseStartTimestamp();
 
     // Get recent releases.
     $release_storage = $this->dashboardEntityTypeManager->getStorage('changelogify_release');
@@ -72,46 +73,43 @@ class DashboardController extends ControllerBase {
         '#type' => 'container',
         '#attributes' => ['class' => ['changelogify-stats']],
         'events_7d' => [
-          '#type' => 'container',
+          '#type' => 'link',
+          '#url' => Url::fromRoute('entity.changelogify_event.collection', [], [
+            'query' => ['date_from' => $this->dateFormatter->format($seven_days_ago, 'custom', 'Y-m-d')],
+          ]),
+          '#title' => [
+            'count' => ['#type' => 'html_tag', '#tag' => 'strong', '#value' => (string) $events_7d],
+            'label' => ['#type' => 'html_tag', '#tag' => 'span', '#value' => $this->t('Events in the last 7 days')],
+          ],
           '#attributes' => ['class' => ['stat-card']],
-          'count' => [
-            '#type' => 'html_tag',
-            '#tag' => 'strong',
-            '#value' => (string) $events_7d,
-          ],
-          'label' => [
-            '#type' => 'html_tag',
-            '#tag' => 'span',
-            '#value' => $this->t('Events in the last 7 days'),
-          ],
         ],
         'events_30d' => [
-          '#type' => 'container',
+          '#type' => 'link',
+          '#url' => Url::fromRoute('entity.changelogify_event.collection', [], [
+            'query' => ['date_from' => $this->dateFormatter->format($thirty_days_ago, 'custom', 'Y-m-d')],
+          ]),
+          '#title' => [
+            'count' => ['#type' => 'html_tag', '#tag' => 'strong', '#value' => (string) $events_30d],
+            'label' => ['#type' => 'html_tag', '#tag' => 'span', '#value' => $this->t('Events in the last 30 days')],
+          ],
           '#attributes' => ['class' => ['stat-card']],
-          'count' => [
-            '#type' => 'html_tag',
-            '#tag' => 'strong',
-            '#value' => (string) $events_30d,
-          ],
-          'label' => [
-            '#type' => 'html_tag',
-            '#tag' => 'span',
-            '#value' => $this->t('Events in the last 30 days'),
-          ],
         ],
         'events_since_last' => [
-          '#type' => 'container',
+          '#type' => 'link',
+          '#url' => Url::fromRoute('entity.changelogify_event.collection', [], [
+            'query' => $lastReleaseBoundary > 0
+              ? ['date_from' => $this->dateFormatter->format($lastReleaseBoundary, 'custom', 'Y-m-d')]
+              : [],
+          ]),
+          '#title' => [
+            'count' => ['#type' => 'html_tag', '#tag' => 'strong', '#value' => (string) $events_since_last],
+            'label' => [
+              '#type' => 'html_tag',
+              '#tag' => 'span',
+              '#value' => $this->t('Review events since the last release'),
+            ],
+          ],
           '#attributes' => ['class' => ['stat-card']],
-          'count' => [
-            '#type' => 'html_tag',
-            '#tag' => 'strong',
-            '#value' => (string) $events_since_last,
-          ],
-          'label' => [
-            '#type' => 'html_tag',
-            '#tag' => 'span',
-            '#value' => $this->t('Events since the last release'),
-          ],
         ],
       ],
       'actions' => [
@@ -129,6 +127,14 @@ class DashboardController extends ControllerBase {
           '#type' => 'link',
           '#title' => $this->t('View All Releases'),
           '#url' => Url::fromRoute('entity.changelogify_release.collection'),
+          '#attributes' => [
+            'class' => ['button'],
+          ],
+        ],
+        'view_events' => [
+          '#type' => 'link',
+          '#title' => $this->t('View captured events'),
+          '#url' => Url::fromRoute('entity.changelogify_event.collection'),
           '#attributes' => [
             'class' => ['button'],
           ],

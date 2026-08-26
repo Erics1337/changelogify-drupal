@@ -8,6 +8,7 @@ use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Link;
 use Drupal\Core\Url;
 use Drupal\changelogify\ReleaseGeneratorInterface;
 use Psr\Log\LoggerInterface;
@@ -50,7 +51,7 @@ class GenerateReleaseForm extends FormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
-    if ($form_state->has('preview')) {
+    if ($form_state->get('preview') !== NULL) {
       return $this->buildPreviewForm($form, $form_state);
     }
 
@@ -157,7 +158,7 @@ class GenerateReleaseForm extends FormBase {
       $form_state->setErrorByName('version', $this->t('Enter a semantic version such as 1.2.0 or 1.2.0-beta.1.'));
     }
 
-    if ($form_state->has('preview')) {
+    if ($form_state->get('preview') !== NULL) {
       $preview = $form_state->get('preview');
       $candidateIds = array_column($preview['change_sets'], NULL, 'id');
       $values = $form_state->getValue('change_sets', []);
@@ -174,16 +175,8 @@ class GenerateReleaseForm extends FormBase {
           }
         }
       }
-      if ($selected === 0 && !$form_state->getValue('confirm_empty')) {
-        $form_state->setErrorByName('confirm_empty', $this->t('Confirm that you want to create an empty draft.'));
-      }
-      $reused = array_keys($preview['coverage']['reused_change_sets'] ?? []);
-      $selectedReused = array_filter(
-        $reused,
-        static fn (string $id): bool => !empty($values[$id]['include']),
-      );
-      if ($selectedReused !== [] && !$form_state->getValue('confirm_reuse')) {
-        $form_state->setErrorByName('confirm_reuse', $this->t('Confirm the intentional reuse of evidence from another release.'));
+      if ($selected === 0) {
+        $form_state->setErrorByName('change_sets', $this->t('Select at least one change to create a draft release.'));
       }
     }
   }
@@ -193,6 +186,8 @@ class GenerateReleaseForm extends FormBase {
    */
   private function buildPreviewForm(array $form, FormStateInterface $form_state): array {
     $preview = $form_state->get('preview');
+    $form['#attached']['library'][] = 'changelogify/editor';
+    $form['#attributes']['class'][] = 'changelogify-release-generator';
     $form['summary'] = [
       '#type' => 'item',
       '#title' => $this->t('Release window'),
@@ -201,35 +196,58 @@ class GenerateReleaseForm extends FormBase {
         '@end' => $this->formatBoundary((int) $preview['end']),
       ]),
     ];
-    $warnings = [];
-    foreach ($preview['coverage']['overlaps'] ?? [] as $overlap) {
-      $warnings[] = $this->t('This window overlaps @status release "@title" (@start through @end).', [
-        '@status' => $overlap['status'],
-        '@title' => $overlap['title'],
-        '@start' => $this->formatBoundary((int) $overlap['start']),
-        '@end' => $this->formatBoundary((int) $overlap['end']),
-      ]);
-    }
-    if (!empty($preview['coverage']['gap_before'])) {
-      $gap = $preview['coverage']['gap_before'];
-      $warnings[] = $this->t('A coverage gap exists from @start through @end.', [
-        '@start' => $this->formatBoundary((int) $gap['start']),
-        '@end' => $this->formatBoundary((int) $gap['end']),
-      ]);
-    }
-    foreach ($preview['coverage']['reused_change_sets'] ?? [] as $changeSetId => $releases) {
-      $warnings[] = $this->t('Change set @id reuses evidence from: @releases.', [
-        '@id' => $changeSetId,
-        '@releases' => implode(', ', $releases),
-      ]);
-    }
-    if ($warnings !== []) {
-      $form['coverage_warnings'] = [
-        '#theme' => 'item_list',
-        '#title' => $this->t('Release coverage warnings'),
-        '#items' => $warnings,
-        '#attributes' => ['class' => ['messages', 'messages--warning']],
+    $overlaps = $preview['coverage']['overlaps'] ?? [];
+    $reused = $preview['coverage']['reused_change_sets'] ?? [];
+    $gap = $preview['coverage']['gap_before'] ?? NULL;
+    if ($overlaps !== [] || $reused !== [] || $gap !== NULL) {
+      $form['coverage_summary'] = [
+        '#type' => 'details',
+        '#title' => $this->t('Coverage review: @overlaps overlapping release(s), @reused previously used change(s)@gap', [
+          '@overlaps' => count($overlaps),
+          '@reused' => count($reused),
+          '@gap' => $gap === NULL ? '' : $this->t(', 1 coverage gap'),
+        ]),
+        '#open' => FALSE,
+        '#attributes' => ['class' => ['changelogify-coverage-summary']],
       ];
+      if ($overlaps !== []) {
+        $items = [];
+        foreach ($overlaps as $overlap) {
+          $link = Link::fromTextAndUrl(
+            $overlap['title'],
+            Url::fromRoute('entity.changelogify_release.canonical', [
+              'changelogify_release' => $overlap['release_id'],
+            ]),
+          )->toRenderable();
+          $items[] = [
+            '#type' => 'container',
+            'release' => $link,
+            'detail' => [
+              '#markup' => $this->t('@separator @status, @start through @end', [
+                '@separator' => '—',
+                '@status' => $overlap['status'],
+                '@start' => $this->formatBoundary((int) $overlap['start']),
+                '@end' => $this->formatBoundary((int) $overlap['end']),
+              ]),
+            ],
+          ];
+        }
+        $form['coverage_summary']['overlaps'] = [
+          '#theme' => 'item_list',
+          '#title' => $this->t('Overlapping releases'),
+          '#items' => $items,
+        ];
+      }
+      if ($gap !== NULL) {
+        $form['coverage_summary']['gap'] = [
+          '#type' => 'item',
+          '#title' => $this->t('Coverage gap'),
+          '#markup' => $this->t('@start through @end has no release coverage.', [
+            '@start' => $this->formatBoundary((int) $gap['start']),
+            '@end' => $this->formatBoundary((int) $gap['end']),
+          ]),
+        ];
+      }
     }
     $form['options'] = [
       '#type' => 'details',
@@ -252,60 +270,144 @@ class GenerateReleaseForm extends FormBase {
       '#default_value' => $form_state->getValue('version', ''),
       '#description' => $this->t('Optional. Leave blank to use a date-based release label instead of a version badge.'),
     ];
-    $form['change_sets'] = [
-      '#type' => 'container',
-      '#tree' => TRUE,
-    ];
     $sectionOptions = array_combine(
       $this->sections(),
       array_map('ucfirst', $this->sections()),
     );
+    $submitted = $form_state->getValue('change_sets', []);
+    $form['candidate_filters'] = [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['changelogify-candidate-filters']],
+      'search' => [
+        '#type' => 'search',
+        '#title' => $this->t('Search changes'),
+        '#attributes' => [
+          'class' => ['changelogify-candidate-search'],
+          'placeholder' => $this->t('Search change messages'),
+        ],
+      ],
+      'source' => [
+        '#type' => 'select',
+        '#title' => $this->t('Filter by source'),
+        '#empty_option' => $this->t('- All sources -'),
+        '#options' => $this->sourceOptions($preview['change_sets']),
+        '#attributes' => ['class' => ['changelogify-candidate-source-filter']],
+      ],
+    ];
+    $form['change_set_groups'] = [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['changelogify-change-set-groups']],
+    ];
+    $groups = [];
     foreach ($preview['change_sets'] as $changeSet) {
       $id = $changeSet['id'];
-      $form['change_sets'][$id] = [
-        '#type' => 'fieldset',
-        '#title' => $changeSet['message'] !== ''
-          ? $changeSet['message']
-          : $this->t('Change set @id', ['@id' => $id]),
+      $isReused = isset($reused[$id]);
+      $groupKey = $isReused ? 'reused' : $this->sourceGroup($changeSet);
+      $groups[$groupKey][] = $changeSet;
+    }
+    foreach ($groups as $groupKey => $changeSets) {
+      $isReusedGroup = $groupKey === 'reused';
+      $form['change_set_groups'][$groupKey] = [
+        '#type' => 'details',
+        '#title' => $isReusedGroup
+          ? $this->t('Already included in another release (@count)', ['@count' => count($changeSets)])
+          : $this->t('@source (@count)', [
+            '@source' => $this->sourceLabel($groupKey),
+            '@count' => count($changeSets),
+          ]),
+        '#open' => !$isReusedGroup,
+        '#attributes' => [
+          'class' => ['changelogify-change-set-group'],
+          'data-changelogify-source-group' => $groupKey,
+        ],
       ];
-      $form['change_sets'][$id]['description'] = [
-        '#type' => 'item',
-        '#markup' => $this->t('@source · @kind · @count evidence record(s) · @date', [
-          '@source' => $changeSet['source'] ?: $this->t('Unknown source'),
-          '@kind' => $changeSet['kind'],
-          '@count' => $changeSet['evidence_count'],
-          '@date' => $this->formatBoundary((int) $changeSet['start']),
-        ]),
+      $ids = array_column($changeSets, 'id');
+      $form['change_set_groups'][$groupKey]['actions'] = [
+        '#type' => 'actions',
+        '#attributes' => ['class' => ['changelogify-group-actions']],
+        'select' => [
+          '#type' => 'submit',
+          '#value' => $isReusedGroup ? $this->t('Include all again') : $this->t('Select all'),
+          '#submit' => ['::groupSelectionSubmit'],
+          '#limit_validation_errors' => [],
+          '#candidate_ids' => $ids,
+          '#candidate_value' => TRUE,
+        ],
+        'clear' => [
+          '#type' => 'submit',
+          '#value' => $this->t('Clear all'),
+          '#submit' => ['::groupSelectionSubmit'],
+          '#limit_validation_errors' => [],
+          '#candidate_ids' => $ids,
+          '#candidate_value' => FALSE,
+        ],
       ];
-      $form['change_sets'][$id]['include'] = [
-        '#type' => 'checkbox',
-        '#title' => $this->t('Include this change set'),
-        '#default_value' => 1,
+      $form['change_set_groups'][$groupKey]['items'] = [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['changelogify-change-set-list']],
       ];
-      $form['change_sets'][$id]['section'] = [
-        '#type' => 'select',
-        '#title' => $this->t('Release section'),
-        '#options' => $sectionOptions,
-        '#default_value' => in_array($changeSet['suggested_section'], $this->sections(), TRUE)
+      foreach ($changeSets as $changeSet) {
+        $id = $changeSet['id'];
+        $sourceKey = $this->sourceGroup($changeSet);
+        $suggestedSection = in_array($changeSet['suggested_section'], $this->sections(), TRUE)
           ? $changeSet['suggested_section']
-          : 'other',
-      ];
+          : 'other';
+        $row = [
+          '#type' => 'container',
+          '#attributes' => [
+            'class' => ['changelogify-change-set-row'],
+            'data-changelogify-source' => $sourceKey,
+            'data-changelogify-search' => mb_strtolower($changeSet['message'] . ' ' . $changeSet['source'] . ' ' . $changeSet['kind']),
+          ],
+        ];
+        $row['include'] = [
+          '#type' => 'checkbox',
+          '#title' => $isReusedGroup ? $this->t('Include again') : $this->t('Include'),
+          '#default_value' => $submitted[$id]['include'] ?? !$isReusedGroup,
+          '#parents' => ['change_sets', $id, 'include'],
+        ];
+        $row['summary'] = [
+          '#type' => 'container',
+          '#attributes' => ['class' => ['changelogify-change-set-summary']],
+          'message' => [
+            '#type' => 'html_tag',
+            '#tag' => 'strong',
+            '#value' => $changeSet['message'] !== '' ? $changeSet['message'] : $this->t('Untitled tracked change'),
+          ],
+          'metadata' => [
+            '#type' => 'html_tag',
+            '#tag' => 'span',
+            '#value' => $this->t('@source · @kind · @count record(s) · @date', [
+              '@source' => $changeSet['source'] ?: $this->t('Unknown source'),
+              '@kind' => $changeSet['kind'],
+              '@count' => $changeSet['evidence_count'],
+              '@date' => $this->formatBoundary((int) $changeSet['start']),
+            ]),
+          ],
+        ];
+        if ($isReusedGroup) {
+          $row['summary']['reuse'] = [
+            '#type' => 'html_tag',
+            '#tag' => 'span',
+            '#value' => $this->t('Already used in: @releases', [
+              '@releases' => implode(', ', $reused[$id]),
+            ]),
+            '#attributes' => ['class' => ['changelogify-change-set-reuse']],
+          ];
+        }
+        $row['section'] = [
+          '#type' => 'select',
+          '#title' => $this->t('Release section'),
+          '#options' => $sectionOptions,
+          '#default_value' => $submitted[$id]['section'] ?? $suggestedSection,
+          '#parents' => ['change_sets', $id, 'section'],
+        ];
+        $form['change_set_groups'][$groupKey]['items'][$id] = $row;
+      }
     }
     if ($preview['change_sets'] === []) {
       $form['empty'] = [
         '#markup' => $this->t('No change sets were found in this release window.'),
-      ];
-    }
-    $form['confirm_empty'] = [
-      '#type' => 'checkbox',
-      '#title' => $this->t('Create an empty draft release'),
-      '#description' => $this->t('Required when no change sets are selected.'),
-    ];
-    if (!empty($preview['coverage']['reused_change_sets'])) {
-      $form['confirm_reuse'] = [
-        '#type' => 'checkbox',
-        '#title' => $this->t('Intentionally reuse evidence from another release'),
-        '#description' => $this->t('Required when an included change set already supports another release.'),
       ];
     }
     $form['actions'] = ['#type' => 'actions'];
@@ -314,6 +416,8 @@ class GenerateReleaseForm extends FormBase {
       '#value' => $this->t('Create draft release'),
       '#button_type' => 'primary',
       '#submit' => ['::commitSubmit'],
+      '#disabled' => $preview['change_sets'] === [],
+      '#attributes' => ['class' => ['changelogify-create-draft']],
     ];
     $form['actions']['back'] = [
       '#type' => 'submit',
@@ -357,6 +461,18 @@ class GenerateReleaseForm extends FormBase {
   }
 
   /**
+   * Selects or clears every candidate in one visible source group.
+   */
+  public function groupSelectionSubmit(array &$form, FormStateInterface $form_state): void {
+    $trigger = $form_state->getTriggeringElement();
+    $values = $form_state->getValue('change_sets', []);
+    foreach ($trigger['#candidate_ids'] ?? [] as $changeSetId) {
+      $values[$changeSetId]['include'] = (bool) ($trigger['#candidate_value'] ?? FALSE);
+    }
+    $form_state->setValue('change_sets', $values)->setRebuild();
+  }
+
+  /**
    * Revalidates the selected evidence and creates the draft.
    */
   public function commitSubmit(array &$form, FormStateInterface $form_state): void {
@@ -386,8 +502,8 @@ class GenerateReleaseForm extends FormBase {
         new \DateTimeImmutable('@' . $preview['end']),
         $selection,
         $options,
-        (bool) $form_state->getValue('confirm_empty'),
-        (bool) $form_state->getValue('confirm_reuse'),
+        FALSE,
+        $this->selectionReusesEvidence($preview, $selection),
       );
 
       $this->messenger()->addStatus($this->t('Draft release "@title" has been created.', [
@@ -402,6 +518,56 @@ class GenerateReleaseForm extends FormBase {
       $form_state->set('preview', NULL);
       $form_state->setRedirect('changelogify.generate_release');
     }
+  }
+
+  /**
+   * Returns source filter options present in the current preview.
+   */
+  private function sourceOptions(array $changeSets): array {
+    $options = [];
+    foreach ($changeSets as $changeSet) {
+      $key = $this->sourceGroup($changeSet);
+      $options[$key] = $this->sourceLabel($key);
+    }
+    asort($options);
+    return $options;
+  }
+
+  /**
+   * Maps technical event sources to a small editor-facing source taxonomy.
+   */
+  private function sourceGroup(array $changeSet): string {
+    $value = strtolower((string) ($changeSet['source'] ?? '') . ' ' . (string) ($changeSet['kind'] ?? ''));
+    return match (TRUE) {
+      str_contains($value, 'config') => 'configuration',
+      str_contains($value, 'module'), str_contains($value, 'theme'), str_contains($value, 'extension') => 'extensions',
+      str_contains($value, 'user') => 'users',
+      str_contains($value, 'content'), str_contains($value, 'entity') => 'content',
+      default => 'other',
+    };
+  }
+
+  /**
+   * Returns a translated source-group label.
+   */
+  private function sourceLabel(string $key): string {
+    return (string) match ($key) {
+      'content' => $this->t('Content'),
+      'configuration' => $this->t('Configuration'),
+      'extensions' => $this->t('Extensions'),
+      'users' => $this->t('Users'),
+      default => $this->t('Other'),
+    };
+  }
+
+  /**
+   * Treats selecting a clearly marked reused row as explicit confirmation.
+   */
+  private function selectionReusesEvidence(array $preview, array $selection): bool {
+    return array_intersect_key(
+      $preview['coverage']['reused_change_sets'] ?? [],
+      $selection,
+    ) !== [];
   }
 
   /**

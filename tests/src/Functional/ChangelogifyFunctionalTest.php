@@ -62,6 +62,12 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->elementExists('css', '.changelogify-dashboard');
     $this->assertSession()->elementsCount('css', '.changelogify-stats .stat-card', 3);
     $this->assertSession()->responseContains('changelogify.dashboard.css');
+    $this->assertSession()->linkExists('View captured events');
+    $this->assertSession()->linkByHrefExists('/admin/content/changelogify/events');
+    $this->assertSession()->elementExists(
+      'css',
+      '.changelogify-stats a.stat-card[href*="date_from"]',
+    );
 
     // Visit the release list.
     $this->drupalGet('/admin/content/changelogify/releases');
@@ -719,7 +725,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
   }
 
   /**
-   * Tests stale evidence recovery and explicit empty-draft confirmation.
+   * Tests stale evidence recovery and prevention of empty drafts.
    */
   public function testReleasePreviewRevalidatesEvidence(): void {
     $user = $this->drupalCreateUser([
@@ -758,15 +764,16 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'end_date[date]' => '2030-01-01',
     ], 'Preview changes');
     $this->assertSession()->pageTextContains('No change sets were found');
-    $this->submitForm([], 'Create draft release');
-    $this->assertSession()->pageTextContains('Confirm that you want to create an empty draft.');
-    $this->submitForm(['confirm_empty' => TRUE], 'Create draft release');
-    $this->assertSession()->pageTextContains('has been created');
+    $this->assertSession()->buttonExists('Create draft release');
+    $button = $this->getSession()->getPage()->findButton('Create draft release');
+    self::assertNotNull($button);
+    self::assertTrue($button->hasAttribute('disabled'));
+    $this->assertSession()->fieldNotExists('confirm_empty');
     $releaseCount = \Drupal::entityQuery('changelogify_release')
       ->accessCheck(FALSE)
       ->count()
       ->execute();
-    self::assertSame(1, (int) $releaseCount);
+    self::assertSame(0, (int) $releaseCount);
   }
 
   /**
@@ -810,18 +817,17 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->drupalGet('/admin/config/development/changelogify/generate');
     $this->submitForm(['mode' => 'since_last'], 'Preview changes');
     $this->assertSession()->pageTextContains('Boundary evidence');
-    $this->assertSession()->pageTextContains('overlaps published release');
-    $this->assertSession()->pageTextContains('reuses evidence from');
+    $this->assertSession()->pageTextContains('1 overlapping release(s)');
+    $this->assertSession()->pageTextContains('1 previously used change(s)');
+    $this->assertSession()->pageTextContains('Already included in another release');
+    $this->assertSession()->pageTextContains('Already used in: Backdated published release');
+    $this->assertSession()->pageTextNotContains('changeset-');
+    $this->assertSession()->fieldNotExists('confirm_reuse');
     $changeSetId = 'changeset-' . substr(hash('sha256', 'event:' . $event->id()), 0, 24);
+    $this->assertSession()->checkboxNotChecked('change_sets[' . $changeSetId . '][include]');
     $this->submitForm([
       'change_sets[' . $changeSetId . '][include]' => TRUE,
       'change_sets[' . $changeSetId . '][section]' => 'changed',
-    ], 'Create draft release');
-    $this->assertSession()->pageTextContains('Confirm the intentional reuse of evidence');
-    $this->submitForm([
-      'change_sets[' . $changeSetId . '][include]' => TRUE,
-      'change_sets[' . $changeSetId . '][section]' => 'changed',
-      'confirm_reuse' => TRUE,
     ], 'Create draft release');
     $this->assertSession()->pageTextContains('has been created');
     $createdIds = $storage->getQuery()
@@ -841,7 +847,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'start_date[date]' => '2025-04-03',
       'end_date[date]' => '2025-04-03',
     ], 'Preview changes');
-    $this->assertSession()->pageTextContains('A coverage gap exists');
+    $this->assertSession()->pageTextContains('1 coverage gap');
   }
 
   /**
@@ -1014,14 +1020,18 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
 
     $this->drupalGet('/admin/config/development/changelogify/settings');
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->pageTextContains('Newly discovered entity types and bundles are disabled');
-    $this->assertSession()->pageTextContains('new, review required');
+    $this->assertSession()->pageTextContains('Explicit choices below always override');
+    $this->assertSession()->pageTextContains('managed by automatic discovery');
+    $this->assertSession()->fieldExists('content_capture[auto_track_new_safe_content]');
+    $this->assertSession()->checkboxChecked('content_capture[auto_track_new_safe_content]');
     $this->assertSession()->buttonExists('Select all recommended');
     $this->assertSession()->buttonExists('Clear all capture selections');
     $this->assertSession()->fieldExists('content_capture[node][default_bundle_enabled]');
     $this->submitForm([], 'Clear Content bundles');
+    $this->assertSession()->checkboxNotChecked('content_capture[auto_track_new_safe_content]');
     $this->assertSession()->checkboxNotChecked('content_capture[node][bundles][page]');
     $this->submitForm([], 'Select all recommended');
+    $this->assertSession()->checkboxChecked('content_capture[auto_track_new_safe_content]');
     $this->assertSession()->checkboxChecked('content_capture[node][enabled]');
     $this->assertSession()->checkboxChecked('content_capture[node][default_bundle_enabled]');
     $this->assertSession()->checkboxChecked('content_capture[node][bundles][page]');

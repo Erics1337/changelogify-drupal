@@ -36,12 +36,17 @@ final class ContentCapturePolicy implements ContentCapturePolicyInterface {
    * {@inheritdoc}
    */
   public function isEntityTypeEnabled(string $entityTypeId): bool {
-    if (!isset($this->getEligibleEntityTypes()[$entityTypeId])) {
+    $eligible = $this->getEligibleEntityTypes();
+    if (!isset($eligible[$entityTypeId])) {
       return FALSE;
     }
-    $configured = $this->configFactory->get('changelogify.settings')
-      ->get("content_capture.entity_types.$entityTypeId.enabled");
-    return $configured === NULL ? FALSE : (bool) $configured;
+    $config = $this->configFactory->get('changelogify.settings');
+    $configured = $config->get("content_capture.entity_types.$entityTypeId.enabled");
+    if ($configured !== NULL) {
+      return (bool) $configured;
+    }
+    return (bool) $config->get('auto_track_new_safe_content')
+      && !$eligible[$entityTypeId]['privacy_sensitive'];
   }
 
   /**
@@ -58,7 +63,13 @@ final class ContentCapturePolicy implements ContentCapturePolicyInterface {
       return (bool) $configured;
     }
     $default = $config->get("content_capture.entity_types.$entityTypeId.default_bundle_enabled");
-    return $default === NULL ? FALSE : (bool) $default;
+    if ($default !== NULL) {
+      return (bool) $default;
+    }
+    $explicitType = $config->get("content_capture.entity_types.$entityTypeId.enabled");
+    return $explicitType === NULL
+      && (bool) $config->get('auto_track_new_safe_content')
+      && !$eligible[$entityTypeId]['privacy_sensitive'];
   }
 
   /**

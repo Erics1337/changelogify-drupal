@@ -2,6 +2,7 @@ changelog_path: /changelog
 translation_fallback: fallback
 track_content: true
 track_unpublished_content: false
+auto_track_new_safe_content: true
 track_modules: true
 track_users: false
 content_capture:

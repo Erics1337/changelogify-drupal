@@ -128,12 +128,28 @@ class SettingsForm extends ConfigFormBase {
       '#type' => 'details',
       '#tree' => TRUE,
       '#title' => $this->t('Content capture policy'),
-      '#description' => $this->t('Newly discovered entity types and bundles are disabled until explicitly selected.'),
+      '#description' => $this->t('Choose what content is recorded. Explicit choices below always override the automatic discovery setting.'),
       '#open' => FALSE,
       '#states' => [
         'visible' => [':input[name="track_content"]' => ['checked' => TRUE]],
       ],
     ];
+    $policyOverride = $form_state->get('capture_policy_override');
+    $submittedPolicy = is_array($policyOverride)
+      ? $policyOverride
+      : $form_state->getValue('content_capture', []);
+    $form['content_capture']['auto_track_new_safe_content'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Automatically track new privacy-safe content types and bundles'),
+      '#description' => $this->t('New non-sensitive content types and bundles are recorded automatically. Users, unpublished content, contact messages, profiles, and other privacy-sensitive types remain opt-in.'),
+      '#config_target' => 'changelogify.settings:auto_track_new_safe_content',
+      '#default_value' => (bool) ($submittedPolicy['auto_track_new_safe_content']
+        ?? $this->config('changelogify.settings')->get('auto_track_new_safe_content')
+        ?? FALSE),
+    ];
+    if (is_array($policyOverride)) {
+      $form['content_capture']['auto_track_new_safe_content']['#value'] = (bool) ($policyOverride['auto_track_new_safe_content'] ?? FALSE);
+    }
     $form['content_capture']['preset_actions'] = [
       '#type' => 'actions',
       '#tree' => FALSE,
@@ -154,7 +170,6 @@ class SettingsForm extends ConfigFormBase {
       '#type' => 'item',
       '#markup' => $this->t('Presets update this form for review. Use “Save configuration” to apply the selected policy.'),
     ];
-    $submittedPolicy = $form_state->getValue('content_capture', []);
     $configuredPolicies = $this->config('changelogify.settings')
       ->get('content_capture.entity_types') ?: [];
     foreach ($this->contentCapturePolicy->getEligibleEntityTypes() as $entityTypeId => $info) {
@@ -163,12 +178,14 @@ class SettingsForm extends ConfigFormBase {
         '#type' => 'details',
         '#title' => $isConfigured
           ? $info['label']
-          : $this->t('@label — new, review required', ['@label' => $info['label']]),
+          : ($info['privacy_sensitive']
+            ? $this->t('@label — new, review required', ['@label' => $info['label']])
+            : $this->t('@label — managed by automatic discovery', ['@label' => $info['label']])),
         '#description' => $info['privacy_sensitive']
           ? $this->t('Privacy warning: this entity type may contain personal or access-controlled information.')
           : ($isConfigured
             ? $this->t('Choose whether this entity type and its bundles may be recorded.')
-            : $this->t('This entity type was discovered after the policy was configured. It remains disabled until reviewed.')),
+            : $this->t('This entity type was discovered after the policy was configured. Its initial state follows the privacy-safe automatic discovery setting.')),
       ];
       $form['content_capture'][$entityTypeId]['enabled'] = [
         '#type' => 'checkbox',
@@ -185,7 +202,8 @@ class SettingsForm extends ConfigFormBase {
         '#description' => $this->t('Applies only to bundles created after this policy is saved. Existing bundle choices below remain unchanged.'),
         '#config_target' => "changelogify.settings:content_capture.entity_types.$entityTypeId.default_bundle_enabled",
         '#default_value' => $submittedPolicy[$entityTypeId]['default_bundle_enabled']
-        ?? (bool) ($configuredPolicies[$entityTypeId]['default_bundle_enabled'] ?? FALSE),
+        ?? (bool) ($configuredPolicies[$entityTypeId]['default_bundle_enabled']
+          ?? (!$info['privacy_sensitive'] && $this->config('changelogify.settings')->get('auto_track_new_safe_content'))),
         '#states' => [
           'visible' => [":input[name=\"content_capture[$entityTypeId][enabled]\"]" => ['checked' => TRUE]],
         ],
@@ -320,14 +338,14 @@ class SettingsForm extends ConfigFormBase {
   public function recommendedCaptureSubmit(array &$form, FormStateInterface $form_state): void {
     $policy = $form_state->getValue('content_capture', []);
     foreach ($this->contentCapturePolicy->getEligibleEntityTypes() as $entityTypeId => $info) {
-      $recommended = !$info['privacy_sensitive']
-        && in_array($entityTypeId, ['node', 'block_content', 'taxonomy_term'], TRUE);
+      $recommended = !$info['privacy_sensitive'];
       $policy[$entityTypeId]['enabled'] = $recommended;
       $policy[$entityTypeId]['default_bundle_enabled'] = $recommended;
       foreach ($info['bundles'] as $bundleId => $label) {
         $policy[$entityTypeId]['bundles'][$bundleId] = $recommended;
       }
     }
+    $policy['auto_track_new_safe_content'] = TRUE;
     $this->rebuildCapturePolicy($form_state, $policy);
     $this->messenger()->addStatus($this->t('Recommended selections are ready for review. Save configuration to apply them.'));
   }
@@ -344,6 +362,7 @@ class SettingsForm extends ConfigFormBase {
         $policy[$entityTypeId]['bundles'][$bundleId] = FALSE;
       }
     }
+    $policy['auto_track_new_safe_content'] = FALSE;
     $this->rebuildCapturePolicy($form_state, $policy);
     $this->messenger()->addStatus($this->t('Capture selections are cleared for review. Save configuration to apply them.'));
   }
@@ -373,6 +392,7 @@ class SettingsForm extends ConfigFormBase {
    * Rebuilds the form with a reviewed, not-yet-saved capture policy.
    */
   private function rebuildCapturePolicy(FormStateInterface $formState, array $policy): void {
+    $formState->set('capture_policy_override', $policy);
     $formState->setValue('content_capture', $policy);
     $input = $formState->getUserInput();
     $input['content_capture'] = $policy;
