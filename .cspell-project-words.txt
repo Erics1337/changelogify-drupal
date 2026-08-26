@@ -5,6 +5,7 @@ DDEV
 Erics
 FFFD
 Ollama
+nums
 redactions
 Salut
 francaise

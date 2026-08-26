@@ -91,7 +91,7 @@ final class SynthesisQueueRunnerTest extends UnitTestCase {
   /**
    * Creates a runner with deterministic queue and time dependencies.
    */
-  private function runner(QueueInterface $queue, QueueWorkerInterface $worker, array $microtimes, ?LoggerInterface $logger = NULL): SynthesisQueueRunner {
+  private function runner(QueueInterface $queue, QueueWorkerInterface $worker, array $clockValues, ?LoggerInterface $logger = NULL): SynthesisQueueRunner {
     $queueFactory = $this->createMock(QueueFactory::class);
     $queueFactory->expects(self::once())->method('get')
       ->with(SynthesisJobManager::QUEUE_NAME)
@@ -101,7 +101,7 @@ final class SynthesisQueueRunnerTest extends UnitTestCase {
       ->with(SynthesisJobManager::QUEUE_NAME)
       ->willReturn($worker);
     $time = $this->createMock(TimeInterface::class);
-    $time->method('getCurrentMicroTime')->willReturnOnConsecutiveCalls(...$microtimes);
+    $time->method('getCurrentMicroTime')->willReturnOnConsecutiveCalls(...$clockValues);
     $time->method('getRequestTime')->willReturn(1000);
     $state = $this->createMock(StateInterface::class);
     $state->expects(self::exactly(3))->method('set')
