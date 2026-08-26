@@ -129,6 +129,14 @@
         const commit = form.querySelector('.changelogify-create-draft');
         const aiCommit = form.querySelector('.changelogify-create-ai-draft');
 
+        form.addEventListener('submit', (event) => {
+          const submitter = event.submitter;
+          if (submitter !== aiCommit) return;
+          aiCommit.value = Drupal.t('Starting…');
+          aiCommit.disabled = true;
+          aiCommit.setAttribute('aria-disabled', 'true');
+        });
+
         const updateActions = () => {
           const selected = rows.some((row) => {
             const checkbox = row.querySelector('input[type="checkbox"]');

@@ -6,6 +6,7 @@ namespace Drupal\changelogify_ai;
 
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\KeyValueStore\KeyValueFactoryInterface;
+use Drupal\Core\KeyValueStore\KeyValueStoreInterface;
 use Drupal\Core\Lock\LockBackendInterface;
 use Drupal\Core\Queue\QueueFactory;
 use Drupal\Core\Session\AccountProxyInterface;
@@ -26,7 +27,7 @@ final class AiOperationManager {
    */
   private ?string $lastOperationId = NULL;
 
-  public function __construct(private readonly SummarizerInterface $summarizer, private readonly ResultValidator $validator, private readonly KeyValueFactoryInterface $keyValue, private readonly LockBackendInterface $lock, private readonly AccountProxyInterface $currentUser, private readonly TimeInterface $time, private readonly LoggerInterface $logger, private readonly QueueFactory $queueFactory) {}
+  public function __construct(private readonly SummarizerInterface $summarizer, private readonly ResultValidator $validator, private readonly KeyValueFactoryInterface $keyValue, private readonly LockBackendInterface $lock, private readonly AccountProxyInterface $currentUser, private readonly TimeInterface $time, private readonly LoggerInterface $logger, private readonly QueueFactory $queueFactory, private readonly ?AiOperationHistoryRepository $history = NULL) {}
 
   /**
    * Reports whether the configured adapter can accept a request.
@@ -93,7 +94,7 @@ final class AiOperationManager {
       'input_tokens' => NULL,
       'output_tokens' => NULL,
     ];
-    $store->set($request->idempotencyKey, $operation);
+    $this->persist($store, $request->idempotencyKey, $operation);
     try {
       $result = $this->summarizer->summarize($request);
       $this->validator->validate($result, $sourceIds, $request);
@@ -105,7 +106,7 @@ final class AiOperationManager {
         'output_tokens' => $result->outputTokens,
         'completed' => $this->time->getRequestTime(),
       ]);
-      $store->set($request->idempotencyKey, $operation);
+      $this->persist($store, $request->idempotencyKey, $operation);
       return new SummarizationResult(
         $result->status,
         $result->items,
@@ -125,7 +126,7 @@ final class AiOperationManager {
         'error_class' => $exception::class,
         'error_code' => (new AiFailureMessage())->code($exception),
       ]);
-      $store->set($request->idempotencyKey, $operation);
+      $this->persist($store, $request->idempotencyKey, $operation);
       $this->logger->error('AI operation @id failed with @exception.', [
         '@id' => $request->idempotencyKey,
         '@exception' => $exception::class,
@@ -166,7 +167,7 @@ final class AiOperationManager {
     if (is_array($existing) && in_array($existing['status'] ?? NULL, ['queued', 'running', 'completed'], TRUE)) {
       throw new \RuntimeException('An equivalent AI operation is already in progress or complete.');
     }
-    $store->set($request->idempotencyKey, [
+    $operation = [
       'id' => $request->idempotencyKey,
       'actor' => (int) $this->currentUser->id(),
       'release_id' => $releaseId,
@@ -182,7 +183,8 @@ final class AiOperationManager {
       'created' => $this->time->getRequestTime(),
       'input_tokens' => NULL,
       'output_tokens' => NULL,
-    ]);
+    ];
+    $this->persist($store, $request->idempotencyKey, $operation);
     $this->queueFactory->get($queueName)->createItem($context + [
       'request' => $request,
       'source_ids' => $sourceIds,
@@ -203,7 +205,7 @@ final class AiOperationManager {
     }
     $operation['status'] = 'cancelled';
     $operation['completed'] = $this->time->getRequestTime();
-    $store->set($operationId, $operation);
+    $this->persist($store, $operationId, $operation);
   }
 
   /**
@@ -220,7 +222,7 @@ final class AiOperationManager {
     if ($revisionId !== NULL) {
       $operation['accepted_revision_id'] = $revisionId;
     }
-    $store->set($operationId, $operation);
+    $this->persist($store, $operationId, $operation);
   }
 
   /**
@@ -275,6 +277,16 @@ final class AiOperationManager {
         $store->delete($key);
       }
     }
+    $this->history?->deleteOlderThan($cutoff);
+  }
+
+  /**
+   * Keeps temporary state and its privacy-bounded index synchronized.
+   */
+  private function persist(KeyValueStoreInterface $store, string $id, array $operation): void {
+    $operation['updated'] = $this->time->getRequestTime();
+    $store->set($id, $operation);
+    $this->history?->save($operation);
   }
 
 }

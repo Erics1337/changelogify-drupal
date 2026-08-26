@@ -74,11 +74,30 @@ at most 50 candidates per batch. Candidates are recursively consolidated until
 one final bounded request remains. Queue entries contain only a job ID and
 batch ID; credentials and payload text remain outside queue records.
 
-Operation history shows status, round/batch progress, provider/model identity,
-token usage when supplied, coverage counts, and a safe failure category. Jobs
-support bounded retries for transient failures, cancellation, duplicate
-delivery protection, and retention cleanup. Cancellation, refusal, stale
-evidence, malformed output, or terminal failure cannot create a release.
+After submission, the editor is taken to a dedicated job page that updates
+automatically. It reports waiting, evidence analysis, recursive consolidation,
+draft creation, completion, failure, or cancellation in editorial language.
+Polling is read-only: only Drupal cron claims queue work or contacts the
+provider. The page pauses updates while its browser tab is hidden, recovers
+from temporary network failures, and includes a manual refresh fallback when
+JavaScript is unavailable. A completed job links directly to its unpublished
+draft and evidence provenance.
+
+The indexed operation history is paginated, filterable, responsive, and keeps
+active work first. Its compact list shows creation time, editorial operation
+type, status, progress, result, and actions. Provider/model identity, token
+usage, contract versions, coverage, and safe failure diagnostics remain on the
+job detail page. Jobs support bounded retries, owner cancellation, duplicate
+delivery and submission protection, and retention cleanup. Cancellation,
+refusal, stale evidence, malformed output, or terminal failure cannot create a
+release.
+
+AI settings include background-processing health: the last site-cron and
+synthesis-worker heartbeats, queued count, and oldest wait. A queued job is
+reported as delayed after 15 minutes without relevant worker activity. An
+authorized site administrator receives a direct link to Drupal's cron
+configuration; editors never need a Drush command to follow or complete their
+workflow.
 
 Immediately before persistence, Changelogify re-previews the date range and
 revalidates eligibility, exclusions, policy and prompt versions, source
@@ -96,10 +115,12 @@ surfaced. Intermediate provider text and temporary instructions are removed at
 terminal states; successful final text lives in the release revision.
 
 Public changelog pages, feeds, blocks, and API responses do not expose AI
-operation data or private provenance. Operation history requires `view
-changelogify ai history`; cancellation and AI configuration require
-`administer changelogify ai`; release provenance requires `manage changelogify
-releases`.
+operation data or private provenance. A job creator with `use changelogify ai`
+may view and cancel their own active synthesis job. Operation history requires
+`view changelogify ai history`; administrators with `administer changelogify
+ai` may cancel other users' active work. Release provenance requires `manage
+changelogify releases`. Legacy jobs without a recorded creator are visible
+only through privileged history access.
 
 The AI history-retention setting controls terminal job metadata and completed
 results waiting for cleanup. Core event retention and release-provenance
@@ -115,9 +136,10 @@ retention remain separate controls.
   or exclusions changed after the prior fingerprint.
 - **Invalid response:** use a model with native structured output or one that
   reliably returns strict JSON. Provider prose and fenced JSON are not accepted.
-- **Stuck or failed job:** review the safe support reference and operation
-  history. Retry with a new preview; do not copy credentials or private payload
-  text into support tickets.
+- **Delayed or failed job:** leave the job page open for automatic status
+  updates. Administrators can review the background-processing health panel in
+  AI settings. Retry with a new preview after a terminal failure; do not copy
+  credentials or private payload text into support tickets.
 
 Provider output quality and availability remain provider/model limitations.
 Changelogify validates structure and evidence references; it does not certify a

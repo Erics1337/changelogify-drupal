@@ -10,7 +10,9 @@ use Drupal\Core\Link;
 use Drupal\Core\Url;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\TypedConfigManagerInterface;
+use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\changelogify_ai\AiOperationManager;
+use Drupal\changelogify_ai\AiQueueHealth;
 use Drupal\changelogify_ai\AiReadinessChecker;
 use Drupal\changelogify_ai\OutboundPayloadBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -20,7 +22,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 final class SettingsForm extends ConfigFormBase {
 
-  public function __construct(ConfigFactoryInterface $configFactory, TypedConfigManagerInterface $typedConfigManager, protected AiOperationManager $operations, protected AiReadinessChecker $readiness) {
+  public function __construct(ConfigFactoryInterface $configFactory, TypedConfigManagerInterface $typedConfigManager, protected AiOperationManager $operations, protected AiReadinessChecker $readiness, protected AiQueueHealth $queueHealth, protected DateFormatterInterface $dateFormatter) {
     parent::__construct($configFactory, $typedConfigManager);
   }
 
@@ -33,6 +35,8 @@ final class SettingsForm extends ConfigFormBase {
       $container->get('config.typed'),
       $container->get(AiOperationManager::class),
       $container->get(AiReadinessChecker::class),
+      $container->get(AiQueueHealth::class),
+      $container->get('date.formatter'),
     );
   }
 
@@ -60,6 +64,40 @@ final class SettingsForm extends ConfigFormBase {
       '#markup' => $this->t('Changelogify AI is an optional editorial assistant. It can rewrite selected, already-recorded evidence into clearer release notes, but it never publishes a release or changes source content on its own.'),
       '#weight' => -20,
     ];
+    $health = $this->queueHealth->status();
+    $lastCron = $health['last_cron'] > 0
+      ? $this->dateFormatter->formatTimeDiffSince($health['last_cron']) . ' ' . $this->t('ago')
+      : $this->t('No heartbeat recorded');
+    $lastWorker = $health['last_worker'] > 0
+      ? $this->dateFormatter->formatTimeDiffSince($health['last_worker']) . ' ' . $this->t('ago')
+      : $this->t('No synthesis work recorded');
+    $oldestWait = $health['oldest_created'] > 0
+      ? $this->dateFormatter->formatTimeDiffSince($health['oldest_created'])
+      : $this->t('None');
+    $form['queue_health'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Background processing health'),
+      '#description' => $this->t('AI synthesis is processed by Drupal cron. Editors can follow progress in Changelogify without running command-line tools.'),
+      '#open' => (bool) $health['delayed'],
+      '#weight' => -19,
+      'summary' => [
+        '#theme' => 'item_list',
+        '#items' => [
+          $this->t('Last site cron: @value', ['@value' => $lastCron]),
+          $this->t('Last synthesis worker: @value', ['@value' => $lastWorker]),
+          $this->t('Queued synthesis steps: @count', ['@count' => $health['queued_count']]),
+          $this->t('Oldest queued wait: @value', ['@value' => $oldestWait]),
+        ],
+      ],
+    ];
+    if ($health['delayed'] && $this->currentUser()->hasPermission('administer site configuration')) {
+      $form['queue_health']['cron'] = [
+        '#type' => 'link',
+        '#title' => $this->t('Review Drupal cron configuration'),
+        '#url' => Url::fromRoute('system.cron_settings'),
+        '#attributes' => ['class' => ['button', 'button--small']],
+      ];
+    }
     $form['processing_consent'] = [
       '#type' => 'details',
       '#tree' => TRUE,

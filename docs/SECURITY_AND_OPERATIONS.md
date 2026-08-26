@@ -109,6 +109,13 @@ evidence. Release provenance retention is also separate: it can remove bounded
 event snapshots without changing accepted release text, source IDs, or coverage
 counts.
 
+The optional AI settings page reports the last site-cron and synthesis-worker
+heartbeats, queued synthesis-step count, and oldest wait. A job that has waited
+15 minutes without relevant worker activity is marked delayed. This is an
+editor-facing diagnostic only: job-status polling is read-only and cannot run
+the queue or contact an AI provider. Authorized site administrators can follow
+the in-product link to Drupal's cron configuration.
+
 Before enabling external AI processing, distinguish the three controls:
 site-wide evidence eligibility determines which source categories may be
 considered; the privacy policy determines which fields may leave Drupal; and

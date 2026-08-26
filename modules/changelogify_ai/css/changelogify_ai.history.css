@@ -1,0 +1,62 @@
+.changelogify-ai-history-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+  margin-block-end: 1.5rem;
+}
+
+.changelogify-ai-history-filter label {
+  display: grid;
+  gap: 0.25rem;
+  font-weight: 700;
+}
+
+.changelogify-ai-history td {
+  vertical-align: top;
+}
+
+@media (max-width: 48rem) {
+  .changelogify-ai-history thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .changelogify-ai-history,
+  .changelogify-ai-history tbody,
+  .changelogify-ai-history tr,
+  .changelogify-ai-history td {
+    display: block;
+    width: 100%;
+  }
+
+  .changelogify-ai-history tr {
+    box-sizing: border-box;
+    margin-block-end: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--gin-border-color, #d4d4d8);
+    border-radius: 0.375rem;
+  }
+
+  .changelogify-ai-history td {
+    display: grid;
+    grid-template-columns: minmax(7rem, 40%) 1fr;
+    gap: 0.75rem;
+    box-sizing: border-box;
+    padding: 0.5rem 0;
+    border: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .changelogify-ai-history td::before {
+    content: attr(data-label);
+    font-weight: 700;
+  }
+
+  .changelogify-ai-history-filter > * {
+    width: 100%;
+  }
+}

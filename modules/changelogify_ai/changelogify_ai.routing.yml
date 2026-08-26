@@ -14,13 +14,30 @@ changelogify_ai.operation_history:
   requirements:
     _permission: 'view changelogify ai history'
 
+changelogify_ai.synthesis_job:
+  path: '/admin/config/development/changelogify/ai/jobs/{job_id}'
+  defaults:
+    _controller: '\Drupal\changelogify_ai\Controller\SynthesisJobController::view'
+    _title: 'AI changelog progress'
+  requirements:
+    _custom_access: 'Drupal\changelogify_ai\SynthesisOperationAccess::view'
+    job_id: '[A-Fa-f0-9]{64}'
+
+changelogify_ai.synthesis_job_status:
+  path: '/admin/config/development/changelogify/ai/jobs/{job_id}/status'
+  defaults:
+    _controller: '\Drupal\changelogify_ai\Controller\SynthesisJobController::status'
+  requirements:
+    _custom_access: 'Drupal\changelogify_ai\SynthesisOperationAccess::view'
+    job_id: '[A-Fa-f0-9]{64}'
+
 changelogify_ai.cancel_operation:
   path: '/admin/config/development/changelogify/ai/history/{operation_id}/cancel'
   defaults:
     _form: '\Drupal\changelogify_ai\Form\CancelOperationForm'
     _title: 'Cancel queued AI operation'
   requirements:
-    _permission: 'administer changelogify ai'
+    _custom_access: 'Drupal\changelogify_ai\SynthesisOperationAccess::cancel'
     operation_id: '[A-Fa-f0-9]{64}'
 
 changelogify_ai.payload_preview:

@@ -90,8 +90,11 @@ final class ReleaseSynthesisWorkflowFunctionalTest extends BrowserTestBase {
       'ai_synthesis[length_preset]' => 'detailed',
       'ai_synthesis[exclusions][categories][configuration]' => 'configuration',
     ], 'Create AI draft release');
-    $this->assertSession()->addressEquals('/admin/config/development/changelogify/ai/history');
-    $this->assertSession()->pageTextContains('AI release synthesis');
+    $this->assertSession()->addressMatches('/\/admin\/config\/development\/changelogify\/ai\/jobs\/[a-f0-9]{64}$/');
+    $this->assertSession()->pageTextContains('Waiting for background processing');
+    $this->assertSession()->elementExists('css', '[aria-live="polite"]');
+    $this->assertSession()->elementExists('css', 'progress[max][value]');
+    $this->assertSession()->pageTextContains('Automatic updates require JavaScript');
 
     $jobs = $this->container->get(SynthesisJobManager::class)->all();
     self::assertCount(1, $jobs);
@@ -167,6 +170,49 @@ final class ReleaseSynthesisWorkflowFunctionalTest extends BrowserTestBase {
     $this->drainSynthesisQueue();
     self::assertSame('cancelled', $this->container->get(SynthesisJobManager::class)->get($jobId)['status']);
     self::assertSame(0, $this->releaseCount());
+  }
+
+  /**
+   * A creator can view and cancel their job without global history access.
+   */
+  public function testCreatorAccessAndCrossUserDenial(): void {
+    $creator = $this->drupalCreateUser([
+      'manage changelogify releases',
+      'use changelogify ai',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($creator);
+    $this->config('changelogify_ai.settings')
+      ->set('consent_external_processing', TRUE)
+      ->set('eligibility.categories', ['content'])
+      ->save();
+    $this->container->get(EventManagerInterface::class)->logEvent([
+      'event_type' => 'content_updated',
+      'source' => 'content_entity',
+      'message' => 'Owner access evidence.',
+      'section_hint' => 'changed',
+    ]);
+    $jobId = $this->queueDefaultSynthesis();
+
+    $statusPath = "/admin/config/development/changelogify/ai/jobs/{$jobId}/status";
+    $this->drupalGet($statusPath);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->responseHeaderContains('Cache-Control', 'no-store');
+    $payload = json_decode($this->getSession()->getPage()->getContent(), TRUE, flags: JSON_THROW_ON_ERROR);
+    self::assertSame('waiting', $payload['state']);
+    self::assertArrayNotHasKey('evidence', $payload);
+    self::assertArrayNotHasKey('instructions', $payload);
+
+    $other = $this->drupalCreateUser(['use changelogify ai', 'access administration pages']);
+    $this->drupalLogin($other);
+    $this->drupalGet($statusPath);
+    $this->assertSession()->statusCodeEquals(403);
+
+    $this->drupalLogin($creator);
+    $this->drupalGet("/admin/config/development/changelogify/ai/history/{$jobId}/cancel");
+    $this->submitForm([], 'Confirm');
+    $this->assertSession()->addressEquals("/admin/config/development/changelogify/ai/jobs/{$jobId}");
+    $this->assertSession()->pageTextContains('AI synthesis was cancelled');
   }
 
   /**

@@ -8,6 +8,7 @@
 use Drupal\changelogify_ai\AiOperationManager;
 use Drupal\changelogify_ai\AiFailureMessage;
 use Drupal\changelogify_ai\AiReadinessChecker;
+use Drupal\changelogify_ai\AiQueueHealth;
 use Drupal\changelogify_ai\OutboundPayloadBuilder;
 use Drupal\changelogify_ai\PromptTemplateRegistry;
 use Drupal\changelogify\ReleaseGeneratorInterface;
@@ -25,9 +26,23 @@ use Drupal\Core\Url;
  * Implements hook_cron().
  */
 function changelogify_ai_cron(): void {
+  \Drupal::service(AiQueueHealth::class)->recordCron();
   $days = (int) \Drupal::config('changelogify_ai.settings')->get('history_retention_days');
   \Drupal::service(AiOperationManager::class)->purge(min(3650, max(1, $days)));
   \Drupal::service(SynthesisJobManager::class)->purge(min(3650, max(1, $days)));
+}
+
+/**
+ * Implements hook_theme().
+ */
+function changelogify_ai_theme(): array {
+  return [
+    'changelogify_ai_job' => [
+      'variables' => [
+        'job' => [],
+      ],
+    ],
+  ];
 }
 
 /**
@@ -741,30 +756,48 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
       $currentPreview->coverage['reused_change_sets'] ?? [],
       $boundary['evidence'],
     ) !== [];
-    $jobId = \Drupal::service(SynthesisJobManager::class)->start(
+    $instructions = trim((string) $form_state->getValue(['ai_synthesis', 'instructions']));
+    $finalizationContext = [
+      'start' => $start->getTimestamp(),
+      'end' => $end->getTimestamp(),
+      'options' => $options,
+      'exclusions' => $boundary['exclusions'],
+      'evidence_fingerprint' => $boundary['fingerprint'],
+      'allow_evidence_reuse' => $allowEvidenceReuse,
+    ];
+    $submissionKey = hash('sha256', json_encode([
+      'actor' => (int) \Drupal::currentUser()->id(),
+      'evidence_fingerprint' => $boundary['fingerprint'],
+      'profile' => $profile,
+      'length_preset' => $lengthPreset,
+      'instructions' => $instructions,
+      'exclusions' => $boundary['exclusions'],
+      'policy_version' => $boundary['policy_version'],
+      'eligibility_version' => $boundary['eligibility_version'],
+      'draft_metadata' => $options,
+    ], JSON_THROW_ON_ERROR));
+    $startResult = \Drupal::service(SynthesisJobManager::class)->startResult(
       $boundary['evidence'],
       $profile,
       $lengthPreset,
       PromptTemplateRegistry::VERSION,
       $boundary['policy_version'],
       $boundary['eligibility_version'],
-      trim((string) $form_state->getValue(['ai_synthesis', 'instructions'])),
+      $instructions,
       $boundary['provenance'],
       [
         'editor' => $boundary['excluded_editor_ids'],
         'eligibility' => $boundary['ineligible_ids'],
       ],
-      [
-        'start' => $start->getTimestamp(),
-        'end' => $end->getTimestamp(),
-        'options' => $options,
-        'exclusions' => $boundary['exclusions'],
-        'evidence_fingerprint' => $boundary['fingerprint'],
-        'allow_evidence_reuse' => $allowEvidenceReuse,
-      ],
+      $finalizationContext,
+      (int) \Drupal::currentUser()->id(),
+      $submissionKey,
     );
-    \Drupal::messenger()->addStatus(t('AI release synthesis @id was queued. Review background progress and coverage in the operation history.', ['@id' => substr($jobId, 0, 16)]));
-    $form_state->setRedirect('changelogify_ai.operation_history');
+    $message = $startResult->reused
+      ? t('Your matching AI synthesis is already in progress. Showing its current status.')
+      : t('Your AI synthesis has started. This page updates automatically while Drupal processes it in the background.');
+    \Drupal::messenger()->addStatus($message);
+    $form_state->setRedirect('changelogify_ai.synthesis_job', ['job_id' => $startResult->jobId]);
   }
   catch (\Throwable $exception) {
     \Drupal::logger('changelogify_ai')->error('AI complete-draft generation failed with @exception.', ['@exception' => $exception::class]);

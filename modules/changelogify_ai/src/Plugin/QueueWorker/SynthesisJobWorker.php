@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify_ai\Plugin\QueueWorker;
 
+use Drupal\changelogify_ai\AiQueueHealth;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
 use Drupal\changelogify_ai\SynthesisJobManager;
@@ -21,7 +22,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 final class SynthesisJobWorker extends QueueWorkerBase implements ContainerFactoryPluginInterface {
 
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, protected SynthesisJobManager $jobs, protected SynthesisDraftFinalizer $finalizer) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, protected SynthesisJobManager $jobs, protected SynthesisDraftFinalizer $finalizer, protected AiQueueHealth $queueHealth) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
 
@@ -35,6 +36,7 @@ final class SynthesisJobWorker extends QueueWorkerBase implements ContainerFacto
       $plugin_definition,
       $container->get(SynthesisJobManager::class),
       $container->get(SynthesisDraftFinalizer::class),
+      $container->get(AiQueueHealth::class),
     );
   }
 
@@ -42,6 +44,7 @@ final class SynthesisJobWorker extends QueueWorkerBase implements ContainerFacto
    * {@inheritdoc}
    */
   public function processItem($data): void {
+    $this->queueHealth->recordWorker();
     if (!is_array($data)
       || !is_string($data['job_id'] ?? NULL)
       || !is_string($data['batch_id'] ?? NULL)

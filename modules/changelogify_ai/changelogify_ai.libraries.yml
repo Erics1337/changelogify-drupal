@@ -1,0 +1,15 @@
+progress:
+  css:
+    theme:
+      css/changelogify_ai.progress.css: {}
+  js:
+    js/changelogify_ai.progress.js: {}
+  dependencies:
+    - core/drupal
+    - core/drupalSettings
+    - core/once
+
+history:
+  css:
+    theme:
+      css/changelogify_ai.history.css: {}

@@ -108,7 +108,7 @@ final class SynthesisJobManagerTest extends TestCase {
   }
 
   /**
-   * Identical inputs produce the same job and batch identities.
+   * A cancelled job does not block a deliberate identical submission.
    */
   public function testJobAndBatchIdentityAreDeterministic(): void {
     $summarizer = $this->recordingSummarizer();
@@ -119,8 +119,42 @@ final class SynthesisJobManagerTest extends TestCase {
     $manager->cancel($firstId);
     $queueItems->exchangeArray([]);
     $secondId = $manager->start($evidence, 'concise', 'standard', '1', 'policy', 'eligibility');
-    self::assertSame($firstId, $secondId);
-    self::assertSame($firstReferences, $queueItems->getArrayCopy());
+    self::assertNotSame($firstId, $secondId);
+    self::assertCount(count($firstReferences), $queueItems->getArrayCopy());
+    self::assertSame($secondId, $queueItems[0]['job_id']);
+  }
+
+  /**
+   * An active matching submission is reused without adding queue work.
+   */
+  public function testActiveSubmissionKeyIsReused(): void {
+    [$manager, , $queueItems] = $this->manager($this->recordingSummarizer());
+    $first = $manager->startResult(
+      $this->evidence(2),
+      'concise',
+      'standard',
+      '1',
+      'policy',
+      'eligibility',
+      actor: 7,
+      submissionKey: hash('sha256', 'stable-submission'),
+    );
+    $queued = count($queueItems);
+    $second = $manager->startResult(
+      $this->evidence(2),
+      'concise',
+      'standard',
+      '1',
+      'policy',
+      'eligibility',
+      actor: 7,
+      submissionKey: hash('sha256', 'stable-submission'),
+    );
+
+    self::assertFalse($first->reused);
+    self::assertTrue($second->reused);
+    self::assertSame($first->jobId, $second->jobId);
+    self::assertCount($queued, $queueItems);
   }
 
   /**

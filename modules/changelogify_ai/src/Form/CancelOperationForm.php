@@ -18,6 +18,11 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  */
 final class CancelOperationForm extends ConfirmFormBase {
 
+  /**
+   * Current synthesis job ID when the confirmation targets synthesis.
+   */
+  protected ?string $synthesisJobId = NULL;
+
   public function __construct(protected AiOperationManager $operations, protected SynthesisJobManager $synthesisJobs) {}
 
   /**
@@ -41,14 +46,16 @@ final class CancelOperationForm extends ConfirmFormBase {
    * {@inheritdoc}
    */
   public function getQuestion(): TranslatableMarkup {
-    return $this->t('Cancel this queued AI operation?');
+    return $this->t('Cancel this AI operation?');
   }
 
   /**
    * {@inheritdoc}
    */
   public function getCancelUrl(): Url {
-    return Url::fromRoute('changelogify_ai.operation_history');
+    return $this->synthesisJobId !== NULL
+      ? Url::fromRoute('changelogify_ai.synthesis_job', ['job_id' => $this->synthesisJobId])
+      : Url::fromRoute('changelogify_ai.operation_history');
   }
 
   /**
@@ -72,6 +79,7 @@ final class CancelOperationForm extends ConfirmFormBase {
     }
     $form_state->set('operation_id', $operation_id);
     $form_state->set('synthesis_job', $synthesisCanCancel);
+    $this->synthesisJobId = $synthesisCanCancel ? $operation_id : NULL;
     return parent::buildForm($form, $form_state);
   }
 
@@ -91,7 +99,14 @@ final class CancelOperationForm extends ConfirmFormBase {
     catch (\UnexpectedValueException) {
       $this->messenger()->addWarning($this->t('The operation already started and cannot be cancelled.'));
     }
-    $form_state->setRedirect('changelogify_ai.operation_history');
+    if ($form_state->get('synthesis_job')) {
+      $form_state->setRedirect('changelogify_ai.synthesis_job', [
+        'job_id' => (string) $form_state->get('operation_id'),
+      ]);
+    }
+    else {
+      $form_state->setRedirect('changelogify_ai.operation_history');
+    }
   }
 
 }

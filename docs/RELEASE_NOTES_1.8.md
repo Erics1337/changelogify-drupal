@@ -17,7 +17,17 @@ into concise, categorized, evidence-grounded draft notes.
   before processing. Changed exclusions or evidence require a new preview.
 - Adds deterministic hierarchical batching for large inputs, recursive
   candidate consolidation, bounded retry, cancellation, idempotency, cleanup,
-  and operation-history progress.
+  and duplicate submission protection.
+- Adds an accessible live job page that updates automatically from waiting
+  through draft creation, pauses in hidden tabs, recovers from temporary
+  network failures, and links directly to the unpublished draft and
+  provenance. Polling never processes queue work or calls a provider.
+- Adds creator-scoped job access and cancellation, a queue-health panel with
+  cron and worker heartbeats, 15-minute delay guidance, and a direct Drupal
+  cron-settings link for authorized administrators.
+- Replaces the wide diagnostic history grid with an indexed, paginated,
+  filterable and responsive operation list. Detailed provider, model, token,
+  version, coverage, and safe failure information is available on each job.
 - Resolves every final citation through intermediate candidates to original
   change-set and event IDs. Private coverage reports evidence considered,
   cited, excluded, and eligible but not surfaced.
@@ -63,9 +73,11 @@ credential, or provider account.
 5. Preview a non-sensitive payload, confirm external-processing consent, and
    review `administer changelogify ai`, `use changelogify ai`, and `view
    changelogify ai history` role grants.
-6. Ensure Drupal cron/queue processing runs regularly. Test creation,
-   operation-history progress, cancellation, unpublished finalization,
-   provenance, and coverage in a staging environment.
+6. Ensure Drupal cron/queue processing runs regularly. Confirm the AI settings
+   health panel receives cron and worker heartbeats. Test automatic job-page
+   progress, creator and administrator cancellation, duplicate reuse,
+   responsive operation history, unpublished finalization, provenance, and
+   coverage in a staging environment. Editors should not need Drush.
 7. Complete the cloud/local provider compatibility checks in
    [AI_DRAFTING.md](AI_DRAFTING.md) before production use.
 

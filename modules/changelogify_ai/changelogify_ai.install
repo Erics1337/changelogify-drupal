@@ -1,0 +1,81 @@
+<?php
+
+/**
+ * @file
+ * Install and update hooks for Changelogify AI.
+ */
+
+declare(strict_types=1);
+
+/**
+ * Implements hook_schema().
+ */
+function changelogify_ai_schema(): array {
+  $schema['changelogify_ai_operation'] = [
+    'description' => 'Privacy-bounded, indexed AI operation summaries.',
+    'fields' => [
+      'operation_id' => ['type' => 'varchar', 'length' => 64, 'not null' => TRUE],
+      'actor' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
+      'submission_key' => ['type' => 'varchar', 'length' => 64, 'not null' => FALSE],
+      'operation_type' => ['type' => 'varchar', 'length' => 64, 'not null' => TRUE],
+      'status' => ['type' => 'varchar', 'length' => 32, 'not null' => TRUE],
+      'stage' => ['type' => 'varchar', 'length' => 32, 'not null' => FALSE],
+      'created' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE],
+      'updated' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE],
+      'completed' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE],
+      'release_id' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE],
+      'revision_id' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE],
+      'accepted_revision_id' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE],
+      'provider_id' => ['type' => 'varchar', 'length' => 128, 'not null' => FALSE],
+      'model_id' => ['type' => 'varchar', 'length' => 255, 'not null' => FALSE],
+      'input_tokens' => ['type' => 'int', 'size' => 'big', 'unsigned' => TRUE, 'not null' => FALSE],
+      'output_tokens' => ['type' => 'int', 'size' => 'big', 'unsigned' => TRUE, 'not null' => FALSE],
+      'error_code' => ['type' => 'varchar', 'length' => 64, 'not null' => FALSE],
+      'profile' => ['type' => 'varchar', 'length' => 64, 'not null' => FALSE],
+      'length_preset' => ['type' => 'varchar', 'length' => 32, 'not null' => FALSE],
+      'payload_hash' => ['type' => 'varchar', 'length' => 64, 'not null' => FALSE],
+      'round' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
+      'total_batches' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
+      'completed_batches' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
+      'retry_count' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
+      'evidence_considered' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
+      'evidence_cited' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
+      'eligible_not_surfaced' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0],
+      'disposition' => ['type' => 'varchar', 'length' => 16, 'not null' => FALSE],
+    ],
+    'primary key' => ['operation_id'],
+    'indexes' => [
+      'history' => ['status', 'operation_type', 'created'],
+      'actor_created' => ['actor', 'created'],
+      'submission' => ['submission_key', 'status'],
+      'release' => ['release_id'],
+    ],
+  ];
+  return $schema;
+}
+
+/**
+ * Adds and backfills indexed AI operation summaries for the 1.8 experience.
+ */
+function changelogify_ai_update_18001(): string {
+  $schema = \Drupal::database()->schema();
+  if (!$schema->tableExists('changelogify_ai_operation')) {
+    $definition = changelogify_ai_schema()['changelogify_ai_operation'];
+    $schema->createTable('changelogify_ai_operation', $definition);
+  }
+
+  $repository = \Drupal::service(\Drupal\changelogify_ai\AiOperationHistoryRepository::class);
+  $keyValue = \Drupal::service('keyvalue');
+  foreach ($keyValue->get('changelogify_ai.operations')->getAll() as $operation) {
+    if (is_array($operation)) {
+      $repository->save($operation);
+    }
+  }
+  foreach ($keyValue->get('changelogify_ai.synthesis_jobs')->getAll() as $job) {
+    if (is_array($job)) {
+      $repository->save($job);
+    }
+  }
+
+  return 'Added and backfilled the privacy-bounded Changelogify AI operation index.';
+}

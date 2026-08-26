@@ -38,7 +38,37 @@ final class SynthesisJobManager {
     private readonly QueueFactory $queueFactory,
     private readonly TimeInterface $time,
     private readonly LoggerInterface $logger,
+    private readonly ?AiOperationHistoryRepository $history = NULL,
   ) {}
+
+  /**
+   * Creates a synthesis job and returns its ID for legacy callers.
+   */
+  public function start(
+    array $evidence,
+    string $profile,
+    string $lengthPreset,
+    string $promptVersion,
+    string $policyVersion,
+    string $eligibilityVersion,
+    string $instructions = '',
+    array $sourceProvenance = [],
+    array $coverageExclusions = [],
+    array $finalizationContext = [],
+  ): string {
+    return $this->startResult(
+      $evidence,
+      $profile,
+      $lengthPreset,
+      $promptVersion,
+      $policyVersion,
+      $eligibilityVersion,
+      $instructions,
+      $sourceProvenance,
+      $coverageExclusions,
+      $finalizationContext,
+    )->jobId;
+  }
 
   /**
    * Creates and queues a deterministic synthesis job.
@@ -63,8 +93,12 @@ final class SynthesisJobManager {
    *   Source IDs excluded before eligible evidence was considered.
    * @param array<string, mixed> $finalizationContext
    *   Credential-free server context required to create the draft.
+   * @param int $actor
+   *   Initiating user ID, or zero for a legacy system job.
+   * @param string $submissionKey
+   *   Stable duplicate-protection key, when supplied.
    */
-  public function start(
+  public function startResult(
     array $evidence,
     string $profile,
     string $lengthPreset,
@@ -75,7 +109,53 @@ final class SynthesisJobManager {
     array $sourceProvenance = [],
     array $coverageExclusions = [],
     array $finalizationContext = [],
-  ): string {
+    int $actor = 0,
+    string $submissionKey = '',
+  ): SynthesisStartResult {
+    $lockName = $submissionKey === '' ? '' : 'changelogify_ai:synthesis_submission:' . $submissionKey;
+    if ($lockName !== '' && !$this->lock->acquire($lockName, self::LOCK_TIMEOUT)) {
+      throw new \RuntimeException('An equivalent synthesis submission is being created.');
+    }
+    try {
+      return $this->startUnlocked(
+        $evidence,
+        $profile,
+        $lengthPreset,
+        $promptVersion,
+        $policyVersion,
+        $eligibilityVersion,
+        $instructions,
+        $sourceProvenance,
+        $coverageExclusions,
+        $finalizationContext,
+        $actor,
+        $submissionKey,
+      );
+    }
+    finally {
+      if ($lockName !== '') {
+        $this->lock->release($lockName);
+      }
+    }
+  }
+
+  /**
+   * Creates or safely reuses a synthesis job under the submission lock.
+   */
+  private function startUnlocked(
+    array $evidence,
+    string $profile,
+    string $lengthPreset,
+    string $promptVersion,
+    string $policyVersion,
+    string $eligibilityVersion,
+    string $instructions,
+    array $sourceProvenance,
+    array $coverageExclusions,
+    array $finalizationContext,
+    int $actor,
+    string $submissionKey,
+  ): SynthesisStartResult {
     if ($evidence === []) {
       throw new \UnexpectedValueException('Release synthesis requires eligible evidence.');
     }
@@ -87,6 +167,20 @@ final class SynthesisJobManager {
     );
     if (!$this->summarizer->isAvailable()) {
       throw new \RuntimeException('The configured summarizer is unavailable.');
+    }
+    $store = $this->store();
+    if ($submissionKey !== '') {
+      $indexed = $this->history?->findActiveSubmission($submissionKey);
+      if (is_array($indexed) && is_array($store->get((string) $indexed['operation_id']))) {
+        return new SynthesisStartResult((string) $indexed['operation_id'], TRUE);
+      }
+      foreach ($store->getAll() as $existingId => $candidate) {
+        if (is_array($candidate)
+          && ($candidate['submission_key'] ?? '') === $submissionKey
+          && in_array($candidate['status'] ?? NULL, ['queued', 'running', 'completed'], TRUE)) {
+          return new SynthesisStartResult((string) $existingId, TRUE);
+        }
+      }
     }
     $jobId = hash('sha256', json_encode([
       'evidence' => $evidence,
@@ -101,10 +195,16 @@ final class SynthesisJobManager {
       'finalization_context' => $finalizationContext,
       'synthesis_version' => SynthesisContract::VERSION,
     ], JSON_THROW_ON_ERROR));
-    $store = $this->store();
     $existing = $store->get($jobId);
-    if (is_array($existing) && in_array($existing['status'] ?? NULL, ['queued', 'running', 'completed', 'finalized'], TRUE)) {
-      throw new \RuntimeException('An equivalent synthesis job is already in progress or complete.');
+    if (is_array($existing) && in_array($existing['status'] ?? NULL, ['queued', 'running', 'completed'], TRUE)) {
+      return new SynthesisStartResult($jobId, TRUE);
+    }
+    if (is_array($existing)) {
+      $baseId = $jobId;
+      $attempt = 1;
+      do {
+        $jobId = hash('sha256', $baseId . ':' . $attempt++);
+      } while (is_array($store->get($jobId)));
     }
 
     $job = [
@@ -112,6 +212,9 @@ final class SynthesisJobManager {
       'type' => SynthesisContract::OPERATION,
       'status' => 'queued',
       'created' => $this->time->getRequestTime(),
+      'updated' => $this->time->getRequestTime(),
+      'actor' => max(0, $actor),
+      'submission_key' => $submissionKey === '' ? NULL : $submissionKey,
       'profile' => $profile,
       'length_preset' => $lengthPreset,
       'prompt_version' => $promptVersion,
@@ -132,9 +235,9 @@ final class SynthesisJobManager {
       'rounds' => [],
     ];
     $references = $this->prepareRound($job, $evidence, 0);
-    $store->set($jobId, $job);
+    $this->persist($store, $jobId, $job);
     $this->enqueue($references);
-    return $jobId;
+    return new SynthesisStartResult($jobId, FALSE);
   }
 
   /**
@@ -161,8 +264,9 @@ final class SynthesisJobManager {
       }
       $batch['status'] = 'running';
       $job['status'] = 'running';
+      $job['stage'] = $job['rounds'][$round]['stage'] ?? SynthesisContract::STAGE_FINAL;
       $job['rounds'][$round]['batches'][$batchId] = $batch;
-      $store->set($jobId, $job);
+      $this->persist($store, $jobId, $job);
 
       $request = $this->request($job, $round, $batchId, $batch);
       try {
@@ -199,7 +303,7 @@ final class SynthesisJobManager {
       $job['model_id'] = $result->modelId;
 
       if (!$this->roundComplete($job['rounds'][$round])) {
-        $store->set($jobId, $job);
+        $this->persist($store, $jobId, $job);
         return;
       }
       if (($job['rounds'][$round]['stage'] ?? NULL) === SynthesisContract::STAGE_FINAL) {
@@ -217,7 +321,7 @@ final class SynthesisJobManager {
           $job['status'] = 'completed';
           $job['completed'] = $this->time->getRequestTime();
           $this->cleanup($job);
-          $store->set($jobId, $job);
+          $this->persist($store, $jobId, $job);
         }
         catch (\Throwable $exception) {
           $this->fail($job, $exception);
@@ -231,7 +335,7 @@ final class SynthesisJobManager {
         $nextRound = $round + 1;
         $job['round'] = $nextRound;
         $references = $this->prepareRound($job, $candidates, $nextRound);
-        $store->set($jobId, $job);
+        $this->persist($store, $jobId, $job);
         $this->enqueue($references);
       }
       catch (\Throwable $exception) {
@@ -255,7 +359,7 @@ final class SynthesisJobManager {
     $job['status'] = 'cancelled';
     $job['completed'] = $this->time->getRequestTime();
     $this->cleanup($job);
-    $store->set($jobId, $job);
+    $this->persist($store, $jobId, $job);
   }
 
   /**
@@ -287,7 +391,7 @@ final class SynthesisJobManager {
         continue;
       }
       $summaries[$id] = array_intersect_key($job, array_flip([
-        'id', 'type', 'status', 'created', 'completed', 'finalized', 'profile',
+        'id', 'type', 'status', 'created', 'updated', 'completed', 'finalized', 'actor', 'submission_key', 'stage', 'profile',
         'length_preset', 'prompt_version', 'synthesis_version',
         'policy_version', 'eligibility_version', 'payload_hash', 'round',
         'total_batches', 'completed_batches', 'retry_count', 'input_tokens',
@@ -314,6 +418,7 @@ final class SynthesisJobManager {
         $store->delete($id);
       }
     }
+    $this->history?->deleteOlderThan($cutoff);
   }
 
   /**
@@ -339,7 +444,7 @@ final class SynthesisJobManager {
     $job['release_id'] = $releaseId;
     $job['finalized'] = $this->time->getRequestTime();
     unset($job['finalization_context'], $job['final_result'], $job['provenance']);
-    $this->store()->set($jobId, $job);
+    $this->persist($this->store(), $jobId, $job);
   }
 
   /**
@@ -387,6 +492,7 @@ final class SynthesisJobManager {
       'stage' => $stage,
       'batches' => $batches,
     ];
+    $job['stage'] = $stage;
     $job['total_batches'] += count($batches);
     return $references;
   }
@@ -481,7 +587,7 @@ final class SynthesisJobManager {
       return;
     }
     $job['rounds'][$round]['batches'][$batchId]['status'] = 'queued';
-    $this->store()->set($job['id'], $job);
+    $this->persist($this->store(), $job['id'], $job);
     $this->enqueue([['job_id' => $job['id'], 'batch_id' => $batchId]]);
   }
 
@@ -494,7 +600,7 @@ final class SynthesisJobManager {
     $job['error_class'] = $exception::class;
     $job['error_code'] = (new AiFailureMessage())->code($exception);
     $this->cleanup($job);
-    $this->store()->set($job['id'], $job);
+    $this->persist($this->store(), $job['id'], $job);
     $this->logger->error('AI synthesis job @id failed with @exception.', [
       '@id' => $job['id'],
       '@exception' => $exception::class,
@@ -567,6 +673,15 @@ final class SynthesisJobManager {
       $result['input_tokens'],
       $result['output_tokens'],
     );
+  }
+
+  /**
+   * Keeps durable job state and its bounded history index synchronized.
+   */
+  private function persist(KeyValueStoreInterface $store, string $jobId, array $job): void {
+    $job['updated'] = $this->time->getRequestTime();
+    $store->set($jobId, $job);
+    $this->history?->save($job);
   }
 
   /**

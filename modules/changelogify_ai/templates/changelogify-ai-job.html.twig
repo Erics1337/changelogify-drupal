@@ -1,0 +1,47 @@
+<div class="changelogify-ai-job" data-changelogify-ai-job data-terminal="{{ job.terminal ? 'true' : 'false' }}">
+  <div class="changelogify-ai-job__status" aria-live="polite" aria-atomic="true">
+    <p class="changelogify-ai-job__eyebrow">{{ 'AI changelog synthesis'|t }}</p>
+    <h2 data-job-label>{{ job.label }}</h2>
+    <p data-job-message>{{ job.message }}</p>
+  </div>
+
+  <progress data-job-progress max="{{ job.progress.total }}" value="{{ job.progress.completed }}">
+    {{ job.progress.completed }} / {{ job.progress.total }}
+  </progress>
+  <p class="changelogify-ai-job__detail" data-job-detail>
+    {% trans %}{{ job.progress.completed }} of {{ job.progress.total }} background steps complete{% endtrans %}
+  </p>
+
+  <div class="changelogify-ai-job__actions" data-job-actions>
+    {% if job.release_url %}
+      <a class="button button--primary" href="{{ job.release_url }}">{{ 'Review unpublished draft'|t }}</a>
+    {% endif %}
+    {% if job.provenance_url %}
+      <a class="button" href="{{ job.provenance_url }}">{{ 'Review evidence and coverage'|t }}</a>
+    {% endif %}
+    {% if job.can_cancel %}
+      <a class="button" href="{{ job.cancel_url }}">{{ 'Cancel synthesis'|t }}</a>
+    {% endif %}
+    {% if job.state == 'failed' %}
+      <a class="button button--primary" href="{{ job.generate_url }}">{{ 'Try again from a fresh preview'|t }}</a>
+    {% endif %}
+  </div>
+
+  <details class="changelogify-ai-job__diagnostics">
+    <summary>{{ 'Operation details'|t }}</summary>
+    <dl>
+      <div><dt>{{ 'Editorial profile'|t }}</dt><dd>{{ job.details.profile ?: 'Unavailable'|t }}</dd></div>
+      <div><dt>{{ 'Length'|t }}</dt><dd>{{ job.details.length ?: 'Unavailable'|t }}</dd></div>
+      <div><dt>{{ 'Provider / model'|t }}</dt><dd>{{ job.details.provider ?: 'Unavailable'|t }} / {{ job.details.model ?: 'Unavailable'|t }}</dd></div>
+      <div><dt>{{ 'Input / output tokens'|t }}</dt><dd>{{ job.details.input_tokens }} / {{ job.details.output_tokens }}</dd></div>
+      <div><dt>{{ 'Prompt / policy / eligibility versions'|t }}</dt><dd>{{ job.details.prompt_version ?: 'Unavailable'|t }} / {{ job.details.policy_version ?: 'Unavailable'|t }} / {{ job.details.eligibility_version ?: 'Unavailable'|t }}</dd></div>
+      <div><dt>{{ 'Evidence considered / cited / not surfaced'|t }}</dt><dd>{{ job.coverage.considered }} / {{ job.coverage.cited }} / {{ job.coverage.not_surfaced }}</dd></div>
+      {% if job.details.failure_code %}<div><dt>{{ 'Safe failure code'|t }}</dt><dd>{{ job.details.failure_code }}</dd></div>{% endif %}
+    </dl>
+  </details>
+
+  <noscript>
+    <p>{{ 'Automatic updates require JavaScript.'|t }} <a href="">{{ 'Refresh this status'|t }}</a></p>
+  </noscript>
+  <p class="changelogify-ai-job__support">{% trans %}Support reference: {{ job.id }}{% endtrans %}</p>
+</div>
