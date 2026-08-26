@@ -129,6 +129,16 @@ final class ResultValidatorTest extends TestCase {
       ],
         ),
       ],
+      'unknown omitted evidence' => [new SummarizationResult('completed', [
+        new SummarizationItem('item-1', 'fixed', 'Text.', ['change-1']),
+      ], ['hostile-unknown'],
+        ),
+      ],
+      'oversized item text' => [new SummarizationResult('completed', [
+        new SummarizationItem('item-1', 'fixed', str_repeat('x', 2049), ['change-1']),
+      ],
+        ),
+      ],
       'unknown state' => [new SummarizationResult('unknown', [
         new SummarizationItem('item-1', 'fixed', 'Text.', ['change-1']),
       ],

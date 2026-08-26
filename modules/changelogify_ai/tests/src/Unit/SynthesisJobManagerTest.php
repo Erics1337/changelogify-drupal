@@ -22,6 +22,7 @@ use Drupal\changelogify_ai\Summarization\SummarizerInterface;
 use Drupal\changelogify_ai\Summarization\SynthesisContract;
 use Drupal\changelogify_ai\Summarization\TransientSummarizationException;
 use Psr\Log\LoggerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
@@ -76,6 +77,34 @@ final class SynthesisJobManagerTest extends TestCase {
     $summaries = $manager->all();
     self::assertArrayNotHasKey('final_result', $summaries[$jobId]);
     self::assertArrayNotHasKey('rounds', $summaries[$jobId]);
+  }
+
+  /**
+   * Thousands of source documents recurse within every request bound.
+   */
+  public function testThousandsOfEvidenceDocumentsRemainBounded(): void {
+    $summarizer = $this->recordingSummarizer();
+    [$manager, , $queueItems] = $this->manager($summarizer);
+    $jobId = $manager->start(
+      $this->evidence(2500),
+      'public_product',
+      SynthesisContract::PRESET_DETAILED,
+      PromptTemplateRegistry::VERSION,
+      'policy-scale',
+      'eligibility-scale',
+    );
+    $this->drain($manager, $queueItems);
+
+    $job = $manager->get($jobId);
+    self::assertSame('completed', $job['status']);
+    self::assertGreaterThan(3, $job['round']);
+    self::assertSame(2500, $job['coverage']['evidence_considered']);
+    self::assertSame(2500, $job['coverage']['evidence_cited']);
+    self::assertLessThanOrEqual(25, count($manager->result($jobId)->items));
+    foreach ($summarizer->calls as $call) {
+      self::assertLessThanOrEqual(SynthesisBatcher::MAX_ITEMS, $call['count']);
+      self::assertLessThanOrEqual(SynthesisBatcher::MAX_BYTES, $call['bytes']);
+    }
   }
 
   /**
@@ -155,6 +184,72 @@ final class SynthesisJobManagerTest extends TestCase {
   }
 
   /**
+   * A concurrent worker holding the job lock prevents duplicate provider use.
+   */
+  public function testConcurrentWorkerCannotProcessSameJob(): void {
+    $summarizer = $this->recordingSummarizer();
+    [$manager, , $queueItems] = $this->manager($summarizer, FALSE);
+    $manager->start($this->evidence(1), 'concise', 'short', '1', 'policy', 'eligibility');
+    $reference = $queueItems[0];
+    $manager->process($reference['job_id'], $reference['batch_id']);
+    self::assertSame([], $summarizer->calls);
+    self::assertSame('queued', $manager->get($reference['job_id'])['status']);
+  }
+
+  /**
+   * Terminal cleanup retains neither sensitive evidence nor provider errors.
+   */
+  public function testTerminalStateAndQueueReferencesDoNotRetainSensitivePayload(): void {
+    $summarizer = $this->recordingSummarizer(3);
+    [$manager, $records, $queueItems] = $this->manager($summarizer);
+    $evidence = $this->evidence(1);
+    $evidence['change-1']['summary'] = 'credential-sensitive-value';
+    $jobId = $manager->start(
+      $evidence,
+      'concise',
+      'short',
+      '1',
+      'policy',
+      'eligibility',
+      'temporary-credential-sensitive-instruction',
+    );
+    self::assertStringNotContainsString('credential-sensitive-value', json_encode($queueItems, JSON_THROW_ON_ERROR));
+    $this->drain($manager, $queueItems);
+    self::assertSame('failed', $manager->get($jobId)['status']);
+    self::assertStringNotContainsString('credential-sensitive-value', json_encode($records, JSON_THROW_ON_ERROR));
+    self::assertStringNotContainsString('temporary-credential-sensitive-instruction', json_encode($records, JSON_THROW_ON_ERROR));
+    self::assertStringNotContainsString('Deterministic transient failure', json_encode($records, JSON_THROW_ON_ERROR));
+  }
+
+  /**
+   * Refusal, malformed, empty, and timeout results create no usable output.
+   */
+  #[DataProvider('unsafeProviderModeProvider')]
+  public function testUnsafeProviderModesFailWithoutProvenance(string $mode, int $retries): void {
+    [$manager, , $queueItems] = $this->manager(new FakeSummarizer($mode));
+    $jobId = $manager->start($this->evidence(1), 'concise', 'short', '1', 'policy', 'eligibility');
+    $this->drain($manager, $queueItems);
+    $job = $manager->get($jobId);
+    self::assertSame('failed', $job['status']);
+    self::assertSame($retries, $job['retry_count']);
+    self::assertArrayNotHasKey('final_result', $job);
+    self::assertArrayNotHasKey('provenance', $job);
+    self::assertArrayNotHasKey('rounds', $job);
+  }
+
+  /**
+   * Provides deterministic unsafe or unavailable provider behaviors.
+   */
+  public static function unsafeProviderModeProvider(): array {
+    return [
+      'refusal' => ['refusal', 0],
+      'malformed output' => ['malformed', 0],
+      'empty output' => ['empty', 0],
+      'timeout' => ['timeout', 3],
+    ];
+  }
+
+  /**
    * Creates a recording summarizer with optional transient failures.
    */
   private function recordingSummarizer(int $failures = 0): object {
@@ -203,7 +298,7 @@ final class SynthesisJobManagerTest extends TestCase {
    * @return array{SynthesisJobManager, \ArrayObject, \ArrayObject}
    *   Manager, job records, and queued reference payloads.
    */
-  private function manager(SummarizerInterface $summarizer): array {
+  private function manager(SummarizerInterface $summarizer, bool $lockAcquired = TRUE): array {
     $records = new \ArrayObject();
     $store = $this->createMock(KeyValueStoreInterface::class);
     $store->method('get')->willReturnCallback(static fn (string $key): mixed => $records[$key] ?? NULL);
@@ -225,7 +320,7 @@ final class SynthesisJobManagerTest extends TestCase {
     $queueFactory = $this->createMock(QueueFactory::class);
     $queueFactory->method('get')->with(SynthesisJobManager::QUEUE_NAME)->willReturn($queue);
     $lock = $this->createMock(LockBackendInterface::class);
-    $lock->method('acquire')->willReturn(TRUE);
+    $lock->method('acquire')->willReturn($lockAcquired);
     $time = $this->createMock(TimeInterface::class);
     $time->method('getRequestTime')->willReturn(1000);
     return [new SynthesisJobManager(

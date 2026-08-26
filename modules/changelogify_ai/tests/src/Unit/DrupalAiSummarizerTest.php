@@ -12,6 +12,7 @@ use Drupal\changelogify_ai\ChatRequestFactoryInterface;
 use Drupal\changelogify_ai\DrupalAiSummarizer;
 use Drupal\changelogify_ai\PromptTemplateRegistry;
 use Drupal\changelogify_ai\Summarization\SummarizationRequest;
+use Drupal\changelogify_ai\Summarization\InvalidResponseException;
 use Drupal\changelogify_ai\Summarization\ProviderUnavailableException;
 use Drupal\changelogify_ai\Summarization\SynthesisContract;
 use PHPUnit\Framework\Attributes\Group;
@@ -232,6 +233,85 @@ final class DrupalAiSummarizerTest extends TestCase {
     self::assertFalse($summarizer->isAvailable());
     $this->expectException(ProviderUnavailableException::class);
     $summarizer->summarize($this->request());
+  }
+
+  /**
+   * Strict JSON fallback rejects malformed text without provider credentials.
+   */
+  public function testStrictJsonFallbackRejectsMalformedProviderText(): void {
+    $provider = new class() {
+
+      public function isUsable(string $operation, array $capabilities = []): bool {
+        return TRUE;
+      }
+
+      public function getConfiguredModels(string $operation): array {
+        return ['fallback-model' => 'Fallback model'];
+      }
+
+      public function modelSupportsCapabilities(string $operation, string $model, array $capabilities): bool {
+        return FALSE;
+      }
+
+      public function setConfiguration(array $configuration): void {}
+
+      public function chat(object $input, string $model): object {
+        return new class {
+
+          public function getNormalized(): object {
+            return new class {
+
+              public function getText(): string {
+                return 'Here is your changelog instead of strict JSON.';
+              }
+
+            };
+          }
+
+        };
+      }
+
+    };
+    $manager = new class($provider) {
+
+      public function __construct(private object $provider) {}
+
+      public function hasProvidersForOperationType(string $operation, bool $setup): bool {
+        return TRUE;
+      }
+
+      public function createInstance(string $providerId): object {
+        return $this->provider;
+      }
+
+      public function getDefaultProviderForOperationType(string $operation): mixed {
+        return NULL;
+      }
+
+    };
+    $requests = new class implements ChatRequestFactoryInterface {
+
+      public ?array $schema = ['unexpected'];
+
+      public function create(string $systemPrompt, string $userPrompt, ?array $structuredSchema = NULL): object {
+        $this->schema = $structuredSchema;
+        return new \stdClass();
+      }
+
+    };
+    $summarizer = $this->summarizer($manager, [
+      'use_default' => FALSE,
+      'provider' => 'local-test-provider',
+      'model' => 'fallback-model',
+      'config' => [],
+    ], $requests);
+    try {
+      $summarizer->summarize($this->synthesisRequest());
+      self::fail('Malformed fallback text was accepted.');
+    }
+    catch (InvalidResponseException) {
+      self::assertNull($requests->schema);
+    }
   }
 
   /**

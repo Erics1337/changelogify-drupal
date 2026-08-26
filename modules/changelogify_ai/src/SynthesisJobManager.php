@@ -181,6 +181,10 @@ final class SynthesisJobManager {
         $this->fail($job, new \UnexpectedValueException('The provider did not complete a synthesis batch.'));
         return;
       }
+      if ($result->items === []) {
+        $this->fail($job, new \UnexpectedValueException('The provider did not return any release items.'));
+        return;
+      }
       $current = $store->get($jobId);
       if (is_array($current) && ($current['status'] ?? NULL) === 'cancelled') {
         return;
@@ -354,16 +358,17 @@ final class SynthesisJobManager {
    * Creates the current round and returns its safe queue references.
    */
   private function prepareRound(array &$job, array $evidence, int $round): array {
-    $partitions = $this->batcher->partition($evidence);
-    if ($partitions === []) {
+    $providerPartitions = $this->batcher->partition($this->providerEvidence($evidence));
+    if ($providerPartitions === []) {
       throw new \UnexpectedValueException('A synthesis round cannot be empty.');
     }
-    $stage = count($partitions) === 1
+    $stage = count($providerPartitions) === 1
       ? SynthesisContract::STAGE_FINAL
       : SynthesisContract::STAGE_INTERMEDIATE;
     $batches = [];
     $references = [];
-    foreach ($partitions as $index => $partition) {
+    foreach ($providerPartitions as $index => $providerPartition) {
+      $partition = array_intersect_key($evidence, $providerPartition);
       $batchId = substr(hash('sha256', json_encode([
         'job' => $job['id'],
         'round' => $round,
@@ -390,18 +395,10 @@ final class SynthesisJobManager {
    * Creates one immutable request from server-held batch state.
    */
   private function request(array $job, int $round, string $batchId, array $batch): SummarizationRequest {
-    $providerEvidence = [];
-    foreach ($batch['evidence'] as $sourceId => $document) {
-      $providerEvidence[$sourceId] = $document;
-      unset(
-        $providerEvidence[$sourceId]['job_id'],
-        $providerEvidence[$sourceId]['original_source_ids'],
-      );
-    }
     return new SummarizationRequest(
       SynthesisContract::OPERATION,
       $job['profile'],
-      $providerEvidence,
+      $this->providerEvidence($batch['evidence']),
       $job['prompt_version'],
       $job['policy_version'],
       hash('sha256', implode(':', [$job['id'], (string) $round, $batchId, (string) $batch['attempts']])),
@@ -410,6 +407,21 @@ final class SynthesisJobManager {
       $job['rounds'][$round]['stage'],
       $job['length_preset'],
     );
+  }
+
+  /**
+   * Removes server-only transitive metadata before sizing or provider use.
+   */
+  private function providerEvidence(array $evidence): array {
+    $providerEvidence = [];
+    foreach ($evidence as $sourceId => $document) {
+      $providerEvidence[$sourceId] = $document;
+      unset(
+        $providerEvidence[$sourceId]['job_id'],
+        $providerEvidence[$sourceId]['original_source_ids'],
+      );
+    }
+    return $providerEvidence;
   }
 
   /**

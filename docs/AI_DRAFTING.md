@@ -8,6 +8,29 @@ Complete drafts always start unpublished. A provider refusal, validation error, 
 
 ## Manual provider compatibility smoke test
 
-Configure OpenRouter and a local provider (such as Ollama) separately in Drupal AI; this is a manual smoke test, not an automated release requirement. For each provider, verify site-default and explicit model selection, then generate an unpublished draft from non-sensitive test content. Confirm that a model with native structured-output support receives the response schema, while a model without it follows the strict JSON prompt fallback and is still rejected safely if its JSON is invalid. Also verify refusal handling, missing usage metadata displaying as unavailable, and that no credential appears in Changelogify logs or operation records.
+Use non-sensitive fixtures and test at least one cloud provider (for example,
+OpenRouter) and one local Drupal AI provider (for example, Ollama). This is a
+manual compatibility check; automated tests never make paid or credentialed
+requests.
+
+For each provider:
+
+1. Verify both the site-default model and an explicit Changelogify model.
+2. Preview the exact filtered evidence, then run Short, Standard, and Detailed
+   synthesis. Confirm every result stays within its 5, 12, or 25-note limit.
+3. Include enough evidence to show multiple background batches and at least
+   one recursive consolidation round. Confirm progress completes, every final
+   note has original evidence provenance, and coverage counts are consistent.
+4. Confirm a model with native structured output receives the versioned
+   response schema. With a model lacking that capability, confirm the strict
+   JSON fallback succeeds only for conforming JSON and safely rejects prose,
+   fenced JSON, malformed JSON, unknown citations, and oversized output.
+5. Exercise refusal and temporary provider failure. Retry once, cancel one
+   running job, and confirm neither path creates a partial release.
+6. Confirm a successful synthesis creates exactly one unpublished draft and
+   that a repeated worker/finalizer run cannot create a duplicate.
+7. Review operation history and Drupal logs. Provider credentials, filtered
+   payload text, temporary instructions, and provider exception text must not
+   appear; missing token usage should display as unavailable.
 
 Automated tests use `FakeSummarizer` and make no external requests or require network credentials.
