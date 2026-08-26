@@ -1,8 +1,9 @@
-# Changelogify 1.3 security, privacy, and operations
+# Changelogify security, privacy, and operations
 
-This guide describes the behavior of the core Changelogify 1.3 module. It does
-not provide AI summarization or semantic deduplication. Release generation is a
-deterministic, rule-based grouping of stored events into an editable draft.
+This guide describes the behavior of the core Changelogify 1.7 module. Core
+release generation is deterministic and rule-based. Optional AI drafting is
+provided by `changelogify_ai`; Changelogify does not provide semantic
+deduplication.
 
 ## Data lifecycle
 
@@ -31,7 +32,8 @@ values and add only missing settings.
 
 | Source or control | Default | Captured behavior and data |
 | --- | --- | --- |
-| Content tracking | Enabled | Create, update, delete, publish, and unpublish events for nodes, media, custom blocks, and taxonomy terms. Events store entity type/ID, bundle, actor user ID, label, and a route path when available. |
+| Content tracking | Enabled | Create, update, delete, publish, and unpublish events for supported content entities. Events store entity type/ID, bundle, actor user ID, label, and a route path when available. |
+| Automatically track new privacy-safe content types and bundles | Enabled on clean installations; disabled by the 1.7 update for existing sites | Newly discovered non-sensitive entity types and bundles follow this setting unless an explicit per-type or per-bundle choice exists. Users, unpublished-content capture, and privacy-sensitive types are never enabled by this default. |
 | Unpublished content tracking | Disabled | When enabled, the content source also records unpublished or access-controlled entities. Labels and paths can reveal private editorial information. |
 | Module tracking | Enabled | Module install/uninstall events outside configuration synchronization. Stores the module machine name and actor user ID. |
 | User tracking | Disabled | User creation stores the username; role changes store the username plus old and new role IDs. Events also store the affected user ID and actor user ID. |
@@ -44,7 +46,7 @@ IDs, usernames, and role assignments are personal or security-relevant data in
 many organizations. Decide whether there is a lawful and operational need to
 store them before enabling user or unpublished-content tracking.
 
-Changelogify 1.5 supports Drupal 10.3 and later Drupal 10 releases, Drupal 11,
+Changelogify 1.7 supports Drupal 10.3 and later Drupal 10 releases, Drupal 11,
 and PHP 8.1 or newer within those Drupal versions' PHP support ranges. The
 upgrade and rollback procedures below apply across that supported matrix.
 
