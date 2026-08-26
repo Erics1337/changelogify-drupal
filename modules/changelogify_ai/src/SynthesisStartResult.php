@@ -7,8 +7,11 @@ namespace Drupal\changelogify_ai;
 /**
  * Describes whether synthesis work was newly queued or safely reused.
  */
-final readonly class SynthesisStartResult {
+final class SynthesisStartResult {
 
-  public function __construct(public string $jobId, public bool $reused) {}
+  public function __construct(
+    public readonly string $jobId,
+    public readonly bool $reused,
+  ) {}
 
 }
