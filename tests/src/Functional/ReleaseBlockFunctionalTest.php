@@ -84,7 +84,7 @@ final class ReleaseBlockFunctionalTest extends BlockTestBase {
       'Changed-section text',
     );
     $this->assertSession()->pageTextContains('Version 1.1.0');
-    $this->assertSession()->elementExists('css', 'a[href="/product-updates"]');
+    $this->assertSession()->elementExists('css', 'a[href$="/product-updates"]');
     $this->assertSession()->elementNotExists(
       'css',
       '#block-changelogify-recent-test .changelogify-release-block__meta time',

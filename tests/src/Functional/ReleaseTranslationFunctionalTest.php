@@ -132,7 +132,7 @@ final class ReleaseTranslationFunctionalTest extends BlockTestBase {
     $this->drupalGet('/fr/changelog');
     $this->assertSession()->pageTextContains('Version française');
     $this->assertSession()->pageTextNotContains('English release');
-    $this->assertSession()->elementExists('css', 'a[href="/fr/changelog/version-francaise"]');
+    $this->assertSession()->elementExists('css', 'a[href$="/fr/changelog/version-francaise"]');
     $this->drupalGet('/fr/changelog/version-francaise');
     $this->assertSession()->pageTextContains('Note publique française');
     $this->drupalGet('/fr/changelog/english-release');

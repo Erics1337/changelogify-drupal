@@ -40,6 +40,7 @@ Before tagging a stable release, verify the pipeline contains and passes:
 - [ ] `phpunit (previous major)`
 - [ ] `phpunit (max PHP version)`
 - [ ] `phpunit (Drupal 10.3, PHP 8.1)`
+- [ ] `phpunit (Drupal AI)` with a compatible real `drupal/ai` dependency
 - [ ] `phpstan` and all generated PHPStan matrix variants
 - [ ] `phpcs`
 - [ ] `stylelint` for the module's CSS
@@ -47,7 +48,9 @@ Before tagging a stable release, verify the pipeline contains and passes:
 
 PHPCS, PHPStan, ESLint, and Stylelint are explicitly configured as blocking
 jobs. Drupal's ESLint configuration also checks formatting in applicable JSON
-and YAML files, so it remains required even while the module has no JavaScript.
+and YAML files. The core matrices exclude the optional AI functional group
+because Drupal AI has a higher Drupal core floor; the dedicated blocking AI
+lane installs the real dependency and runs that group.
 
 ## Maintainer release checklist
 

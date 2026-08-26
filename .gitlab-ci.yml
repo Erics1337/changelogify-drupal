@@ -13,6 +13,9 @@ variables:
   OPT_IN_TEST_MAX_PHP: "1"
   _AUTORUN_PREVIOUS_MAJOR: "all"
   _AUTORUN_MAX_PHP: "all"
+  # Drupal AI itself requires a newer core floor than Changelogify core. Run
+  # its functional group in the dedicated required lane below.
+  _PHPUNIT_EXTRA: "--exclude-group changelogify_ai"
 
   # Drupal's templates allow validation jobs to fail by default. A stable
   # release requires every applicable validation job to be green.
@@ -49,3 +52,27 @@ phpunit (Drupal 10.3, PHP 8.1):
   rules:
     - !reference [ .skip-phpunit-rule ]
     - !reference [ .phpunit-tests-exist-rule ]
+
+# Prove the optional submodule against a real compatible Drupal AI install
+# without weakening the Drupal 10.3 compatibility lane for core Changelogify.
+composer (Drupal AI):
+  extends: .composer-base
+  variables:
+    DRUPAL_CORE: $CORE_STABLE
+    IGNORE_PROJECT_DRUPAL_CORE_VERSION: "1"
+  script:
+    - !reference [ .composer-base, script ]
+    - composer require "drupal/ai:^1.4" --with-all-dependencies
+  rules:
+    - when: on_success
+
+phpunit (Drupal AI):
+  extends: phpunit
+  needs:
+    - "composer (Drupal AI)"
+  variables:
+    _PHPUNIT_TESTGROUPS: "changelogify_ai"
+    _PHPUNIT_EXTRA: ""
+  allow_failure: false
+  rules:
+    - when: on_success
