@@ -70,7 +70,9 @@ final class ReleasePublishedEventKernelTest extends ChangelogifyKernelTestBase {
   public function testFailingSubscriberIsIsolated(): void {
     $this->container->get('event_dispatcher')->addListener(
       ReleasePublishedEvent::NAME,
-      static fn (): never => throw new \RuntimeException('Remote notification failed.'),
+      static function (): void {
+        throw new \RuntimeException('Remote notification failed.');
+      },
       100,
     );
     $release = $this->release('Failure isolation release');

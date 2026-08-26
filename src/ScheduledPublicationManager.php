@@ -7,6 +7,7 @@ namespace Drupal\changelogify;
 use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Entity\RevisionableStorageInterface;
 use Drupal\Core\Lock\LockBackendInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Psr\Log\LoggerInterface;
@@ -40,6 +41,7 @@ final class ScheduledPublicationManager {
    */
   public function processDue(int $limit = self::BATCH_SIZE): array {
     $storage = $this->entityTypeManager->getStorage('changelogify_release');
+    assert($storage instanceof RevisionableStorageInterface);
     $ids = $storage->getQuery()
       ->accessCheck(FALSE)
       ->condition('scheduled_at', 0, '>')
