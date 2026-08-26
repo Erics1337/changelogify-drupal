@@ -17,7 +17,7 @@ The release-generation preview offers two independent commit paths:
 - **Create AI draft release** considers every eligible change set in the date
   window by default and synthesizes a smaller categorized release. Editors
   choose a profile, length, and optional one-time exclusions, then review the
-  exact filtered evidence before queuing the job.
+  exact filtered evidence before the job is queued.
 
 Existing per-item and whole-release humanization remain secondary editing
 tools. They stage reviewable wording and never publish a release.

@@ -5,7 +5,6 @@ DDEV
 Erics
 FFFD
 Ollama
-queuing
 redactions
 Salut
 francaise
