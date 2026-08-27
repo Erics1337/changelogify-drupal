@@ -26,7 +26,26 @@ final class ChangelogifyAiFunctionalTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected static $modules = ['changelogify', 'ai', 'changelogify_ai'];
+  protected static $modules = ['block', 'changelogify', 'ai', 'changelogify_ai'];
+
+  /**
+   * Tests that AI configuration is a standard dashboard tab.
+   */
+  public function testDashboardAiTab(): void {
+    $this->drupalPlaceBlock('local_tasks_block');
+    $user = $this->drupalCreateUser([
+      'administer changelogify',
+      'administer changelogify ai',
+      'access administration pages',
+    ]);
+    $this->drupalLogin($user);
+
+    $this->drupalGet('/admin/config/development/changelogify');
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextNotContains('Make release notes shine with AI');
+    $this->assertSession()->linkExists('AI drafting');
+    $this->assertSession()->linkByHrefExists('/admin/config/development/changelogify/ai');
+  }
 
   /**
    * Tests known missing prerequisites disable generation with a direct action.

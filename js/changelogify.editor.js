@@ -1,4 +1,151 @@
 (function changelogifyReleaseEditor(Drupal, once) {
+  Drupal.behaviors.changelogifyReleasePreview = {
+    attach(context, settings) {
+      once(
+        'changelogify-release-preview',
+        'form[data-changelogify-release-editor]',
+        context,
+      ).forEach((form) => {
+        const preview = form.querySelector(
+          '[data-changelogify-release-preview]',
+        );
+        const editOnly = () => [
+          ...form.querySelectorAll('.changelogify-release-edit-only'),
+        ];
+        const controls = [
+          ...form.querySelectorAll('[data-changelogify-release-view]'),
+        ];
+        const labels = settings.changelogifyReleaseEditor?.sectionLabels || {};
+        if (!preview || !editOnly().length || !controls.length) return;
+
+        const field = (name) =>
+          form.querySelector(`[name="${name}"]`) ||
+          form.querySelector(`[name^="${name}["]`);
+        const textValue = (name) => field(name)?.value?.trim() || '';
+        const formatDate = (dateValue, timeValue) => {
+          if (!dateValue) return '';
+          try {
+            return new Intl.DateTimeFormat(document.documentElement.lang, {
+              dateStyle: 'medium',
+              ...(timeValue ? { timeStyle: 'short' } : {}),
+            }).format(new Date(`${dateValue}T${timeValue || '00:00'}:00`));
+          } catch {
+            return [dateValue, timeValue].filter(Boolean).join(' ');
+          }
+        };
+
+        const rebuildPreview = (changedField = null) => {
+          const title = preview.querySelector(
+            '.changelogify-release-preview__title',
+          );
+          if (title && changedField === field('title')) {
+            title.textContent = textValue('title');
+          }
+
+          const dateInput = form.querySelector(
+            'input[name*="release_date"][type="date"]',
+          );
+          const timeInput = form.querySelector(
+            'input[name*="release_date"][type="time"]',
+          );
+          const time = preview.querySelector('.release-meta time');
+          if (time && [dateInput, timeInput].includes(changedField)) {
+            const dateValue = dateInput?.value || '';
+            const timeValue = timeInput?.value || '';
+            time.textContent = formatDate(dateValue, timeValue);
+            time.dateTime =
+              dateValue && timeValue ? `${dateValue}T${timeValue}` : dateValue;
+          }
+
+          const meta = preview.querySelector('.release-meta');
+          if (changedField === field('version')) {
+            const versionValue = textValue('version');
+            let version = preview.querySelector('.release-meta .version');
+            if (versionValue && meta) {
+              if (!version) {
+                version = document.createElement('span');
+                version.className = 'version';
+                meta.append(version);
+              }
+              version.textContent = Drupal.t('Version @version', {
+                '@version': versionValue,
+              });
+            } else {
+              version?.remove();
+            }
+          }
+
+          const grouped = Object.fromEntries(
+            Object.keys(labels).map((section) => [section, []]),
+          );
+          form
+            .querySelectorAll('.changelogify-release-item')
+            .forEach((item) => {
+              const remove = item.querySelector('input[name$="[remove]"]');
+              const text = item.querySelector('textarea[name$="[text]"]');
+              const section = item.querySelector('select[name$="[section]"]');
+              const value = text?.value?.trim() || '';
+              if (remove?.checked || !value || !grouped[section?.value]) return;
+              grouped[section.value].push(value);
+            });
+
+          const sections = preview.querySelector('.release-sections');
+          if (!sections) return;
+          sections.replaceChildren();
+          Object.entries(grouped).forEach(([key, notes]) => {
+            if (!notes.length) return;
+            const section = document.createElement('section');
+            section.className = `release-section release-section--${key}`;
+            const heading = document.createElement('h2');
+            heading.textContent = labels[key];
+            const list = document.createElement('ul');
+            notes.forEach((note) => {
+              const item = document.createElement('li');
+              item.textContent = note;
+              list.append(item);
+            });
+            section.append(heading, list);
+            sections.append(section);
+          });
+        };
+
+        const setMode = (mode) => {
+          const showPreview = mode === 'preview';
+          form.dataset.changelogifyReleaseMode = showPreview
+            ? 'preview'
+            : 'edit';
+          preview.hidden = !showPreview;
+          editOnly().forEach((element) => {
+            element.hidden = showPreview;
+          });
+          controls.forEach((control) => {
+            control.setAttribute(
+              'aria-pressed',
+              control.dataset.changelogifyReleaseView === mode
+                ? 'true'
+                : 'false',
+            );
+          });
+          if (showPreview) rebuildPreview();
+        };
+
+        controls.forEach((control) => {
+          control.addEventListener('click', () => {
+            setMode(control.dataset.changelogifyReleaseView);
+          });
+        });
+        form.addEventListener('input', (event) => {
+          rebuildPreview(event.target);
+        });
+        form.addEventListener('change', (event) => {
+          rebuildPreview(event.target);
+        });
+        form.addEventListener('changelogify:release-change', rebuildPreview);
+        setMode(form.dataset.changelogifyReleaseMode || 'edit');
+      });
+    },
+  };
+
   Drupal.behaviors.changelogifyReleaseItemEditor = {
     attach(context) {
       once(
@@ -14,6 +161,9 @@
             const input = item.querySelector('input[name$="[order]"]');
             if (input) input.value = index;
           });
+          container
+            .closest('form')
+            ?.dispatchEvent(new CustomEvent('changelogify:release-change'));
         };
         items().forEach((item) => {
           const controls = document.createElement('div');
@@ -99,6 +249,9 @@
             remove.addEventListener('click', () => {
               removeInput.checked = !removeInput.checked;
               renderRemovalState();
+              item
+                .closest('form')
+                ?.dispatchEvent(new CustomEvent('changelogify:release-change'));
               item.focus();
             });
             controls.append(remove);
@@ -130,7 +283,7 @@
         const aiCommit = form.querySelector('.changelogify-create-ai-draft');
 
         form.addEventListener('submit', (event) => {
-          const submitter = event.submitter;
+          const { submitter } = event;
           if (submitter !== aiCommit) return;
           aiCommit.setAttribute('aria-busy', 'true');
           // Defer changes to this successful form control until the browser has

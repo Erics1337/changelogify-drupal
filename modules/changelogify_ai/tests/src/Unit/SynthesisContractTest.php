@@ -37,6 +37,7 @@ final class SynthesisContractTest extends TestCase {
    */
   public function testReturnsPresetBoundsAndSchemas(): void {
     foreach ([
+      SynthesisContract::PRESET_AUTO => 25,
       SynthesisContract::PRESET_SHORT => 5,
       SynthesisContract::PRESET_STANDARD => 12,
       SynthesisContract::PRESET_DETAILED => 25,
@@ -53,6 +54,22 @@ final class SynthesisContractTest extends TestCase {
         $schema['schema']['properties']['items']['items']['properties']['section']['enum'],
       );
     }
+  }
+
+  /**
+   * Auto chooses a bounded natural note count through explicit clustering.
+   */
+  public function testAutoPresetInstructionsRequireGrouping(): void {
+    $instructions = SynthesisContract::instructions(
+      SynthesisContract::STAGE_FINAL,
+      SynthesisContract::PRESET_AUTO,
+    );
+
+    self::assertStringContainsString('natural number of notes from 1 to 25', $instructions);
+    self::assertStringContainsString('prefer 2 to 3 notes', $instructions);
+    self::assertStringContainsString('First cluster related evidence', $instructions);
+    self::assertStringContainsString('do not create notes merely to represent every evidence record', $instructions);
+    self::assertStringContainsString('omitted_source_ids', $instructions);
   }
 
   /**

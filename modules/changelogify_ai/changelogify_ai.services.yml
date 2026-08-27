@@ -15,20 +15,62 @@ services:
       - { name: access_check }
   Drupal\changelogify_ai\SynthesisStatusBuilder: ~
   Drupal\changelogify_ai\SynthesisDraftFinalizer:
-    arguments: ['@Drupal\changelogify_ai\SynthesisJobManager', '@Drupal\changelogify_ai\SynthesisEvidenceSelector', '@Drupal\changelogify\ReleaseGeneratorInterface', '@Drupal\changelogify_ai\ResultValidator', '@database', '@lock', '@logger.channel.changelogify_ai']
+    arguments:
+      [
+        '@Drupal\changelogify_ai\SynthesisJobManager',
+        '@Drupal\changelogify_ai\SynthesisEvidenceSelector',
+        '@Drupal\changelogify\ReleaseGeneratorInterface',
+        '@Drupal\changelogify_ai\ResultValidator',
+        '@database',
+        '@lock',
+        '@logger.channel.changelogify_ai',
+      ]
   Drupal\changelogify_ai\SynthesisProvenanceResolver: ~
   Drupal\changelogify_ai\AiReadinessChecker: ~
   Drupal\changelogify_ai\AiFailureMessage: ~
   Drupal\changelogify_ai\DrupalAiChatRequestFactory: ~
   Drupal\changelogify_ai\ChatRequestFactoryInterface: '@Drupal\changelogify_ai\DrupalAiChatRequestFactory'
   Drupal\changelogify_ai\ReleaseSuggestionManager:
-    arguments: ['@Drupal\changelogify_ai\AiOperationManager', '@current_user', '@datetime.time', '@config.factory', '@database']
+    arguments:
+      [
+        '@Drupal\changelogify_ai\AiOperationManager',
+        '@current_user',
+        '@datetime.time',
+        '@config.factory',
+        '@database',
+      ]
   Drupal\changelogify_ai\CompleteDraftGenerator: ~
   Drupal\changelogify_ai\AiOperationManager:
-    arguments: ['@Drupal\changelogify_ai\Summarization\SummarizerInterface', '@Drupal\changelogify_ai\ResultValidator', '@keyvalue', '@lock', '@current_user', '@datetime.time', '@logger.channel.changelogify_ai', '@Drupal\changelogify_ai\AiOperationHistoryRepository']
+    arguments:
+      [
+        '@Drupal\changelogify_ai\Summarization\SummarizerInterface',
+        '@Drupal\changelogify_ai\ResultValidator',
+        '@keyvalue',
+        '@lock',
+        '@current_user',
+        '@datetime.time',
+        '@logger.channel.changelogify_ai',
+        '@Drupal\changelogify_ai\AiOperationHistoryRepository',
+      ]
   Drupal\changelogify_ai\SynthesisJobManager:
-    arguments: ['@Drupal\changelogify_ai\Summarization\SummarizerInterface', '@Drupal\changelogify_ai\ResultValidator', '@Drupal\changelogify_ai\SynthesisProvenanceResolver', '@keyvalue', '@lock', '@datetime.time', '@logger.channel.changelogify_ai', '@Drupal\changelogify_ai\AiOperationHistoryRepository']
+    arguments:
+      [
+        '@Drupal\changelogify_ai\Summarization\SummarizerInterface',
+        '@Drupal\changelogify_ai\ResultValidator',
+        '@Drupal\changelogify_ai\SynthesisProvenanceResolver',
+        '@keyvalue',
+        '@lock',
+        '@datetime.time',
+        '@logger.channel.changelogify_ai',
+        '@Drupal\changelogify_ai\AiOperationHistoryRepository',
+      ]
   Drupal\changelogify_ai\DrupalAiSummarizer:
-    arguments: ['@ai.provider', '@config.factory', '@Drupal\changelogify_ai\PromptTemplateRegistry', '@Drupal\changelogify_ai\ChatRequestFactoryInterface']
+    arguments:
+      [
+        '@ai.provider',
+        '@config.factory',
+        '@Drupal\changelogify_ai\PromptTemplateRegistry',
+        '@Drupal\changelogify_ai\ChatRequestFactoryInterface',
+      ]
   Drupal\changelogify_ai\Summarization\SummarizerInterface:
     alias: Drupal\changelogify_ai\DrupalAiSummarizer

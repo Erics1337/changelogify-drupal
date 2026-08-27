@@ -74,6 +74,12 @@ final class DrupalAiSummarizer implements SummarizerInterface {
         $provider->setConfiguration($providerConfiguration);
       }
       $prompt = $this->prompts->build($request);
+      // Drupal AI providers in the supported compatibility range may still
+      // read the legacy provider-level system role instead of ChatInput's
+      // system prompt. Set both paths so grounding rules reach either API.
+      if (method_exists($provider, 'setChatSystemRole')) {
+        $provider->setChatSystemRole($prompt['system']);
+      }
       $input = $this->chatRequests->create(
         $prompt['system'],
         $prompt['user'],
@@ -86,8 +92,23 @@ final class DrupalAiSummarizer implements SummarizerInterface {
     }
     try {
       $decoded = json_decode($output, TRUE, 512, JSON_THROW_ON_ERROR);
-      $items = array_map(static fn(array $item): SummarizationItem => new SummarizationItem((string) $item['id'], (string) $item['section'], (string) $item['text'], array_values($item['source_ids'] ?? [])), $decoded['items'] ?? []);
-      return new SummarizationResult($decoded['status'] ?? 'completed', $items, $decoded['omitted_source_ids'] ?? [], $decoded['warnings'] ?? [], $providerId, $modelId);
+      $requiredOmissions = PromptTemplateRegistry::requiredOmittedSourceIds($request);
+      $omittedSourceIds = array_values($decoded['omitted_source_ids'] ?? []);
+      $items = [];
+      foreach ($decoded['items'] ?? [] as $item) {
+        $sourceIds = array_values($item['source_ids'] ?? []);
+        if (array_intersect($sourceIds, $requiredOmissions) !== []) {
+          continue;
+        }
+        $items[] = new SummarizationItem(
+          (string) $item['id'],
+          (string) $item['section'],
+          (string) $item['text'],
+          $sourceIds,
+        );
+      }
+      $omittedSourceIds = array_values(array_unique(array_merge($omittedSourceIds, $requiredOmissions)));
+      return new SummarizationResult($decoded['status'] ?? 'completed', $items, $omittedSourceIds, $decoded['warnings'] ?? [], $providerId, $modelId);
     }
     catch (\Throwable $exception) {
       throw new InvalidResponseException('The configured provider did not return a valid response.', 0, $exception);

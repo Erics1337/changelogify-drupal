@@ -93,7 +93,22 @@ final class PromptTemplateRegistryTest extends TestCase {
    * Built-in prompt versions remain addressable for history interpretation.
    */
   public function testKnownTemplateVersionRemainsAvailable(): void {
-    self::assertArrayHasKey('profiles', $this->registry('en', '')->template('1'));
+    $registry = $this->registry('en', '');
+    self::assertArrayHasKey('profiles', $registry->template('1'));
+    self::assertArrayHasKey('profiles', $registry->template('2'));
+    self::assertArrayHasKey('profiles', $registry->template('3'));
+    self::assertSame(
+      'Write plain, user-facing product language. Prefer clear outcomes over implementation detail.',
+      $registry->template('1')['profiles']['public_product'],
+    );
+    self::assertSame(
+      $registry->template('1')['profiles']['public_product'],
+      $registry->template('2')['profiles']['public_product'],
+    );
+    self::assertNotSame(
+      $registry->template('2')['profiles']['public_product'],
+      $registry->template('3')['profiles']['public_product'],
+    );
   }
 
   /**
@@ -115,9 +130,76 @@ final class PromptTemplateRegistryTest extends TestCase {
     $prompt = $this->registry('en', '')->build($request);
     self::assertStringContainsString('Synthesize all supplied evidence in this single request.', $prompt['user']);
     self::assertStringContainsString('at most 5 categorized changelog notes', $prompt['user']);
-    self::assertStringContainsString('identify evidence-grounded themes', $prompt['user']);
+    self::assertStringContainsString('First cluster related evidence', $prompt['user']);
     self::assertStringContainsString('Do not infer unsupported intent, user impact, fixes, or security implications.', $prompt['user']);
     self::assertSame(SynthesisContract::VERSION, $prompt['synthesis_version']);
+  }
+
+  /**
+   * Auto asks the model to choose a bounded, evidence-driven note count.
+   */
+  public function testBuildsAutoGroupingPrompt(): void {
+    $request = new SummarizationRequest(
+      SynthesisContract::OPERATION,
+      'public_product',
+      ['change-1' => ['summary' => 'Recorded fact']],
+      PromptTemplateRegistry::VERSION,
+      '1',
+      'auto-synthesis-key',
+      '',
+      SynthesisContract::VERSION,
+      SynthesisContract::STAGE_FINAL,
+      SynthesisContract::PRESET_AUTO,
+    );
+    $prompt = $this->registry('en', '')->build($request);
+
+    self::assertStringContainsString('natural number of notes from 1 to 25', $prompt['user']);
+    self::assertStringContainsString('use the fewest useful editorial notes', $prompt['system']);
+  }
+
+  /**
+   * Public product synthesis forbids unsupported qualitative interpretation.
+   */
+  public function testGroundingPromptRejectsObservedProviderFailureModes(): void {
+    $request = new SummarizationRequest(
+      SynthesisContract::OPERATION,
+      'public_product',
+      [
+        'content-created' => ['summary' => 'Created Basic block: New Block'],
+        'content-updated' => ['summary' => 'Updated Basic block: New Block'],
+        'test-provider-removed' => [
+          'summary' => 'Uninstalled module: changelogify_ai_test_provider',
+          'event_types' => ['module_uninstalled'],
+        ],
+      ],
+      PromptTemplateRegistry::VERSION,
+      '1',
+      'grounding-regression',
+      '',
+      SynthesisContract::VERSION,
+      SynthesisContract::STAGE_FINAL,
+      SynthesisContract::PRESET_AUTO,
+    );
+
+    $prompt = $this->registry('en', '')->build($request);
+
+    self::assertStringContainsString('state only facts explicitly present', $prompt['system']);
+    self::assertStringContainsString('impact, purpose, capabilities, causality', $prompt['system']);
+    self::assertStringContainsString('improved, enhanced, streamlined', $prompt['system']);
+    self::assertStringContainsString('"to enable", "to support", or "so that"', $prompt['system']);
+    self::assertStringContainsString('complete created-and-updated lifecycle for the same entity', $prompt['system']);
+    self::assertStringContainsString('distinct entities have the same title', $prompt['system']);
+    self::assertStringContainsString('never call one another or existing', $prompt['system']);
+    self::assertStringContainsString('MUST omit test, development, internal-provider', $prompt['user']);
+    self::assertStringContainsString('module machine name containing "test" or "provider"', $prompt['user']);
+    self::assertStringContainsString('do not explain what it enables or supports', $prompt['user']);
+    self::assertStringContainsString('Put those evidence IDs in omitted_source_ids', $prompt['user']);
+    self::assertStringContainsString('Mandatory selected editorial profile rules:', $prompt['system']);
+    self::assertStringContainsString('module machine name containing "test" or "provider"', $prompt['system']);
+    self::assertStringContainsString('Mandatory synthesis rules:', $prompt['system']);
+    self::assertStringContainsString('Mandatory omitted_source_ids for this request: test-provider-removed.', $prompt['system']);
+    self::assertSame(['test-provider-removed'], PromptTemplateRegistry::requiredOmittedSourceIds($request));
+    self::assertStringContainsString('changelogify_ai_test_provider', $prompt['user']);
   }
 
   /**
@@ -160,7 +242,7 @@ final class PromptTemplateRegistryTest extends TestCase {
     return [
       'public product' => [
         'public_product',
-        'Write plain, user-facing product language. Prefer clear outcomes over implementation detail.',
+        'Write plain, user-facing product language using only explicitly supported facts. You MUST omit test, development, internal-provider, and low-value operational activity unless the evidence itself explicitly states concrete user-facing significance. A module name is not evidence of its purpose or user-facing effect: never convert a module install or uninstall into a capability, purpose, or outcome claim. If evidence only states that a module was installed, say only that it was installed; do not explain what it enables or supports. Treat a module machine name containing "test" or "provider" as internal-provider activity unless its evidence explicitly states a concrete user-facing result. Put those evidence IDs in omitted_source_ids and do not mention their module names in notes. When no supported user-facing outcome exists, state the neutral recorded change or omit it.',
       ],
       'client report' => [
         'client_report',

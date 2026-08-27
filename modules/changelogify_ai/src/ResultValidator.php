@@ -50,6 +50,7 @@ final class ResultValidator {
       throw new \LengthException('AI response exceeds the total size limit.');
     }
     $ids = [];
+    $citedSourceIds = [];
     foreach ($result->items as $item) {
       if (isset($ids[$item->id]) || !preg_match('/^[A-Za-z0-9:_-]{1,128}$/', $item->id)) {
         throw new \UnexpectedValueException('AI response has duplicate or invalid item IDs.');
@@ -61,9 +62,17 @@ final class ResultValidator {
       if ($item->sourceIds === [] || array_diff($item->sourceIds, $allowedSourceIds) !== []) {
         throw new \UnexpectedValueException('AI response references unknown evidence.');
       }
+      $citedSourceIds = array_merge($citedSourceIds, $item->sourceIds);
     }
     if (array_diff($result->omittedSourceIds, $allowedSourceIds) !== []) {
       throw new \UnexpectedValueException('AI response omits unknown evidence.');
+    }
+    if ($request !== NULL) {
+      $requiredOmissions = PromptTemplateRegistry::requiredOmittedSourceIds($request);
+      if (array_intersect($requiredOmissions, $citedSourceIds) !== []
+        || array_diff($requiredOmissions, $result->omittedSourceIds) !== []) {
+        throw new \UnexpectedValueException('AI response violates mandatory editorial evidence omissions.');
+      }
     }
   }
 

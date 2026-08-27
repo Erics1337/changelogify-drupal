@@ -68,7 +68,10 @@ final class FakeSummarizer implements SummarizerInterface {
       (string) $request->getSynthesisStage(),
       (string) $request->getLengthPreset(),
     );
-    $chunkSize = max(1, (int) ceil(count($sourceIds) / $maximum));
+    $targetItems = $request->getLengthPreset() === SynthesisContract::PRESET_AUTO
+      ? max(1, min(8, (int) ceil(count($sourceIds) / 4)))
+      : $maximum;
+    $chunkSize = max(1, (int) ceil(count($sourceIds) / $targetItems));
     $items = [];
     foreach (array_chunk($sourceIds, $chunkSize) as $index => $chunk) {
       $first = $request->evidence[$chunk[0]];

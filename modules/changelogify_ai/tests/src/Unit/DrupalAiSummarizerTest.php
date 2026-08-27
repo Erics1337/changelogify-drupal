@@ -34,7 +34,9 @@ final class DrupalAiSummarizerTest extends TestCase {
       public array $configuration = [];
       public ?object $input = NULL;
       public ?string $model = NULL;
+      public ?string $systemRole = NULL;
       public bool $structuredOutput = TRUE;
+      public string $responseText = '{"status":"completed","items":[{"id":"change-1","section":"changed","text":"Clear change.","source_ids":["change-1"]}]}';
 
       public function isUsable(string $operation, array $capabilities = []): bool {
         return $operation === 'chat' && $capabilities === [] && $this->configuration === ['temperature' => 0];
@@ -54,16 +56,24 @@ final class DrupalAiSummarizerTest extends TestCase {
         $this->configuration = $configuration;
       }
 
+      public function setChatSystemRole(string $systemRole): void {
+        $this->systemRole = $systemRole;
+      }
+
       public function chat(object $input, string $model): object {
         $this->input = $input;
         $this->model = $model;
-        return new class {
+        return new class($this->responseText) {
+
+          public function __construct(private readonly string $responseText) {}
 
           public function getNormalized(): object {
-            return new class {
+            return new class($this->responseText) {
+
+              public function __construct(private readonly string $responseText) {}
 
               public function getText(): string {
-                return '{"status":"completed","items":[{"id":"change-1","section":"changed","text":"Clear change.","source_ids":["change-1"]}]}';
+                return $this->responseText;
               }
 
             };
@@ -117,6 +127,7 @@ final class DrupalAiSummarizerTest extends TestCase {
     self::assertSame('test_provider', $manager->requestedProvider);
     self::assertSame('model-a', $provider->model);
     self::assertSame(['temperature' => 0], $provider->configuration);
+    self::assertStringContainsString('Return JSON only.', (string) $provider->systemRole);
     self::assertSame('completed', $result->status);
     self::assertSame('change-1', $result->items[0]->id);
     self::assertStringContainsString('Return JSON only.', $provider->input->system);
@@ -133,6 +144,10 @@ final class DrupalAiSummarizerTest extends TestCase {
     $provider->structuredOutput = FALSE;
     $summarizer->summarize($this->request());
     self::assertNull($requests->schema);
+    $provider->responseText = '{"status":"completed","items":[{"id":"safe","section":"added","text":"Created the News block.","source_ids":["public-change"]},{"id":"mixed","section":"added","text":"Installed modules.","source_ids":["public-change","internal-provider"]},{"id":"internal","section":"added","text":"Installed a provider.","source_ids":["internal-provider"]}],"omitted_source_ids":[]}';
+    $filtered = $summarizer->summarize($this->publicProductSynthesisRequest());
+    self::assertSame(['safe'], array_map(static fn ($item): string => $item->id, $filtered->items));
+    self::assertSame(['internal-provider'], $filtered->omittedSourceIds);
   }
 
   /**
@@ -357,6 +372,30 @@ final class DrupalAiSummarizerTest extends TestCase {
       SynthesisContract::VERSION,
       SynthesisContract::STAGE_FINAL,
       SynthesisContract::PRESET_SHORT,
+    );
+  }
+
+  /**
+   * Returns a synthesis request with mandatory Public product omissions.
+   */
+  private function publicProductSynthesisRequest(): SummarizationRequest {
+    return new SummarizationRequest(
+      SynthesisContract::OPERATION,
+      'public_product',
+      [
+        'public-change' => ['summary' => 'Created Basic block: News'],
+        'internal-provider' => [
+          'summary' => 'Installed module: ai_provider_openrouter',
+          'event_types' => ['module_installed'],
+        ],
+      ],
+      PromptTemplateRegistry::VERSION,
+      '1',
+      'public-product-policy',
+      '',
+      SynthesisContract::VERSION,
+      SynthesisContract::STAGE_FINAL,
+      SynthesisContract::PRESET_AUTO,
     );
   }
 

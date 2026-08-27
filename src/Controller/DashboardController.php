@@ -10,6 +10,8 @@ use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\ModuleExtensionList;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Url;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -26,6 +28,8 @@ class DashboardController extends ControllerBase {
     private readonly EntityTypeManagerInterface $dashboardEntityTypeManager,
     private readonly DateFormatterInterface $dateFormatter,
     private readonly TimeInterface $time,
+    private readonly ModuleHandlerInterface $dashboardModuleHandler,
+    private readonly ModuleExtensionList $moduleExtensionList,
   ) {
   }
 
@@ -38,6 +42,8 @@ class DashboardController extends ControllerBase {
           $container->get('entity_type.manager'),
           $container->get('date.formatter'),
           $container->get('datetime.time'),
+          $container->get('module_handler'),
+          $container->get('extension.list.module'),
       );
   }
 
@@ -68,6 +74,30 @@ class DashboardController extends ControllerBase {
       '#attributes' => ['class' => ['changelogify-dashboard']],
       '#attached' => [
         'library' => ['changelogify/dashboard'],
+      ],
+      'brand' => [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['changelogify-brand']],
+        'content' => [
+          '#type' => 'container',
+          'title' => [
+            '#type' => 'html_tag',
+            '#tag' => 'h2',
+            '#value' => $this->t('Your release workspace'),
+          ],
+          'description' => [
+            '#type' => 'html_tag',
+            '#tag' => 'p',
+            '#value' => $this->t('Turn captured site changes into clear, trustworthy updates for the people who depend on your site.'),
+          ],
+        ],
+        'mark' => [
+          '#type' => 'container',
+          '#attributes' => [
+            'class' => ['changelogify-brand__mark'],
+            'aria-hidden' => 'true',
+          ],
+        ],
       ],
       'stats' => [
         '#type' => 'container',
@@ -140,6 +170,7 @@ class DashboardController extends ControllerBase {
           ],
         ],
       ],
+      'ai_drafting' => $this->buildAiDraftingCallout(),
       'recent_releases' => [
         '#type' => 'container',
         '#attributes' => ['class' => ['changelogify-recent']],
@@ -165,6 +196,44 @@ class DashboardController extends ControllerBase {
       ->applyTo($build);
 
     return $build;
+  }
+
+  /**
+   * Builds a discoverable next step for the optional AI drafting module.
+   */
+  private function buildAiDraftingCallout(): array {
+    $enabled = $this->dashboardModuleHandler->moduleExists('changelogify_ai');
+    if ($enabled
+      || !isset($this->moduleExtensionList->getList()['changelogify_ai'])
+      || !$this->currentUser()->hasPermission('administer modules')) {
+      return [];
+    }
+
+    return [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['changelogify-ai-callout']],
+      'content' => [
+        '#type' => 'container',
+        'title' => [
+          '#type' => 'html_tag',
+          '#tag' => 'h2',
+          '#value' => $this->t('Make release notes shine with AI'),
+        ],
+        'description' => [
+          '#type' => 'html_tag',
+          '#tag' => 'p',
+          '#value' => $this->t('Optional AI-assisted drafting turns captured evidence into polished, reviewable release notes. Nothing is ever published automatically, and editors review the draft before it goes live.'),
+        ],
+      ],
+      'action' => [
+        '#type' => 'link',
+        '#title' => $this->t('Set up AI drafting'),
+        '#url' => Url::fromRoute('system.modules_list', [], [
+          'fragment' => 'module-changelogify-ai',
+        ]),
+        '#attributes' => ['class' => ['button']],
+      ],
+    ];
   }
 
   /**

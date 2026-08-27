@@ -51,21 +51,42 @@ work, or wait for Drupal cron. A model or gateway that cannot accept the
 request must fail safely; Changelogify never silently drops evidence or makes
 overflow calls.
 
-Profiles affect tone only: Public product, Client report, Internal technical,
-or Concise. Output limits are:
+Profiles affect tone and content selection: Public product, Client report,
+Internal technical, or Concise. Public product may omit activity that lacks
+explicit user-facing significance. Output limits are:
 
 | Preset | Maximum notes |
 | --- | ---: |
+| Auto (default; model chooses the natural count) | 25 |
 | Short | 5 |
 | Standard | 12 |
 | Detailed | 25 |
 
-Every factual note must cite original evidence IDs. The model may group
-related records, report supported counts, prioritize significant recorded
-activity, and identify evidence-grounded themes. It may not invent intent,
-impact, causality, fixes, or security implications. Unsupported sections,
+Every factual note must cite original evidence IDs. The model first clusters
+related records by feature, topic, or observable outcome, merges duplicate or
+sequential activity, and writes one note for each meaningful supported theme.
+Auto may choose any natural count from 1 through 25 and does not create a note
+merely to mirror each evidence record. The model may report supported counts
+and omit insignificant activity, but it may not invent intent, impact,
+causality, fixes, or security implications. Unsupported sections,
 unknown citations, HTML, duplicate IDs, excessive notes, malformed JSON, and
 oversized responses are rejected.
+
+Prompt version 3 additionally requires every note to state only facts explicitly
+present in its cited evidence. It prohibits unsupported qualitative wording
+such as “improved,” “enhanced,” or “streamlined,” and tells the Public product
+profile to omit test, development, internal-provider, and low-value operational
+activity without explicit user-facing significance. Citations establish
+traceability, not semantic proof: deterministic validation cannot establish
+that prose is entailed by its citations, so an editor must review every draft
+before publication.
+
+On success, the draft opens in **Preview changelog** mode using the same
+presentation builder and styles as Changelogify's public release page. Editors
+can switch to **Edit summary notes** to change wording, section, order, or
+removal state. The preview updates in the browser without sending another AI
+request. Supporting evidence remains collapsed beneath each note and never
+appears in the public changelog.
 
 The Generate form disables the activated button and labels it **Starting…**
 while the request is in flight. Changelogify records the initiating user and a
@@ -122,8 +143,9 @@ process AI synthesis, contact a provider, or create a release.
 
 Provider quality, availability, cost, context limits, and data-processing terms
 remain the operator's responsibility. Changelogify validates structure and
-evidence references; it cannot certify a provider's privacy policy or guarantee
-that every eligible event becomes a final note.
+evidence references; it cannot certify a provider's privacy policy, prove that
+provider prose is semantically entailed by its citations, or guarantee that
+every eligible event becomes a final note.
 
 ## Manual provider compatibility check
 
@@ -134,8 +156,9 @@ credentialed requests.
 For each provider:
 
 1. Verify both the site-default model and an explicit Changelogify model.
-2. Run Short, Standard, and Detailed synthesis and confirm the 5, 12, and
-   25-note bounds.
+2. Run Auto, Short, Standard, and Detailed synthesis. Confirm Auto chooses a
+   natural grouped count no greater than 25 and the fixed presets respect the
+   5, 12, and 25-note bounds.
 3. Use a large evidence window and confirm one request contains every reviewed
    evidence ID, or fails safely without a draft when the provider limit is too
    small.

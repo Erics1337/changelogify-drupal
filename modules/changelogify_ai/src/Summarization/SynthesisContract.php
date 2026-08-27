@@ -12,11 +12,13 @@ final class SynthesisContract {
   public const OPERATION = 'synthesize_release';
   public const VERSION = '2';
   public const STAGE_FINAL = 'final';
+  public const PRESET_AUTO = 'auto';
   public const PRESET_SHORT = 'short';
   public const PRESET_STANDARD = 'standard';
   public const PRESET_DETAILED = 'detailed';
 
   private const FINAL_MAX_ITEMS = [
+    self::PRESET_AUTO => 25,
     self::PRESET_SHORT => 5,
     self::PRESET_STANDARD => 12,
     self::PRESET_DETAILED => 25,
@@ -56,8 +58,11 @@ final class SynthesisContract {
    */
   public static function instructions(string $stage, string $lengthPreset): string {
     $maxItems = self::maxItems($stage, $lengthPreset);
-    $common = 'You may group related evidence, prioritize significant recorded changes, count supported activity, and identify evidence-grounded themes. Every factual claim must cite its supporting evidence IDs. Do not infer unsupported intent, user impact, fixes, or security implications.';
-    return "Synthesize all supplied evidence in this single request. Produce at most {$maxItems} categorized changelog notes for the {$lengthPreset} length preset. {$common}";
+    $selection = $lengthPreset === self::PRESET_AUTO
+      ? "Choose the smallest natural number of notes from 1 to {$maxItems} that communicates the meaningful supported themes; do not create notes merely to represent every evidence record. For a small evidence set with fewer than 10 records, prefer 2 to 3 notes unless one theme covers everything or the evidence clearly contains more than 3 unrelated, user-significant themes."
+      : "Produce at most {$maxItems} categorized changelog notes for the {$lengthPreset} length preset.";
+    $common = 'First cluster related evidence by feature, topic, or observable outcome. Merge duplicate, sequential, and same-feature activity into one editorial note when the evidence supports doing so. Prioritize significant recorded changes, count supported activity when useful, and omit insignificant activity rather than inflating the result. Every factual claim must cite its supporting evidence IDs. Report considered evidence that is not cited through omitted_source_ids. Do not infer unsupported intent, user impact, fixes, or security implications.';
+    return "Synthesize all supplied evidence in this single request. {$selection} {$common}";
   }
 
   /**

@@ -10,7 +10,9 @@ into concise, categorized, evidence-grounded draft notes.
   every site-eligible change set by default instead of requiring one generated
   note per tracked event or one manual selection per change set.
 - Adds Public product, Client report, Internal technical, and Concise profiles,
-  plus Short (5), Standard (12), and Detailed (25) final-note limits.
+  plus default Auto grouping (1–25 notes), Short (5), Standard (12), and
+  Detailed (25) final-note limits. Auto clusters related evidence and chooses
+  the natural number of meaningful notes instead of mirroring input records.
 - Separates site-wide evidence eligibility, outbound privacy/redaction policy,
   and one-time category/source/evidence exclusions.
 - Shows the exact post-eligibility, post-exclusion, privacy-filtered evidence
@@ -27,6 +29,9 @@ into concise, categorized, evidence-grounded draft notes.
 - Resolves every final citation directly to original change-set and event IDs.
   Private coverage reports evidence considered,
   cited, excluded, and eligible but not surfaced.
+- Opens synthesized drafts in a public-style changelog preview, with a separate
+  structured summary-note editor and collapsed supporting evidence. Unsaved
+  wording, category, ordering, and removal changes update the preview locally.
 - Revalidates current evidence, policies, exclusions, contract versions,
   output, and provenance before an atomic final commit. Successful jobs create
   exactly one unpublished draft; refusal, stale evidence, cancellation, or
@@ -34,10 +39,16 @@ into concise, categorized, evidence-grounded draft notes.
 - Preserves deterministic release generation and the existing per-item and
   whole-release humanization tools.
 
-AI synthesis does not publish releases, infer unsupported intent or impact, or
-guarantee that every eligible event becomes a final note. Provider quality,
-availability, cost, and data-processing terms remain the operator's
-responsibility.
+AI synthesis does not publish releases. Prompt version 3 instructs providers to
+state only explicitly supported facts and avoid unsupported intent, impact,
+purpose, capabilities, causality, outcomes, and qualitative claims. Citations
+provide traceability but cannot prove semantic entailment, so editors must
+review every draft. Provider quality, availability, cost, and data-processing
+terms remain the operator's responsibility, and not every eligible event is
+guaranteed a final note.
+
+The non-sensitive provider and browser verification environment is recorded in
+[the 1.8 release-readiness record](RELEASE_READINESS_1.8.md).
 
 ## Compatibility
 

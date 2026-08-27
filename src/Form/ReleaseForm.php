@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Drupal\changelogify\Form;
 
+use Drupal\changelogify\PublicReleaseBuilder;
 use Drupal\changelogify\ReleaseItemNormalizer;
 use Drupal\changelogify\Provenance\ReleaseProvenanceManagerInterface;
 use Drupal\Component\Datetime\TimeInterface;
+use Drupal\Component\Utility\Html;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\ContentEntityForm;
@@ -29,6 +31,7 @@ class ReleaseForm extends ContentEntityForm {
     TimeInterface $time,
     protected ReleaseItemNormalizer $itemNormalizer,
     protected ReleaseProvenanceManagerInterface $provenanceManager,
+    protected PublicReleaseBuilder $publicReleaseBuilder,
     protected DateFormatterInterface $dateFormatter,
     protected AccountProxyInterface $currentUser,
   ) {
@@ -45,6 +48,7 @@ class ReleaseForm extends ContentEntityForm {
           $container->get('datetime.time'),
           $container->get(ReleaseItemNormalizer::class),
           $container->get(ReleaseProvenanceManagerInterface::class),
+          $container->get(PublicReleaseBuilder::class),
           $container->get('date.formatter'),
           $container->get('current_user'),
       );
@@ -56,10 +60,14 @@ class ReleaseForm extends ContentEntityForm {
   public function form(array $form, FormStateInterface $form_state): array {
     $form = parent::form($form, $form_state);
     $form['#attached']['library'][] = 'changelogify/editor';
+    $form['#attached']['library'][] = 'changelogify/public';
     $form['#cache'] = [
       'contexts' => ['user.permissions'],
       'max-age' => 0,
     ];
+    $previewFirst = $this->getRequest()->query->get('display') === 'preview';
+    $form['#attributes']['data-changelogify-release-editor'] = '';
+    $form['#attributes']['data-changelogify-release-mode'] = $previewFirst ? 'preview' : 'edit';
 
     // Sections are edited through the structured textareas below. Never expose
     // the JSON storage field as a second, conflicting form widget.
@@ -89,6 +97,7 @@ class ReleaseForm extends ContentEntityForm {
       '#open' => TRUE,
       '#weight' => 5,
       '#tree' => TRUE,
+      '#attributes' => ['class' => ['changelogify-release-edit-only']],
       '#prefix' => '<div id="changelogify-release-items-editor">',
       '#suffix' => '</div>',
     ];
@@ -108,6 +117,89 @@ class ReleaseForm extends ContentEntityForm {
     foreach ($section_labels as $key => $label) {
       $sectionOptions[$key] = $label;
     }
+    $presentation = $this->publicReleaseBuilder->build($release, array_keys($section_labels));
+    $form['release_view_controls'] = [
+      '#type' => 'container',
+      '#weight' => 3,
+      '#attributes' => [
+        'class' => ['changelogify-release-view-controls'],
+        'role' => 'group',
+        'aria-label' => $this->t('Release-note view'),
+      ],
+      'preview' => [
+        '#type' => 'html_tag',
+        '#tag' => 'button',
+        '#value' => $this->t('Preview changelog'),
+        '#attributes' => [
+          'type' => 'button',
+          'class' => ['button'],
+          'data-changelogify-release-view' => 'preview',
+          'aria-controls' => 'changelogify-release-preview',
+        ],
+      ],
+      'edit' => [
+        '#type' => 'html_tag',
+        '#tag' => 'button',
+        '#value' => $this->t('Edit summary notes'),
+        '#attributes' => [
+          'type' => 'button',
+          'class' => ['button'],
+          'data-changelogify-release-view' => 'edit',
+          'aria-controls' => 'changelogify-release-items-editor',
+        ],
+      ],
+    ];
+    $form['release_preview'] = [
+      '#type' => 'container',
+      '#weight' => 4,
+      '#attributes' => [
+        'id' => 'changelogify-release-preview',
+        'class' => ['changelogify-release-preview'],
+        'data-changelogify-release-preview' => '',
+      ],
+      'title' => [
+        '#type' => 'html_tag',
+        '#tag' => 'h2',
+        '#value' => Html::escape($presentation['title']),
+        '#attributes' => ['class' => ['changelogify-release-preview__title']],
+      ],
+      'release' => [
+        '#theme' => 'changelogify_release',
+        '#title' => $presentation['title'],
+        '#date' => $presentation['date'],
+        '#date_iso' => $presentation['date_iso'],
+        '#version' => $presentation['version'],
+        '#sections' => $presentation['sections'],
+        '#translation_fallback' => $presentation['translation_fallback'],
+        '#language_name' => $presentation['language_name'],
+      ],
+      'no_js' => [
+        '#type' => 'inline_template',
+        '#template' => '<noscript><p>{{ message }}</p></noscript>',
+        '#context' => [
+          'message' => $this->t('This preview shows the saved release. Save your edits to refresh it.'),
+        ],
+      ],
+    ];
+    $form['#attached']['drupalSettings']['changelogifyReleaseEditor']['sectionLabels'] = array_map(
+      static fn (mixed $label): string => (string) $label,
+      $section_labels,
+    );
+    if (isset($resolvedProvenance['synthesis']) && is_array($resolvedProvenance['coverage'] ?? NULL)) {
+      $noteCount = array_sum(array_map('count', $sections));
+      $evidenceCount = max(0, (int) ($resolvedProvenance['coverage']['evidence_considered'] ?? 0));
+      $noteLabel = $this->formatPlural($noteCount, '1 summary note', '@count summary notes');
+      $evidenceLabel = $this->formatPlural($evidenceCount, '1 eligible change group', '@count eligible change groups');
+      $form['synthesis_overview'] = [
+        '#type' => 'item',
+        '#weight' => 3,
+        '#markup' => $this->t('@notes synthesized from @evidence.', [
+          '@notes' => $noteLabel,
+          '@evidence' => $evidenceLabel,
+        ]),
+        '#wrapper_attributes' => ['class' => ['changelogify-synthesis-overview']],
+      ];
+    }
     $form['sections_wrapper']['items'] = [
       '#type' => 'container',
       '#tree' => TRUE,
@@ -123,7 +215,7 @@ class ReleaseForm extends ContentEntityForm {
           $section,
           $position,
           $sectionOptions,
-          $item['event_ids'] === [] ? $this->t('Manual note') : $this->t('Tracked change'),
+          $item['event_ids'] === [] ? $this->t('Manual summary note') : $this->t('Summary note'),
           TRUE,
           $resolvedProvenance['items'][$id] ?? NULL,
         );
@@ -138,7 +230,7 @@ class ReleaseForm extends ContentEntityForm {
         'other',
         $position + $manual,
         $sectionOptions,
-        $this->t('Manual note @number', ['@number' => $manual + 1]),
+        $this->t('Manual summary note @number', ['@number' => $manual + 1]),
         FALSE,
       );
     }
@@ -268,11 +360,17 @@ class ReleaseForm extends ContentEntityForm {
     $eventCount = (int) ($evidence['event_count'] ?? count($evidence['events'] ?? []));
     $panel = [
       '#type' => 'details',
-      '#title' => $this->t('Based on @count tracked change(s) · @status', [
-        '@count' => $eventCount,
-        '@status' => $this->evidenceStatusLabel($status),
-      ]),
+      '#title' => $this->formatPlural(
+        $eventCount,
+        'Supporting evidence — 1 tracked change',
+        'Supporting evidence — @count tracked changes',
+      ),
       '#open' => FALSE,
+    ];
+    $panel['availability'] = [
+      '#type' => 'item',
+      '#title' => $this->t('Evidence availability'),
+      '#plain_text' => $this->evidenceStatusLabel($status),
     ];
     $panel['summary'] = [
       '#type' => 'item',
@@ -370,6 +468,22 @@ class ReleaseForm extends ContentEntityForm {
       '#rows' => $rows,
       '#empty' => $this->t('No retained evidence details are available.'),
     ];
+    if (!empty($evidence['snapshots_truncated'])) {
+      $panel['truncated'] = [
+        '#type' => 'item',
+        '#markup' => $this->t('Only bounded retained evidence details are shown here; the tracked-change count remains complete.'),
+      ];
+    }
+    $releaseId = $this->entity->id();
+    if (is_numeric($releaseId)) {
+      $panel['provenance_link'] = [
+        '#type' => 'link',
+        '#title' => $this->t('Review full release provenance'),
+        '#url' => Url::fromRoute('changelogify.release_provenance', [
+          'changelogify_release' => (int) $releaseId,
+        ]),
+      ];
+    }
     return $panel;
   }
 

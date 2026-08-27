@@ -2,7 +2,8 @@ changelogify_ai.settings:
   type: config_object
   label: 'Changelogify AI settings'
   mapping:
-    consent_external_processing: { type: boolean, label: 'External processing consent' }
+    consent_external_processing:
+      { type: boolean, label: 'External processing consent' }
     provider:
       type: ai.provider_config
       label: 'Drupal AI provider configuration'
@@ -25,12 +26,15 @@ changelogify_ai.settings:
         actor_ids: { type: string, label: 'Actor ID treatment' }
         entity_ids: { type: string, label: 'Entity ID treatment' }
         paths: { type: string, label: 'Path treatment' }
-        unpublished_labels: { type: string, label: 'Unpublished-label treatment' }
+        unpublished_labels:
+          { type: string, label: 'Unpublished-label treatment' }
         bundle_labels: { type: string, label: 'Bundle-label treatment' }
-        changed_field_names: { type: string, label: 'Changed-field-name treatment' }
+        changed_field_names:
+          { type: string, label: 'Changed-field-name treatment' }
         correlation_ids: { type: string, label: 'Correlation ID treatment' }
         allowlisted_values: { type: ignore, label: 'Explicit value allowlist' }
-        allow_manual_humanization: { type: boolean, label: 'Allow manual-item humanization' }
+        allow_manual_humanization:
+          { type: boolean, label: 'Allow manual-item humanization' }
     organization_guidance: { type: string, label: 'Organization guidance' }
     output_language: { type: string, label: 'Output language' }
     history_retention_days: { type: integer, label: 'History retention days' }

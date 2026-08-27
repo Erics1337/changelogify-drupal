@@ -27,8 +27,7 @@
   animation: changelogify-ai-live 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   border-radius: 50%;
   background: var(--gin-color-green, #168856);
-  box-shadow: 0 0 0 0
-    color-mix(in srgb, var(--gin-color-green, #168856) 35%, transparent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--gin-color-green, #168856) 35%, transparent);
 }
 
 .changelogify-ai-job[data-terminal="true"] .changelogify-ai-job__live span {
@@ -90,8 +89,7 @@
 
 .changelogify-ai-job__stages li[aria-current="step"]::before {
   background: var(--gin-color-primary, #003cc5);
-  box-shadow: 0 2px 8px
-    color-mix(in srgb, var(--gin-color-primary, #003cc5) 35%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--gin-color-primary, #003cc5) 35%, transparent);
 }
 
 .changelogify-ai-job[data-state="requesting"] [data-job-stage="preparing"],
@@ -102,15 +100,10 @@
   border-color: var(--gin-color-green, #168856);
 }
 
-.changelogify-ai-job[data-state="requesting"]
-  [data-job-stage="preparing"]::before,
-.changelogify-ai-job[data-state="finalizing"]
-  [data-job-stage="preparing"]::before,
-.changelogify-ai-job[data-state="finalizing"]
-  [data-job-stage="requesting"]::before,
-.changelogify-ai-job[data-state="ready"]
-  .changelogify-ai-job__stages
-  li::before {
+.changelogify-ai-job[data-state="requesting"] [data-job-stage="preparing"]::before,
+.changelogify-ai-job[data-state="finalizing"] [data-job-stage="preparing"]::before,
+.changelogify-ai-job[data-state="finalizing"] [data-job-stage="requesting"]::before,
+.changelogify-ai-job[data-state="ready"] .changelogify-ai-job__stages li::before {
   background: var(--gin-color-green, #168856);
 }
 

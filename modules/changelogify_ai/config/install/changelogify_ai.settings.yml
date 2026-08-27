@@ -3,7 +3,7 @@ provider:
   use_default: true
   provider: ''
   model: ''
-  config: { }
+  config: {}
 eligibility:
   categories:
     - content
@@ -21,7 +21,7 @@ policy:
   bundle_labels: include
   changed_field_names: include
   correlation_ids: redact
-  allowlisted_values: { }
+  allowlisted_values: {}
   allow_manual_humanization: false
 organization_guidance: ''
 output_language: en

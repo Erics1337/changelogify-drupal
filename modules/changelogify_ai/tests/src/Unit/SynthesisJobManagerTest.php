@@ -41,7 +41,7 @@ final class SynthesisJobManagerTest extends TestCase {
     $jobId = $manager->start(
       $evidence,
       'public_product',
-      SynthesisContract::PRESET_DETAILED,
+      SynthesisContract::PRESET_AUTO,
       PromptTemplateRegistry::VERSION,
       'policy-scale',
       'eligibility-scale',

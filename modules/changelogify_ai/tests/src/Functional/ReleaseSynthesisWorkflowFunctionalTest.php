@@ -58,6 +58,10 @@ final class ReleaseSynthesisWorkflowFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('Create an AI-synthesized release');
     $this->assertSession()->pageTextContains('Exact AI evidence preview (2 considered');
     $this->assertSession()->pageTextContains('one provider request immediately');
+    $this->assertSession()->elementExists(
+      'css',
+      'input[name="ai_synthesis[length_preset]"][value="auto"][checked]',
+    );
 
     $this->submitForm([
       'ai_synthesis[profile]' => 'concise',
@@ -78,6 +82,14 @@ final class ReleaseSynthesisWorkflowFunctionalTest extends BrowserTestBase {
     ], 'Create AI draft release');
 
     $this->assertSession()->pageTextContains('Your AI-synthesized draft is ready for review');
+    $this->assertSession()->elementExists(
+      'css',
+      'form[data-changelogify-release-editor][data-changelogify-release-mode="preview"]',
+    );
+    $this->assertSession()->pageTextContains('1 summary note synthesized from 1 eligible change group.');
+    $this->assertSession()->buttonExists('Preview changelog');
+    $this->assertSession()->buttonExists('Edit summary notes');
+    $this->assertSession()->pageTextContains('Supporting evidence — 1 tracked change');
     $jobs = $this->container->get(SynthesisJobManager::class)->all();
     self::assertCount(1, $jobs);
     $job = reset($jobs);
@@ -112,7 +124,7 @@ final class ReleaseSynthesisWorkflowFunctionalTest extends BrowserTestBase {
         ],
       ],
       'public_product',
-      SynthesisContract::PRESET_STANDARD,
+      SynthesisContract::PRESET_AUTO,
       PromptTemplateRegistry::VERSION,
       'policy-test',
       'eligibility-test',
@@ -126,6 +138,7 @@ final class ReleaseSynthesisWorkflowFunctionalTest extends BrowserTestBase {
     $payload = json_decode($this->getSession()->getPage()->getContent(), TRUE, flags: JSON_THROW_ON_ERROR);
     self::assertSame('preparing', $payload['state']);
     self::assertSame(['completed' => 0, 'total' => 1], $payload['progress']);
+    self::assertSame('Auto', $payload['details']['length']);
     self::assertArrayNotHasKey('queue', $payload);
     self::assertArrayNotHasKey('evidence', $payload);
     self::assertArrayNotHasKey('instructions', $payload);

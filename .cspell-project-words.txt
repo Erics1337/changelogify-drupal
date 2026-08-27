@@ -4,9 +4,12 @@ BYOK
 DDEV
 Erics
 FFFD
+Finalizer
 Ollama
+OpenRouter
 nums
 redactions
+srgb
 Salut
 francaise
 française

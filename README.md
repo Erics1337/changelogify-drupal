@@ -87,10 +87,12 @@ Here you'll see:
 
 When the optional AI submodule is ready, the preview also offers an AI-first
 path that considers all eligible evidence by default. Editors review the exact
-privacy-filtered boundary, choose a profile and Short/Standard/Detailed length,
-and may add one-time exclusions. Pressing **Create AI draft release** sends the
+privacy-filtered boundary, choose a profile and default Auto grouping or a
+Short/Standard/Detailed limit, and may add one-time exclusions. Pressing
+**Create AI draft release** sends the
 reviewed boundary in one provider request and, on success, opens an unpublished
-draft for review. See [optional BYOK AI
+draft in a public-style preview with structured summary-note editing and
+collapsed supporting evidence. See [optional BYOK AI
 drafting](docs/AI_DRAFTING.md).
 
 The commit step revalidates the selected evidence; see the

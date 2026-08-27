@@ -41,6 +41,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $user = $this->drupalCreateUser([
       'administer changelogify',
       'manage changelogify releases',
+      'administer modules',
       'access administration pages',
     ]);
 
@@ -60,10 +61,15 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Changelogify');
     $this->assertSession()->elementExists('css', '.changelogify-dashboard');
+    $this->assertSession()->elementExists('css', '.changelogify-brand');
+    $this->assertSession()->pageTextContains('Your release workspace');
     $this->assertSession()->elementsCount('css', '.changelogify-stats .stat-card', 3);
     $this->assertSession()->responseContains('changelogify.dashboard.css');
     $this->assertSession()->linkExists('View captured events');
     $this->assertSession()->linkByHrefExists('/admin/content/changelogify/events');
+    $this->assertSession()->pageTextContains('Make release notes shine with AI');
+    $this->assertSession()->linkExists('Set up AI drafting');
+    $this->assertSession()->linkByHrefExists('/admin/modules#module-changelogify-ai');
     $this->assertSession()->elementExists(
       'css',
       '.changelogify-stats a.stat-card[href*="date_from"]',
@@ -562,7 +568,8 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('removed');
     $this->drupalGet($release->toUrl('edit-form'));
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->pageTextContains('Based on 0 tracked change(s) · Evidence details removed');
+    $this->assertSession()->pageTextContains('Supporting evidence — 0 tracked changes');
+    $this->assertSession()->pageTextContains('Evidence details removed');
     $this->assertSession()->pageTextContains('Technical details');
     $this->assertSession()->elementNotExists(
       'css',
@@ -669,7 +676,19 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Draft release "January release" has been created.');
     $this->assertSession()->responseContains('changelogify.editor.js');
-    $this->assertSession()->pageTextContains('Based on 1 tracked change(s) · Evidence available');
+    $this->assertSession()->pageTextContains('Supporting evidence — 1 tracked change');
+    $this->assertSession()->pageTextContains('Evidence available');
+    $this->assertSession()->buttonExists('Preview changelog');
+    $this->assertSession()->buttonExists('Edit summary notes');
+    $this->assertSession()->elementExists(
+      'css',
+      'form[data-changelogify-release-editor][data-changelogify-release-mode="edit"]',
+    );
+    $this->assertSession()->elementExists(
+      'css',
+      '.changelogify-release-preview .release-section--fixed li',
+    );
+    $this->assertSession()->pageTextContains('This preview shows the saved release. Save your edits to refresh it.');
     $this->assertSession()->elementExists(
       'css',
       'a[href*="/admin/content/changelogify/events/"]',

@@ -167,6 +167,7 @@ function changelogify_ai_form_changelogify_release_form_alter(array &$form, Form
     '#description' => t('Generate reviewable wording for selected current notes. Nothing is saved or published until you explicitly accept suggestions.'),
     '#open' => $form_state->has('changelogify_ai_release_suggestion'),
     '#weight' => 4,
+    '#attributes' => ['class' => ['changelogify-release-edit-only']],
   ];
   if ($release->getEditorialState() === 'archived') {
     $form['ai_workspace']['archived'] = [
@@ -609,11 +610,12 @@ function changelogify_ai_form_changelogify_generate_release_form_alter(array &$f
     '#type' => 'radios',
     '#title' => t('Summary length'),
     '#options' => [
+      SynthesisContract::PRESET_AUTO => t('Auto — AI chooses the appropriate number of notes'),
       SynthesisContract::PRESET_SHORT => t('Short — up to 5 notes'),
       SynthesisContract::PRESET_STANDARD => t('Standard — up to 12 notes'),
       SynthesisContract::PRESET_DETAILED => t('Detailed — up to 25 notes'),
     ],
-    '#default_value' => $form_state->getValue(['ai_synthesis', 'length_preset'], SynthesisContract::PRESET_STANDARD),
+    '#default_value' => $form_state->getValue(['ai_synthesis', 'length_preset'], SynthesisContract::PRESET_AUTO),
   ];
   $form['ai_synthesis']['instructions'] = [
     '#type' => 'textarea',
@@ -764,6 +766,8 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
       'evidence_fingerprint' => $boundary['fingerprint'],
       'profile' => $profile,
       'length_preset' => $lengthPreset,
+      'prompt_version' => PromptTemplateRegistry::VERSION,
+      'synthesis_version' => SynthesisContract::VERSION,
       'instructions' => $instructions,
       'exclusions' => $boundary['exclusions'],
       'policy_version' => $boundary['policy_version'],
@@ -794,7 +798,7 @@ function changelogify_ai_generate_draft_submit(array &$form, FormStateInterface 
       \Drupal::messenger()->addStatus(t('Your AI-synthesized draft is ready for review. Nothing was published automatically.'));
       $form_state->setRedirect('entity.changelogify_release.edit_form', [
         'changelogify_release' => (int) $release->id(),
-      ]);
+      ], ['query' => ['display' => 'preview']]);
       return;
     }
     $job = $jobs->get($startResult->jobId);

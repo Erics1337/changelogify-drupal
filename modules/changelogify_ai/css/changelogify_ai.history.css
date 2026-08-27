@@ -19,10 +19,10 @@
 @media (max-width: 48rem) {
   .changelogify-ai-history thead {
     position: absolute;
-    width: 1px;
-    height: 1px;
     overflow: hidden;
     clip: rect(0 0 0 0);
+    width: 1px;
+    height: 1px;
   }
 
   .changelogify-ai-history,

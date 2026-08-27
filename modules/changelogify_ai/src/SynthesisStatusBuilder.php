@@ -41,7 +41,7 @@ final class SynthesisStatusBuilder {
       ],
       'details' => [
         'profile' => (string) ($job['profile'] ?? ''),
-        'length' => (string) ($job['length_preset'] ?? ''),
+        'length' => $this->lengthLabel((string) ($job['length_preset'] ?? '')),
         'provider' => (string) ($job['provider_id'] ?? ''),
         'model' => (string) ($job['model_id'] ?? ''),
         'input_tokens' => max(0, (int) ($job['input_tokens'] ?? 0)),
@@ -56,7 +56,7 @@ final class SynthesisStatusBuilder {
         ? Url::fromRoute('changelogify_ai.cancel_operation', ['operation_id' => $job['id']])->toString()
         : NULL,
       'release_url' => $releaseId > 0
-        ? Url::fromRoute('entity.changelogify_release.edit_form', ['changelogify_release' => $releaseId])->toString()
+        ? Url::fromRoute('entity.changelogify_release.edit_form', ['changelogify_release' => $releaseId], ['query' => ['display' => 'preview']])->toString()
         : NULL,
       'provenance_url' => $releaseId > 0
         ? Url::fromRoute('changelogify.release_provenance', ['changelogify_release' => $releaseId])->toString()
@@ -64,6 +64,19 @@ final class SynthesisStatusBuilder {
       'history_url' => Url::fromRoute('changelogify_ai.operation_history')->toString(),
       'generate_url' => Url::fromRoute('changelogify.generate_release')->toString(),
     ];
+  }
+
+  /**
+   * Returns an editor-facing synthesis-length label.
+   */
+  private function lengthLabel(string $length): string {
+    return (string) match ($length) {
+      'auto' => $this->t('Auto'),
+      'short' => $this->t('Short'),
+      'standard' => $this->t('Standard'),
+      'detailed' => $this->t('Detailed'),
+      default => '',
+    };
   }
 
   /**

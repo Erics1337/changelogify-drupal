@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\changelogify_ai\Unit;
 
 use Drupal\changelogify_ai\ResultValidator;
+use Drupal\changelogify_ai\PromptTemplateRegistry;
 use Drupal\changelogify_ai\Summarization\SummarizationItem;
 use Drupal\changelogify_ai\Summarization\SummarizationRequest;
 use Drupal\changelogify_ai\Summarization\SummarizationResult;
@@ -80,6 +81,71 @@ final class ResultValidatorTest extends TestCase {
       ['change-1'],
       $this->synthesisRequest(SynthesisContract::STAGE_FINAL, SynthesisContract::PRESET_SHORT),
     );
+  }
+
+  /**
+   * Auto remains bounded even though the model chooses the note count.
+   */
+  public function testEnforcesAutoSafetyBound(): void {
+    $items = [];
+    for ($index = 1; $index <= 26; $index++) {
+      $items[] = new SummarizationItem("item-{$index}", 'changed', "Change {$index}.", ['change-1']);
+    }
+    $this->expectException(\LengthException::class);
+    (new ResultValidator())->validate(
+      new SummarizationResult('completed', $items),
+      ['change-1'],
+      $this->synthesisRequest(SynthesisContract::STAGE_FINAL, SynthesisContract::PRESET_AUTO),
+    );
+  }
+
+  /**
+   * Public product output must honor version-3 maintenance omissions.
+   */
+  public function testEnforcesMandatoryEditorialEvidenceOmissions(): void {
+    $request = new SummarizationRequest(
+      SynthesisContract::OPERATION,
+      'public_product',
+      [
+        'public-change' => ['summary' => 'Created Basic block: News'],
+        'internal-provider' => [
+          'summary' => 'Installed module: ai_provider_openrouter',
+          'event_types' => ['module_installed'],
+        ],
+      ],
+      PromptTemplateRegistry::VERSION,
+      '1',
+      'mandatory-omissions',
+      '',
+      SynthesisContract::VERSION,
+      SynthesisContract::STAGE_FINAL,
+      SynthesisContract::PRESET_AUTO,
+    );
+    $validator = new ResultValidator();
+    $validator->validate(
+      new SummarizationResult('completed', [
+        new SummarizationItem('item-1', 'added', 'Created the News block.', ['public-change']),
+      ], ['internal-provider']),
+      ['public-change', 'internal-provider'],
+      $request,
+    );
+
+    foreach ([
+      new SummarizationResult('completed', [
+        new SummarizationItem('item-1', 'added', 'Installed a provider.', ['internal-provider']),
+      ]),
+      new SummarizationResult('completed', [
+        new SummarizationItem('item-1', 'added', 'Created the News block.', ['public-change']),
+      ]),
+    ] as $invalid) {
+      try {
+        $validator->validate($invalid, ['public-change', 'internal-provider'], $request);
+        self::fail('A mandatory editorial omission was not enforced.');
+      }
+      catch (\UnexpectedValueException) {
+        self::addToAssertionCount(1);
+      }
+    }
   }
 
   /**

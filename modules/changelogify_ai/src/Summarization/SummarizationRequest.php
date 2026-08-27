@@ -31,7 +31,7 @@ final class SummarizationRequest {
    * @param string|null $synthesisStage
    *   Intermediate or final synthesis stage.
    * @param string|null $lengthPreset
-   *   Short, standard, or detailed final-output bound.
+   *   Auto, short, standard, or detailed final-output bound.
    */
   public function __construct(
     public readonly string $operation,
