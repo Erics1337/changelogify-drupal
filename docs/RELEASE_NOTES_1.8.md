@@ -84,8 +84,9 @@ credential, or provider account.
    to one unpublished draft, reuses an equivalent concurrent submission, and
    reports responsive operation history, provenance, and coverage. Confirm
    Drupal cron never contacts the provider.
-7. Complete the cloud/local provider compatibility checks in
-   [AI_DRAFTING.md](AI_DRAFTING.md) before production use.
+7. Complete the applicable provider compatibility checks in
+   [AI_DRAFTING.md](AI_DRAFTING.md) before production use. Local-runtime
+   compatibility must be tested separately before it is claimed.
 
 No data migration is required merely to keep using deterministic generation.
 Existing releases and version 1 provenance remain supported; synthesized

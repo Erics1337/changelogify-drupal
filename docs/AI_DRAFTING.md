@@ -149,8 +149,9 @@ every eligible event becomes a final note.
 
 ## Manual provider compatibility check
 
-Use non-sensitive fixtures and test at least one cloud provider and one local
-Drupal AI provider. Automated tests use `FakeSummarizer` and never make paid or
+Use non-sensitive fixtures and test at least one supported cloud provider.
+Test a local Drupal AI provider separately before claiming compatibility with
+that runtime. Automated tests use `FakeSummarizer` and never make paid or
 credentialed requests.
 
 For each provider:

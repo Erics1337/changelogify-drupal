@@ -70,9 +70,11 @@ lane installs the real dependency and runs that group.
       against settings defaults, captured metadata, permissions, routes, cron
       behavior, and uninstall behavior.
 - [ ] For a release containing Enhanced AI Summaries, run the documented
-      non-sensitive cloud and local provider checks in [AI_DRAFTING.md](AI_DRAFTING.md).
-      Record provider/model versions and results without recording credentials
-      or payload text. Automated fake-provider tests do not replace this check.
+      non-sensitive provider checks in [AI_DRAFTING.md](AI_DRAFTING.md) against
+      at least one supported cloud provider. Record provider/model versions and
+      results without recording credentials or payload text. Automated
+      fake-provider tests do not replace this check. Local-provider checks are
+      required before claiming compatibility with a specific local runtime.
 - [ ] Confirm one Generate action makes one synthesis provider request containing
       the reviewed evidence; test duplicate protection, stale-evidence rollback,
       exactly-once unpublished finalization, private coverage, and terminal cleanup.

@@ -6,8 +6,10 @@ namespace Drupal\changelogify_ai\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DateFormatterInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Link;
 use Drupal\Core\Url;
+use Drupal\changelogify\Entity\ChangelogifyReleaseInterface;
 use Drupal\changelogify_ai\AiOperationHistoryRepository;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -21,6 +23,7 @@ final class OperationHistoryController extends ControllerBase {
     private readonly AiOperationHistoryRepository $history,
     private readonly DateFormatterInterface $dateFormatter,
     private readonly RequestStack $requestStack,
+    private readonly EntityTypeManagerInterface $releaseEntityTypeManager,
   ) {}
 
   /**
@@ -31,6 +34,7 @@ final class OperationHistoryController extends ControllerBase {
       $container->get(AiOperationHistoryRepository::class),
       $container->get('date.formatter'),
       $container->get('request_stack'),
+      $container->get('entity_type.manager'),
     );
   }
 
@@ -43,13 +47,26 @@ final class OperationHistoryController extends ControllerBase {
     $type = is_string($query?->get('type')) ? (string) $query->get('type') : '';
     $date = is_string($query?->get('date')) ? (string) $query->get('date') : '';
     $since = $date !== '' ? strtotime($date . ' 00:00:00') : FALSE;
-    $rows = [];
-    foreach ($this->history->page([
+    $operations = $this->history->page([
       'status' => $status,
       'type' => $type,
       'since' => is_int($since) ? $since : 0,
-    ]) as $operation) {
-      $rows[] = $this->row($operation);
+    ]);
+    $releaseIds = array_values(array_unique(array_filter(array_map(
+      static fn (array $operation): int => max(0, (int) ($operation['release_id'] ?? 0)),
+      $operations,
+    ))));
+    $releases = $releaseIds === []
+      ? []
+      : $this->releaseEntityTypeManager->getStorage('changelogify_release')->loadMultiple($releaseIds);
+    $rows = [];
+    foreach ($operations as $operation) {
+      $releaseId = (int) ($operation['release_id'] ?? 0);
+      $release = $releases[$releaseId] ?? NULL;
+      $rows[] = $this->row(
+        $operation,
+        $release instanceof ChangelogifyReleaseInterface ? $release : NULL,
+      );
     }
 
     return [
@@ -81,6 +98,11 @@ final class OperationHistoryController extends ControllerBase {
         '#rows' => $rows,
         '#empty' => $this->t('No retained AI operations match these filters.'),
       ],
+      'ordering_help' => [
+        '#type' => 'item',
+        '#markup' => $this->t('Operations still processing or awaiting editorial review are shown first; terminal operations follow in newest-first order.'),
+        '#weight' => -1,
+      ],
       'pager' => ['#type' => 'pager'],
       '#attached' => ['library' => ['changelogify_ai/history']],
       '#cache' => ['max-age' => 0],
@@ -90,9 +112,10 @@ final class OperationHistoryController extends ControllerBase {
   /**
    * Builds one responsive table row.
    */
-  private function row(array $operation): array {
+  private function row(array $operation, ?ChangelogifyReleaseInterface $release): array {
     $id = (string) $operation['operation_id'];
-    $isSynthesis = ($operation['operation_type'] ?? '') === 'synthesize_release';
+    $operationType = (string) ($operation['operation_type'] ?? '');
+    $isSynthesis = $operationType === 'synthesize_release';
     $status = (string) ($operation['status'] ?? 'unknown');
     $progress = $isSynthesis ? match ($status) {
       'prepared' => $this->t('Request prepared'),
@@ -101,16 +124,23 @@ final class OperationHistoryController extends ControllerBase {
         ? $this->t('One request sent')
         : $this->t('Request not sent'),
     } : $this->t('Not applicable');
-    $result = in_array($status, ['prepared', 'running', 'completed'], TRUE)
-      ? $this->t('In progress')
-      : $this->t('No draft');
-    if ((int) ($operation['release_id'] ?? 0) > 0) {
+    $result = match (TRUE) {
+      in_array($status, ['prepared', 'running'], TRUE) => $this->t('In progress'),
+      $status === 'completed' && !$isSynthesis => $this->t('Suggestion generated'),
+      default => $this->t('No draft'),
+    };
+    if ($release !== NULL && $release->access('update')) {
       $result = Link::fromTextAndUrl(
-        $this->t('Review draft'),
+        $release->isPublished() ? $this->t('Open release') : $this->t('Review draft'),
         Url::fromRoute('entity.changelogify_release.edit_form', [
-          'changelogify_release' => (int) $operation['release_id'],
+          'changelogify_release' => (int) $release->id(),
         ]),
       );
+    }
+    elseif ((int) ($operation['release_id'] ?? 0) > 0) {
+      $result = $release === NULL
+        ? $this->t('Release no longer available')
+        : $this->t('Release access unavailable');
     }
     $actions = [];
     if ($isSynthesis) {
@@ -129,7 +159,10 @@ final class OperationHistoryController extends ControllerBase {
         'data-label' => $this->t('Created'),
       ],
       ['data' => $label, 'data-label' => $this->t('Operation')],
-      ['data' => $this->statusLabel($status), 'data-label' => $this->t('Status')],
+      [
+        'data' => $this->statusLabel($status, $operationType, (string) ($operation['disposition'] ?? '')),
+        'data-label' => $this->t('Status'),
+      ],
       ['data' => $progress, 'data-label' => $this->t('Progress')],
       ['data' => $result, 'data-label' => $this->t('Result')],
       [
@@ -147,11 +180,14 @@ final class OperationHistoryController extends ControllerBase {
    * Returns translated status filter options.
    */
   private function statusOptions(): array {
-    $options = [];
-    foreach (['prepared', 'running', 'completed', 'finalized', 'failed', 'cancelled'] as $status) {
-      $options[$status] = $this->statusLabel($status);
-    }
-    return $options;
+    return [
+      'prepared' => $this->t('Prepared'),
+      'running' => $this->t('Processing'),
+      'completed' => $this->t('Completed'),
+      'finalized' => $this->t('Draft ready'),
+      'failed' => $this->t('Failed'),
+      'cancelled' => $this->t('Cancelled'),
+    ];
   }
 
   /**
@@ -161,6 +197,7 @@ final class OperationHistoryController extends ControllerBase {
     return [
       'synthesize_release' => $this->t('Release synthesis'),
       'humanize_item' => $this->t('Release-note rewrite'),
+      'humanize_release' => $this->t('Whole-release rewrite'),
       'complete_draft' => $this->t('Draft completion'),
     ];
   }
@@ -168,10 +205,16 @@ final class OperationHistoryController extends ControllerBase {
   /**
    * Converts an internal status to an editorial label.
    */
-  private function statusLabel(string $status): string {
+  private function statusLabel(string $status, string $operationType, string $disposition): string {
     return (string) match ($status) {
       'prepared' => $this->t('Prepared'), 'running' => $this->t('Processing'),
-      'completed' => $this->t('Creating draft'), 'finalized' => $this->t('Draft ready'),
+      'completed' => match (TRUE) {
+        $operationType === 'synthesize_release' => $this->t('Creating draft'),
+        $disposition === 'accepted' => $this->t('Applied'),
+        $disposition === 'rejected' => $this->t('Dismissed'),
+        default => $this->t('Suggestion ready'),
+      },
+      'finalized' => $this->t('Draft ready'),
       'failed' => $this->t('Failed'), 'cancelled' => $this->t('Cancelled'),
       default => $this->t('Unavailable'),
     };

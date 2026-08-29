@@ -25,12 +25,20 @@ product omissions. Changelogify rejected a non-conforming result and created no
 draft, confirming the safe-failure path. Operators remain responsible for
 selecting a model that follows the configured editorial contract.
 
-The maintainer explicitly waived the local Ollama provider check for this
-release-readiness pass.
+The 1.8 compatibility claim is intentionally limited to the tested cloud
+provider path. Local-provider and Ollama compatibility are deferred and are not
+claimed by this release-readiness record.
+
+The release architecture intentionally sends the complete reviewed evidence
+boundary in one immediate provider request. Pre-release hierarchical batching,
+intermediate candidates, queue workers, and background processing were removed
+before the final release candidate because they added operational complexity
+without a demonstrated 1.8 requirement. Provider context limits therefore
+remain an explicit operator constraint and oversized requests fail safely.
 
 ## Automated and browser checks
 
-- PHPUnit: 230 tests and 2,333 assertions passed locally.
+- PHPUnit: 231 tests and 2,351 assertions passed locally.
 - PHPCS, PHPStan, ESLint, Stylelint, Composer validation, project spelling, and
   `git diff --check` passed for the release tree.
 - Desktop and narrow-screen checks covered Preview/Edit controls, public date
