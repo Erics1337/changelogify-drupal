@@ -65,7 +65,8 @@ drush en changelogify -y
 
 ### 1. Dashboard
 
-Navigate to **Configuration → Development → Changelogify** or visit:
+Navigate to **Content → Changelogify** or use Changelogify's **Configure**
+link on the Extend page. The existing dashboard URL remains:
 
 ```
 /admin/config/development/changelogify
@@ -79,7 +80,7 @@ Here you'll see:
 
 ### 2. Generate a Release
 
-1. Click **"Generate New Release"**
+1. Click **Generate release**
 2. Choose: "Since last release" or "Custom date range"
 3. Preview the bounded candidate change sets without creating a release
 4. Include, exclude, or reassign candidates and optionally set a title/version
@@ -141,7 +142,8 @@ template variables, accessibility markup, and cache behavior.
 
 ## ⚙️ Configuration
 
-Visit **Configuration → Development → Changelogify → Settings** to configure:
+Visit **Configuration → Content authoring → Changelogify settings** to
+configure:
 
 | Setting                   | Description                          |
 | ------------------------- | ------------------------------------ |
@@ -211,8 +213,9 @@ declared Drupal 10.3/PHP 8.1 floor, rolling Drupal 10 and 11 releases, and the
 maximum supported PHP version; PHPUnit, PHPStan, PHPCS, and applicable frontend
 lint jobs must all pass.
 
-See the [Changelogify 1.8 release notes](docs/RELEASE_NOTES_1.8.md) for
-user-visible changes and upgrade instructions.
+See the [Changelogify 1.8.1 release notes](docs/RELEASE_NOTES_1.8.1.md) for the
+latest user-visible changes and upgrade instructions. The complete Enhanced AI
+Summaries introduction remains in the [1.8.0 release notes](docs/RELEASE_NOTES_1.8.md).
 
 ### Upgrades and uninstall
 

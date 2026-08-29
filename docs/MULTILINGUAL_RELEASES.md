@@ -20,7 +20,8 @@ is published.
 
 ## Missing translations
 
-Choose the public behavior at **Configuration > Development > Changelogify**:
+Choose the public behavior at **Configuration > Content authoring >
+Changelogify settings**:
 
 - **Hide the release** omits a release when the requested translation is
   missing or unpublished.

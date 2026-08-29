@@ -1,5 +1,5 @@
 changelogify_ai.settings:
   route_name: changelogify_ai.settings
-  title: 'AI drafting'
-  base_route: changelogify.dashboard
-  weight: 20
+  title: 'AI settings'
+  parent_id: changelogify.settings
+  weight: 10

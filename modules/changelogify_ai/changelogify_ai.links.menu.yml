@@ -1,0 +1,6 @@
+changelogify_ai.settings:
+  title: 'Changelogify AI'
+  route_name: changelogify_ai.settings
+  description: 'Configure AI-assisted release drafting, privacy, and evidence eligibility.'
+  parent: ai.admin_config_content
+  weight: 10

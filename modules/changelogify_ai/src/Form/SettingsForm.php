@@ -301,6 +301,12 @@ final class SettingsForm extends ConfigFormBase {
       '#title' => $this->t('Advanced operations'),
       '#description' => $this->t('Most sites can keep this default. Change it only to meet operation-history retention requirements.'),
       '#open' => FALSE,
+      'history_link' => [
+        '#type' => 'link',
+        '#title' => $this->t('View AI operation history'),
+        '#url' => Url::fromRoute('changelogify_ai.operation_history'),
+        '#attributes' => ['class' => ['button', 'button--small']],
+      ],
       'history_retention_days' => $form['history_retention_days'],
     ];
     unset($form['history_retention_days']);

@@ -32,7 +32,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected static $modules = ['changelogify', 'node', 'user'];
+  protected static $modules = ['block', 'changelogify', 'node', 'user'];
 
   /**
    * Tests that the dashboard page loads.
@@ -43,6 +43,7 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
       'manage changelogify releases',
       'administer modules',
       'access administration pages',
+      'access content overview',
     ]);
 
     $this->drupalLogin($user);
@@ -84,6 +85,63 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->drupalGet('/admin/content/changelogify/events');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Visible event log entry');
+  }
+
+  /**
+   * Tests discoverable, consistent operational and configuration navigation.
+   */
+  public function testChangelogifyNavigation(): void {
+    $this->drupalPlaceBlock('local_tasks_block');
+    $user = $this->drupalCreateUser([
+      'administer changelogify',
+      'manage changelogify releases',
+      'administer modules',
+      'access administration pages',
+      'access content overview',
+    ]);
+    $this->drupalLogin($user);
+
+    $this->drupalGet('/admin/config/development/changelogify');
+    $this->assertSession()->statusCodeEquals(200);
+    foreach ([
+      'Dashboard' => '/admin/config/development/changelogify',
+      'Generate release' => '/admin/config/development/changelogify/generate',
+      'Releases' => '/admin/content/changelogify/releases',
+      'View captured events' => '/admin/content/changelogify/events',
+      'Settings' => '/admin/config/development/changelogify/settings',
+    ] as $label => $href) {
+      $this->assertSession()->linkExists($label);
+      $this->assertSession()->linkByHrefExists($href);
+    }
+    $tabs = '//h2[normalize-space()="Primary tabs"]/following-sibling::ul[1]';
+    $this->assertSession()->elementTextContains('xpath', $tabs, 'Dashboard');
+    $this->assertSession()->elementTextContains('xpath', $tabs, 'Releases');
+    $this->assertSession()->elementTextContains('xpath', $tabs, 'Settings');
+    $this->assertSession()->elementTextNotContains('xpath', $tabs, 'Generate release');
+    $this->assertSession()->elementTextNotContains('xpath', $tabs, 'Captured events');
+
+    // The operational tabs remain available away from the dashboard.
+    $this->drupalGet('/admin/content/changelogify/releases');
+    $this->assertSession()->linkExists('Dashboard');
+    $this->assertSession()->linkExists('Settings');
+
+    $menuManager = \Drupal::service('plugin.manager.menu.link');
+    self::assertFalse($menuManager->hasDefinition('changelogify.admin'));
+    self::assertSame('system.admin_config_content', $menuManager->getDefinition('changelogify.settings')['parent']);
+
+    $moduleInfo = \Drupal::service('extension.list.module')->getExtensionInfo('changelogify');
+    self::assertSame('Changelogify', $moduleInfo['package']);
+    self::assertSame('changelogify.settings', $moduleInfo['configure']);
+
+    $this->drupalGet('/admin/content');
+    $this->assertSession()->linkExists('Changelogify');
+    $this->assertSession()->linkByHrefExists('/admin/content/changelogify');
+    $this->drupalGet('/admin/content/changelogify');
+    $this->assertSession()->addressEquals('/admin/config/development/changelogify');
+    $this->assertSession()->pageTextContains('Your release workspace');
+
+    $this->drupalGet('/admin/modules');
+    $this->assertSession()->linkByHrefExists('/admin/config/development/changelogify/settings');
   }
 
   /**
@@ -766,6 +824,8 @@ class ChangelogifyFunctionalTest extends BrowserTestBase {
     $this->drupalGet('/admin/config/development/changelogify/generate');
     $this->submitForm(['mode' => 'since_last'], 'Preview changes');
     $this->assertSession()->pageTextContains('Evidence removed after preview');
+    $this->assertSession()->pageTextContains('Standard draft');
+    $this->assertSession()->pageTextContains('No information is sent to an AI provider.');
     $eventId = 'changeset-' . substr(hash('sha256', 'event:' . $event->id()), 0, 24);
     \Drupal::entityTypeManager()->getStorage('changelogify_event')->delete([$event]);
     $this->submitForm([

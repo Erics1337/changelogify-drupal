@@ -7,6 +7,13 @@ changelogify.dashboard:
   requirements:
     _permission: 'administer changelogify'
 
+changelogify.content_entry:
+  path: '/admin/content/changelogify'
+  defaults:
+    _controller: '\Drupal\changelogify\Controller\DashboardController::contentEntry'
+  requirements:
+    _permission: 'administer changelogify'
+
 changelogify.settings:
   path: '/admin/config/development/changelogify/settings'
   defaults:

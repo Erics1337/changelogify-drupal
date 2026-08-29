@@ -12,6 +12,7 @@ use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\Routing\LocalRedirectResponse;
 use Drupal\Core\Url;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -19,6 +20,14 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * Dashboard controller for Changelogify.
  */
 class DashboardController extends ControllerBase {
+
+  /**
+   * Redirects the Content workspace entry to the established dashboard URL.
+   */
+  public function contentEntry(): LocalRedirectResponse {
+    $dashboard = Url::fromRoute('changelogify.dashboard')->toString();
+    return new LocalRedirectResponse($dashboard);
+  }
 
   /**
    * Constructs a DashboardController.
@@ -147,18 +156,10 @@ class DashboardController extends ControllerBase {
         '#attributes' => ['class' => ['changelogify-actions']],
         'generate' => [
           '#type' => 'link',
-          '#title' => $this->t('Generate New Release'),
+          '#title' => $this->t('Generate release'),
           '#url' => Url::fromRoute('changelogify.generate_release'),
           '#attributes' => [
             'class' => ['button', 'button--primary'],
-          ],
-        ],
-        'view_releases' => [
-          '#type' => 'link',
-          '#title' => $this->t('View All Releases'),
-          '#url' => Url::fromRoute('entity.changelogify_release.collection'),
-          '#attributes' => [
-            'class' => ['button'],
           ],
         ],
         'view_events' => [

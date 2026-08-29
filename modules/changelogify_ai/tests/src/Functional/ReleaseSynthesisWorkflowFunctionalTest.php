@@ -55,7 +55,8 @@ final class ReleaseSynthesisWorkflowFunctionalTest extends BrowserTestBase {
 
     $this->drupalGet('/admin/config/development/changelogify/generate');
     $this->submitForm(['mode' => 'since_last'], 'Preview changes');
-    $this->assertSession()->pageTextContains('Create an AI-synthesized release');
+    $this->assertSession()->pageTextContains('AI summary draft (optional)');
+    $this->assertSession()->pageTextContains('The Include controls above apply only to the Standard draft below.');
     $this->assertSession()->pageTextContains('Exact AI evidence preview (2 considered');
     $this->assertSession()->pageTextContains('one provider request immediately');
     $this->assertSession()->elementExists(

@@ -29,7 +29,7 @@ final class ChangelogifyAiFunctionalTest extends BrowserTestBase {
   protected static $modules = ['block', 'changelogify', 'ai', 'changelogify_ai'];
 
   /**
-   * Tests that AI configuration is a standard dashboard tab.
+   * Tests that AI configuration is grouped with general settings.
    */
   public function testDashboardAiTab(): void {
     $this->drupalPlaceBlock('local_tasks_block');
@@ -43,8 +43,19 @@ final class ChangelogifyAiFunctionalTest extends BrowserTestBase {
     $this->drupalGet('/admin/config/development/changelogify');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextNotContains('Make release notes shine with AI');
-    $this->assertSession()->linkExists('AI drafting');
+    $this->assertSession()->linkExists('Settings');
+
+    $this->drupalGet('/admin/config/development/changelogify/settings');
+    $this->assertSession()->linkExists('General');
+    $this->assertSession()->linkExists('AI settings');
     $this->assertSession()->linkByHrefExists('/admin/config/development/changelogify/ai');
+
+    $menuDefinition = \Drupal::service('plugin.manager.menu.link')
+      ->getDefinition('changelogify_ai.settings');
+    self::assertSame('ai.admin_config_content', $menuDefinition['parent']);
+    $moduleInfo = \Drupal::service('extension.list.module')->getExtensionInfo('changelogify_ai');
+    self::assertSame('Changelogify', $moduleInfo['package']);
+    self::assertSame('changelogify_ai.settings', $moduleInfo['configure']);
   }
 
   /**

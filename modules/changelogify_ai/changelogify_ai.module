@@ -582,8 +582,8 @@ function changelogify_ai_form_changelogify_generate_release_form_alter(array &$f
   $form['ai_synthesis'] = [
     '#type' => 'details',
     '#tree' => TRUE,
-    '#title' => t('Create an AI-synthesized release'),
-    '#description' => t('AI considers every site-eligible change in this window by default and produces a concise categorized summary. Deterministic draft creation remains available below.'),
+    '#title' => t('AI summary draft (optional)'),
+    '#description' => t('Choose this method when you want AI to group and rewrite all site-eligible evidence in this release window. The Include controls above apply only to the Standard draft below.'),
     '#open' => TRUE,
     '#weight' => 18,
   ];

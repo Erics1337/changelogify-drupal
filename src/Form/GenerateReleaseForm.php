@@ -410,7 +410,23 @@ class GenerateReleaseForm extends FormBase {
         '#markup' => $this->t('No change sets were found in this release window.'),
       ];
     }
+    $form['standard_draft'] = [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['changelogify-drafting-method']],
+      '#weight' => 20,
+      'title' => [
+        '#type' => 'html_tag',
+        '#tag' => 'h2',
+        '#value' => $this->t('Standard draft'),
+      ],
+      'description' => [
+        '#type' => 'html_tag',
+        '#tag' => 'p',
+        '#value' => $this->t('Create a draft from only the changes marked Include above. No information is sent to an AI provider.'),
+      ],
+    ];
     $form['actions'] = ['#type' => 'actions'];
+    $form['actions']['#weight'] = 21;
     $form['actions']['commit'] = [
       '#type' => 'submit',
       '#value' => $this->t('Create draft release'),
